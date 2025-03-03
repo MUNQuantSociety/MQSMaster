@@ -57,8 +57,10 @@ The codebase is organized to allow future extensibility (e.g., backtesting, live
 
 ### Clone the repository:
 
-`git clone [<repository-url>](https://github.com/joshuakatt/MQSMaster/tree/main)`
-`cd [<repository-folder>](https://github.com/joshuakatt/MQSMaster/tree/main)`
+In the folder you want to create the repo:
+
+`git clone https://github.com/joshuakatt/MQSMaster/tree/main`
+`cd MQSMaster`
 
 ### Set up a Virtual Environment:
 
@@ -67,14 +69,14 @@ The codebase is organized to allow future extensibility (e.g., backtesting, live
 
 Install the Requirements:
 Use the following command (which ensures a clean installation using only binary wheels):
+
 `pip install --no-cache-dir --only-binary :all: -r requirements.txt`
 
-The requirements.txt should include packages such as:
-`requests==2.31.0
+The requirements.txt might include packages such as:
+requests==2.31.0
 python-dotenv==1.0.0
 pandas==1.5.3
 psycopg2-binary==2.9.6
-(Adjust versions as needed.)`
 
 ## Configuration
 
@@ -149,7 +151,8 @@ Currently, backfilling writes data incrementally to CSV to avoid RAM overload. O
 Concurrency Improvements:
 The FMPMarketData class now supports multi-threading with thread locks to ensure rate limits are not exceeded. You can extend this to process multiple tickers concurrently using the provided concurrent_backfill.py script.
 
-Notes and Best Practices
+## Notes and Best Practices
+
 API Limits:
 Financial Modeling Prep may enforce limits based on your plan. If you receive 429 errors ("Too Many Requests"), consider reducing the number of concurrent threads (MAX_WORKERS), adding additional sleeps, or upgrading your plan.
 
