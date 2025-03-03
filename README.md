@@ -102,8 +102,7 @@ Create a file named fmp.env in the data_infra folder with your Financial Modelin
 
 # data_infra/fmp.env
 
-FMP_API_KEY=taxFvdsV3ZQiBkff3fkxrAcatQV9C8wG
-
+FMP_API_KEY=FMP_API_KEY
 Note: The fmp.env file should only reside on the server, you don't have to specify this to your device.
 
 Configuration
