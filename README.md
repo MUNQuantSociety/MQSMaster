@@ -11,7 +11,6 @@ The codebase is organized to allow future extensibility (e.g., backtesting, live
 
 ## Table of Contents
 
-- [Folder Structure](#folder-structure)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Usage](#usage)
@@ -24,40 +23,6 @@ The codebase is organized to allow future extensibility (e.g., backtesting, live
 - [Important Environment Files Setup](#important-environment-files-setup)
 
 ---
-
-## Folder Structure
-
-.
-├── data_infra
-│ ├── **init**.py
-│ ├── authentication
-│ │ ├── FUTapiAuth.py
-│ │ ├── FUTmemberAuth.py
-│ │ ├── apiAuth.py
-│ │ └── memberAuth.py
-│ ├── brokerAPI
-│ │ └── brokerClient.py
-│ ├── data
-│ │ └── backfill_cache
-│ ├── database
-│ │ ├── MQSDBConnector.py
-│ │ ├── backupManager.py
-│ │ └── schemaDefinitions.py
-│ ├── fmp.env
-│ ├── marketData
-│ │ └── fmpMarketData.py
-│ └── orchestrator
-│ ├── backfill.py
-│ ├── concurrent_backfill.py
-│ ├── realtimeDataIngestor.py
-│ └── specific_backfill.py
-├── portfolios
-│ ├── common.py
-│ ├── portfolioManager.py
-│ └── portfolio_1
-│ ├── config.txt
-│ └── strategy.py
-└── requirements.txt
 
 ### Directory Descriptions
 
