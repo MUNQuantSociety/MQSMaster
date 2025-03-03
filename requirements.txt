@@ -1,0 +1,4 @@
+requests==2.31.0
+python-dotenv==1.0.0
+pandas==2.2.3
+psycopg2-binary==2.9.10
