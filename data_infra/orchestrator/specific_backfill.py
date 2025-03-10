@@ -12,10 +12,10 @@ from data_infra.orchestrator.backfill import backfill_data
 
 if __name__ == "__main__":
     # 1. Define tickers
-    my_tickers = ['TXG', 'MMM', 'ETNB', ...]
-    # 2. Define date range (last 5 trading days)
+    my_tickers = ['TXG', 'MMM', 'ETNB']
+    # 2. Define date range (eg: last 5 trading days)
     end_date = datetime.now().date()
-    start_date = end_date - timedelta(days=730)
+    start_date = end_date - timedelta(days=6)
 
     # 3. Call backfill
     backfill_data(
