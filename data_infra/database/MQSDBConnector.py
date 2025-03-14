@@ -1,202 +1,135 @@
-"""
-MQSDBConnector.py
------------------
-A robust PostgreSQL connector class for your trading bot.
-Loads DB credentials from the root .env.
-"""
-
 import os
-import time
 import psycopg2
 import psycopg2.extras
+import psycopg2.pool
 from dotenv import load_dotenv
+import time
 
-# Load from the project's root .env (contains DB credentials + MEMBER_AUTH_TOKEN)
+# Load environment variables
 load_dotenv()
 
 class MQSDBConnector:
     """
-    A robust DB connector class for PostgreSQL.
-    Provides methods for connect, read, inject (insert), update, delete,
-    and ensures connections are properly managed.
+    Thread-safe PostgreSQL connector class.
+    Uses connection pooling for efficiency.
     """
 
     def __init__(self):
-        # Read environment variables for DB credentials from the root .env
-        self.db_host = os.getenv('DB_HOST', 'localhost')
-        self.db_port = int(os.getenv('DB_PORT', 5432))
-        self.db_name = os.getenv('DB_NAME', 'market_db')
-        self.db_user = os.getenv('DB_USER', 'postgres')
-        self.db_password = os.getenv('DB_PASSWORD', '')
+        # Read environment variables for DB credentials
+        self.db_host = os.getenv('host')
+        self.db_port = int(os.getenv('port'))
+        self.db_name = os.getenv('database')
+        self.db_user = os.getenv('username')
+        self.db_password = os.getenv('password')
+        self.sslmode = os.getenv('sslmode', 'require')
 
-        # Internal placeholders
-        self.connection = None
-        self.cursor = None
+        # Connection pooling: allows multiple threads to share connections safely
+        self.pool = psycopg2.pool.ThreadedConnectionPool(
+            minconn=1, 
+            maxconn=5,  # Adjust as needed
+            host=self.db_host,
+            port=self.db_port,
+            dbname=self.db_name,
+            user=self.db_user,
+            password=self.db_password,
+            sslmode=self.sslmode
+        )
 
-        # Time-based connection logic
-        self.last_connection_time = None
-        self.timeout = 300  # 5 minutes
+        self.timeout = 600  # 10 minute timeouts
+        self.last_connection_time = time.time()
 
-    def connect(self):
-        """
-        Establish a new connection if not already connected or if timed out.
-        """
-        if self.connection is not None:
-            try:
-                # Ping the connection. If it's alive and not timed out, return.
-                if (time.time() - self.last_connection_time) < self.timeout:
-                    return {'status': 'success', 'message': 'Already connected.'}
-                else:
-                    self.close_connection()
-            except:
-                self.close_connection()
-
+    def get_connection(self):
+        """Retrieve a connection from the pool."""
         try:
-            self.connection = psycopg2.connect(
-                host=self.db_host,
-                port=self.db_port,
-                dbname=self.db_name,
-                user=self.db_user,
-                password=self.db_password
-            )
-            self.cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            self.last_connection_time = time.time()
-            return {'status': 'success', 'message': 'Connected to PostgreSQL successfully.'}
+            return self.pool.getconn()
         except Exception as e:
-            return {'status': 'error', 'message': str(e)}
+            print("Error getting connection:", e)
+            return None
 
-    def check_connection(self):
+    def release_connection(self, conn):
+        """Return connection to the pool."""
+        if conn:
+            self.pool.putconn(conn)
+
+    def close_all_connections(self):
+        """Closes all pooled connections."""
+        self.pool.closeall()
+
+    def execute_query(self, sql, values=None, fetch=False):
         """
-        Checks if the current connection is still valid and not timed out.
-        Reconnects if necessary.
+        Executes a query with optional parameters.
+        If fetch=True, returns results.
         """
-        if self.connection is None:
-            return self.connect()
+        conn = self.get_connection()
+        if not conn:
+            return {'status': 'error', 'message': 'Could not get database connection'}
 
         try:
-            self.cursor.execute("SELECT 1;")
-            if (time.time() - self.last_connection_time) >= self.timeout:
-                self.close_connection()
-                return self.connect()
-            self.last_connection_time = time.time()
-            return {'status': 'success', 'message': 'Connection is valid.'}
-        except:
-            self.close_connection()
-            return self.connect()
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+                cursor.execute(sql, values or ())
+                if fetch:
+                    result = cursor.fetchall()
+                    return {'status': 'success', 'message': 'Query executed', 'data': result}
+                conn.commit()
+                return {'status': 'success', 'message': 'Query executed successfully'}
+        except Exception as e:
+            conn.rollback()
+            return {'status': 'error', 'message': str(e)}
+        finally:
+            self.release_connection(conn)
 
     def inject_to_db(self, table, data, schema=None):
         """
-        Inserts a row into the given table. 'data' is a dict of {column: value}.
+        Inserts a row into the specified table.
         """
-        check_res = self.check_connection()
-        if check_res['status'] == 'error':
-            return check_res
-
-        try:
-            columns = ", ".join(data.keys())
-            placeholders = ", ".join(["%s"] * len(data))
-            schema_str = f"{schema}." if schema else ""
-            sql = f"INSERT INTO {schema_str}{table} ({columns}) VALUES ({placeholders})"
-
-            self.cursor.execute(sql, tuple(data.values()))
-            self.connection.commit()
-            return {'status': 'success', 'message': f"Data inserted into {table} successfully."}
-        except Exception as e:
-            self.connection.rollback()
-            return {'status': 'error', 'message': str(e)}
-
-    def delete_data(self, table, conditions=None, schema=None):
-        """
-        Deletes rows that match 'conditions' dict from a table.
-        E.g., conditions = {'id': 123}
-        """
-        if not conditions:
-            return {'status': 'error', 'message': 'No conditions provided for deletion.'}
-
-        check_res = self.check_connection()
-        if check_res['status'] == 'error':
-            return check_res
-
-        try:
-            schema_str = f"{schema}." if schema else ""
-            where_clause = " AND ".join([f"{col} = %s" for col in conditions.keys()])
-            sql = f"DELETE FROM {schema_str}{table} WHERE {where_clause}"
-
-            self.cursor.execute(sql, tuple(conditions.values()))
-            self.connection.commit()
-            return {'status': 'success', 'message': f"Data deleted from {table} successfully."}
-        except Exception as e:
-            self.connection.rollback()
-            return {'status': 'error', 'message': str(e)}
+        columns = ", ".join(data.keys())
+        placeholders = ", ".join(["%s"] * len(data))
+        schema_str = f"{schema}." if schema else ""
+        sql = f"INSERT INTO {schema_str}{table} ({columns}) VALUES ({placeholders})"
+        return self.execute_query(sql, tuple(data.values()))
 
     def update_data(self, table, data, conditions=None, schema=None):
         """
-        Updates rows matching 'conditions' dict with columns in 'data' dict.
-        E.g., data = {'price': 150.0}, conditions = {'ticker': 'AAPL'}
+        Updates records in a table based on given conditions.
         """
         if not conditions:
-            return {'status': 'error', 'message': 'No conditions provided for update.'}
+            return {'status': 'error', 'message': 'No conditions provided for update'}
 
-        check_res = self.check_connection()
-        if check_res['status'] == 'error':
-            return check_res
+        set_clause = ", ".join([f"{col} = %s" for col in data.keys()])
+        where_clause = " AND ".join([f"{col} = %s" for col in conditions.keys()])
+        schema_str = f"{schema}." if schema else ""
+        sql = f"UPDATE {schema_str}{table} SET {set_clause} WHERE {where_clause}"
 
-        try:
-            schema_str = f"{schema}." if schema else ""
-            set_clause = ", ".join([f"{col} = %s" for col in data.keys()])
-            where_clause = " AND ".join([f"{col} = %s" for col in conditions.keys()])
-            sql = f"UPDATE {schema_str}{table} SET {set_clause} WHERE {where_clause}"
+        values = list(data.values()) + list(conditions.values())
+        return self.execute_query(sql, tuple(values))
 
-            values = list(data.values()) + list(conditions.values())
-            self.cursor.execute(sql, tuple(values))
-            self.connection.commit()
-            return {'status': 'success', 'message': f"Data updated in {table} successfully."}
-        except Exception as e:
-            self.connection.rollback()
-            return {'status': 'error', 'message': str(e)}
+    def delete_data(self, table, conditions=None, schema=None):
+        """
+        Deletes records matching conditions.
+        """
+        if not conditions:
+            return {'status': 'error', 'message': 'No conditions provided for deletion'}
+
+        where_clause = " AND ".join([f"{col} = %s" for col in conditions.keys()])
+        schema_str = f"{schema}." if schema else ""
+        sql = f"DELETE FROM {schema_str}{table} WHERE {where_clause}"
+
+        return self.execute_query(sql, tuple(conditions.values()))
 
     def read_db(self, table=None, columns='*', conditions=None, schema=None, sql=None):
         """
-        Retrieves rows from the database.
-        If 'sql' is given, it overrides table/columns/conditions usage.
-        Otherwise, builds a SELECT query.
+        Retrieves data from the database.
         """
-        check_res = self.check_connection()
-        if check_res['status'] == 'error':
-            return {'status': 'error', 'message': check_res['message'], 'data': None}
+        if sql:
+            return self.execute_query(sql, fetch=True)
 
-        try:
-            if sql:
-                self.cursor.execute(sql)
-            else:
-                schema_str = f"{schema}." if schema else ""
-                query = f"SELECT {columns} FROM {schema_str}{table}"
-                if conditions:
-                    # conditions can be a list of strings, e.g. ["ticker='AAPL'","price>100"]
-                    where_clause = " AND ".join(conditions)
-                    query += f" WHERE {where_clause}"
-                self.cursor.execute(query)
+        schema_str = f"{schema}." if schema else ""
+        query = f"SELECT {columns} FROM {schema_str}{table}"
+        if conditions:
+            where_clause = " AND ".join([f"{col} = %s" for col in conditions.keys()])
+            query += f" WHERE {where_clause}"
+            values = tuple(conditions.values())
+        else:
+            values = None
 
-            rows = self.cursor.fetchall()
-            return {
-                'status': 'success',
-                'message': 'Data fetched successfully.',
-                'data': rows
-            }
-        except Exception as e:
-            return {
-                'status': 'error',
-                'message': str(e),
-                'data': None
-            }
-
-    def close_connection(self):
-        """
-        Closes the connection to the PostgreSQL database if open.
-        """
-        if self.cursor:
-            self.cursor.close()
-            self.cursor = None
-        if self.connection:
-            self.connection.close()
-            self.connection = None
+        return self.execute_query(query, values, fetch=True)

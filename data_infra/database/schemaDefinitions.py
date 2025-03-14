@@ -1,17 +1,9 @@
-"""
-schemaDefinitions.py
---------------------
-Contains SQL DDL or other schema setup for the 'Master market data warehouse'
-and related tables (Trade Execution Logs, PnL Book, Risk Book, etc.).
-You can call these definitions from your main setup script or orchestrator
-to create required tables in PostgreSQL.
-"""
-
 from data_infra.database.MQSDBConnector import MQSDBConnector
 
 class SchemaDefinitions:
     """
-    Encapsulates methods to create or drop tables in your PostgreSQL database.
+    DO NOT CALL drop_all_tables() PLEASE!
+    Encapsulates methods to create or drop tables in the MQS PostgreSQL database.
     Adjust the CREATE TABLE statements to match your real schema needs.
     """
 
@@ -22,11 +14,12 @@ class SchemaDefinitions:
         """
         Create all necessary tables (if they do not already exist).
         """
-        res = self.db.connect()
+        # Test connection by executing a simple query
+        res = self.db.execute_query("SELECT 1", fetch=True)
         if res['status'] == 'error':
             print("Error connecting to DB:", res['message'])
             return
-        
+
         create_user_creds_table = """
         CREATE TABLE IF NOT EXISTS user_creds (
             user_id SERIAL PRIMARY KEY,
@@ -35,12 +28,13 @@ class SchemaDefinitions:
         );
         """
         
-        # Example DDL statements:
         create_market_data_table = """
         CREATE TABLE IF NOT EXISTS market_data (
             id SERIAL PRIMARY KEY,
             ticker VARCHAR(10) NOT NULL,
-            trade_time TIMESTAMP NOT NULL,
+            timestamp TIMESTAMP NOT NULL,
+            date DATE NOT NULL,
+            exchange VARCHAR(50) NOT NULL,
             open_price NUMERIC,
             high_price NUMERIC,
             low_price NUMERIC,
@@ -55,10 +49,14 @@ class SchemaDefinitions:
             trade_id SERIAL PRIMARY KEY,
             portfolio_id VARCHAR(50),
             ticker VARCHAR(10),
-            execution_time TIMESTAMP NOT NULL,
+            exec_timestamp TIMESTAMP NOT NULL,
             side VARCHAR(4) NOT NULL,  -- e.g. 'BUY' or 'SELL'
             quantity NUMERIC NOT NULL,
-            price NUMERIC NOT NULL,
+            price_last NUMERIC NOT NULL,
+            notional NUMERIC,
+            notional_local NUMERIC,
+            currency VARCHAR(10),
+            fx_rate NUMERIC,
             created_at TIMESTAMP DEFAULT NOW()
         );
         """
@@ -67,9 +65,13 @@ class SchemaDefinitions:
         CREATE TABLE IF NOT EXISTS pnl_book (
             pnl_id SERIAL PRIMARY KEY,
             portfolio_id VARCHAR(50),
+            timestamp TIMESTAMP NOT NULL,
             date DATE NOT NULL,
             realized_pnl NUMERIC,
             unrealized_pnl NUMERIC,
+            fx_rate NUMERIC,
+            currency VARCHAR(10),
+            notional NUMERIC,
             created_at TIMESTAMP DEFAULT NOW()
         );
         """
@@ -85,13 +87,14 @@ class SchemaDefinitions:
         );
         """
 
-        create_live_positions_table = """
-        CREATE TABLE IF NOT EXISTS live_positions_book (
-            position_id SERIAL PRIMARY KEY,
-            portfolio_id VARCHAR(50),
-            ticker VARCHAR(10),
-            quantity NUMERIC NOT NULL,
-            avg_cost NUMERIC NOT NULL,
+        create_cash_equity_book_table = """
+        CREATE TABLE IF NOT EXISTS cash_equity_book (
+            id SERIAL PRIMARY KEY,
+            timestamp TIMESTAMP NOT NULL,
+            date DATE NOT NULL,
+            portfolio_id VARCHAR(50) NOT NULL,
+            currency VARCHAR(10) NOT NULL,
+            notional NUMERIC NOT NULL,
             created_at TIMESTAMP DEFAULT NOW()
         );
         """
@@ -102,23 +105,21 @@ class SchemaDefinitions:
             create_trade_logs_table,
             create_pnl_book_table,
             create_risk_book_table,
-            create_live_positions_table
+            create_cash_equity_book_table
         ]
 
         for stmt in statements:
-            try:
-                self.db.cursor.execute(stmt)
-            except Exception as e:
-                print("Error creating table:", e)
-
-        self.db.connection.commit()
+            result = self.db.execute_query(stmt)
+            if result['status'] == 'error':
+                print("Error creating table:", result['message'])
         print("All tables created or confirmed to exist.")
 
     def drop_all_tables(self):
         """
         If needed, drop all tables (Dangerous in production).
         """
-        res = self.db.check_connection()
+        # Test connection similarly
+        res = self.db.execute_query("SELECT 1", fetch=True)
         if res['status'] == 'error':
             print("Error connecting to DB:", res['message'])
             return
@@ -128,14 +129,11 @@ class SchemaDefinitions:
             "DROP TABLE IF EXISTS trade_execution_logs;",
             "DROP TABLE IF EXISTS pnl_book;",
             "DROP TABLE IF EXISTS risk_book;",
-            "DROP TABLE IF EXISTS live_positions_book;"
+            "DROP TABLE IF EXISTS cash_equity_book;"
         ]
 
         for stmt in drop_statements:
-            try:
-                self.db.cursor.execute(stmt)
-            except Exception as e:
-                print("Error dropping table:", e)
-
-        self.db.connection.commit()
+            result = self.db.execute_query(stmt)
+            if result['status'] == 'error':
+                print("Error dropping table:", result['message'])
         print("All tables dropped.")
