@@ -155,7 +155,7 @@ def _build_market_data_row(ticker, data, dt):
         "ticker": ticker,
         "timestamp": dt,             # full timestamp
         "date": dt.date(),           # date portion
-        "exchange": "NASDAQ",        # default exchange (adjust if needed)
+        "exchange": "nasdaq",        # default exchange (adjust if needed)
         "open_price": data["open"],
         "high_price": data["high"],
         "low_price": data["low"],
