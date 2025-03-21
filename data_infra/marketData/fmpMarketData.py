@@ -175,3 +175,30 @@ class FMPMarketData:
 
         print("[FMP API] No intraday data found.")
         return None
+        
+    def get_realtime_quote(self, ticker):
+        """
+        Fetches the latest available intraday quote for a single ticker.
+
+        :param ticker: Stock symbol (string)
+        :return: Dictionary containing the latest quote data for the ticker
+        """
+        # Use today's date to ensure we're only fetching intraday data
+        today_date = datetime.now().strftime("%Y-%m-%d")
+
+        # Fetch intraday data at 1-minute intervals
+        intraday_data = self.get_intraday_data(ticker, from_date=today_date, to_date=today_date, interval=1)
+
+        if not intraday_data or not isinstance(intraday_data, list):
+            print(f"[FMP API] No intraday data received for {ticker} or invalid format.")
+            return None
+
+        # Ensure there is at least one record
+        if len(intraday_data) == 0:
+            print(f"[FMP API] No intraday data available for {ticker}.")
+            return None
+
+        # Extract the latest record (highest timestamp)
+        latest_record = max(intraday_data, key=lambda x: datetime.strptime(x["date"], "%Y-%m-%d %H:%M:%S"))
+
+        return latest_record

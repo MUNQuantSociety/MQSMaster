@@ -6,41 +6,89 @@ using the existing 'backfill_data' function from 'backfill.py'.
 Each ticker is processed in its own thread to reduce total runtime.
 
 Results:
-  - One CSV file per ticker (named {output_prefix}_{TICKER}.csv)
-  - Optionally merges them into one CSV (all_tickers_combined.csv) in a chunked manner
-    to avoid excessive memory usage.
+  - Data is injected directly into the 'market_data' table in the database using MQSDBConnector.
 """
 
 import sys
 import os
-import time
-import glob
-import pandas as pd
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
+from data_infra.database.MQSDBConnector import MQSDBConnector
+from psycopg2.extras import execute_values
+import pandas as pd
 
 # Ensure we can import backfill.py from the orchestrator dir
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-
 from data_infra.orchestrator.backfill import backfill_data
 
 # Number of threads to use. Adjust based on CPU/network constraints.
 MAX_WORKERS = 3
 
-def backfill_single_ticker(ticker, start_date, end_date, interval, exchange, output_filename):
+def backfill_single_ticker(ticker, start_date, end_date, interval, exchange, _):
     """
     Calls backfill_data(...) for a single ticker. 
-    Writes results to output_filename.
-    This function will run in its own thread.
+    Instead of writing to CSV, injects directly into DB.
     """
-    backfill_data(
-        tickers=[ticker],   # pass a list of length 1 
-        start_date=start_date,
-        end_date=end_date,
-        interval=interval,
-        exchange=exchange,
-        output_filename=output_filename
-    )
+    try:
+        # Fetch the data
+        df = backfill_data(
+            tickers=[ticker],   # pass a list of length 1 
+            start_date=start_date,
+            end_date=end_date,
+            interval=interval,
+            exchange=exchange,
+            output_filename=None  # Make sure backfill_data handles None as "don't write"
+        )
+
+        if df is None or df.empty:
+            print(f"[{ticker}] No data returned from backfill.")
+            return
+
+        # Create DB connection
+        db = MQSDBConnector()
+        conn = db.get_connection()
+
+        # Prepare the data for insertion
+        insert_data = []
+        for _, row in df.iterrows():
+            try:
+                insert_data.append((
+                    row['ticker'],
+                    row['datetime'],  # timestamp
+                    row['date'],
+                    exchange.lower() if exchange else 'nasdaq',
+                    float(row['open']),
+                    float(row['high']),
+                    float(row['low']),
+                    float(row['close']),
+                    int(float(row['volume'])),
+                ))
+            except Exception as e:
+                print(f"[{ticker}] Skipping row due to parsing error: {e}")
+                continue
+
+        # Bulk insert
+        insert_sql = """
+            INSERT INTO market_data (
+                ticker, timestamp, date, exchange,
+                open_price, high_price, low_price, close_price, volume
+            )
+            VALUES %s
+        """
+
+        if insert_data:
+            with conn.cursor() as cursor:
+                execute_values(cursor, insert_sql, insert_data)
+            conn.commit()
+            print(f"[{ticker}] Inserted {len(insert_data)} rows into DB.")
+        else:
+            print(f"[{ticker}] No valid rows to insert.")
+
+    except Exception as e:
+        print(f"[{ticker}] Error during backfill or insert: {e}")
+    finally:
+        if 'conn' in locals():
+            db.release_connection(conn)
 
 def concurrent_backfill(
     tickers, 
@@ -48,19 +96,11 @@ def concurrent_backfill(
     end_date, 
     interval, 
     exchange=None,
-    output_prefix="2y_mkt_data"
+    output_prefix="2y_mkt_data"  # kept for compatibility but unused
 ):
     """
     Spawns multiple threads, each calling 'backfill_data' for a single ticker.
-    Writes each ticker's results to its own CSV file:
-        {output_prefix}_{TICKER}.csv
-
-    :param tickers: list of ticker symbols (e.g. ["AAPL","MSFT","GOOG"])
-    :param start_date: date or str (YYYY-MM-DD)
-    :param end_date: date or str
-    :param interval: 1,5,15,30,60 for FMP intervals
-    :param exchange: optional string, e.g. 'NASDAQ' or 'NYSE'
-    :param output_prefix: prefix for the output CSV files
+    Injects each ticker's results directly into the DB.
     """
     # Convert input dates if they are strings
     if isinstance(start_date, str):
@@ -71,13 +111,10 @@ def concurrent_backfill(
     print(f"[ConcurrentBackfill] Starting concurrency for {len(tickers)} tickers.")
     print(f"  Date range: {start_date} to {end_date}, interval={interval} min, exchange={exchange}")
     print(f"  Using up to {MAX_WORKERS} threads.")
-    print(f"  Output prefix: {output_prefix}")
 
     futures = []
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         for ticker in tickers:
-            # Each ticker writes to its own CSV
-            csv_name = f"{output_prefix}_{ticker}.csv"
             fut = executor.submit(
                 backfill_single_ticker,
                 ticker,
@@ -85,18 +122,19 @@ def concurrent_backfill(
                 end_date,
                 interval,
                 exchange,
-                csv_name
+                None  # output_filename is no longer used
             )
             futures.append(fut)
 
-        # Optionally wait for all threads to complete
         for fut in futures:
             try:
-                fut.result()  # Raises any exception inside the thread
+                fut.result()
             except Exception as ex:
                 print(f"[ConcurrentBackfill:ERROR] A worker failed with: {ex}")
 
     print("[ConcurrentBackfill] All threads completed.")
+
+
 
 if __name__ == "__main__":
     # 1. Define tickers
@@ -113,27 +151,6 @@ if __name__ == "__main__":
         end_date=end_date,
         interval=1,
         exchange="NASDAQ",
-        output_prefix="2y_mkt_data"
     )
 
-    print("✅ Concurrent backfill completed.")
-    print("Note: Each ticker's data is in e.g. 2y_mkt_data_AAPL.csv, 2y_mkt_data_MMM.csv, etc.")
-
-    # 4. Merge CSVs: read all partial CSV files and concatenate chunk by chunk to avoid overloading RAM.
-    print("Merging per-ticker CSVs into a single file 'all_tickers_combined.csv' (chunked)...")
-
-    csv_files = glob.glob("2y_mkt_data_*.csv")  # Adjust if needed
-    merge_output = "all_tickers_combined.csv"
-
-    # If file exists from a previous run, remove it to start fresh
-    if os.path.exists(merge_output):
-        os.remove(merge_output)
-
-    header_written = False
-    for file in csv_files:
-        print(f"  Merging {file} ...")
-        for chunk in pd.read_csv(file, chunksize=100_000):
-            chunk.to_csv(merge_output, index=False, header=not header_written, mode='a')
-            header_written = True
-
-    print("✅ Merging complete. Final file: all_tickers_combined.csv")
+    print("✅ Concurrent backfill completed and data inserted into the database.")

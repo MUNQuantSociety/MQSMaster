@@ -1,0 +1,6 @@
+{
+  "PORTFOLIO_ID": "02",
+  "TICKERS": ["AAPL", "TSLA", "NVDA"],
+  "INTERVAL": 1,
+  "LOOKBACK_DAYS": 30
+}
