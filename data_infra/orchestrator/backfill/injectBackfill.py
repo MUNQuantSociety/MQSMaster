@@ -8,7 +8,7 @@ import concurrent.futures
 import logging
 
 # Ensure that the parent directory is in the PYTHONPATH
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
 from data_infra.database.MQSDBConnector import MQSDBConnector
 
 # Configure logging
