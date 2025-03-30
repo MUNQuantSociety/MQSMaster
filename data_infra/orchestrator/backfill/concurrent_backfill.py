@@ -11,14 +11,15 @@ Results:
 
 import sys
 import os
+# Ensure we can import backfill.py from the orchestrator dir
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+from data_infra.orchestrator.backfill.backfill import backfill_data
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from data_infra.database.MQSDBConnector import MQSDBConnector
 from psycopg2.extras import execute_values
 
-# Ensure we can import backfill.py from the orchestrator dir
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-from data_infra.orchestrator.backfill.backfill import backfill_data
 
 # Number of threads to use. Adjust based on CPU/network constraints.
 MAX_WORKERS = 3
