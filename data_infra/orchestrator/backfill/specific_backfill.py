@@ -6,13 +6,21 @@ Backfills historical data for specified tickers and injects it directly into the
 
 import sys
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from psycopg2.extras import execute_values
 from data_infra.database.MQSDBConnector import MQSDBConnector
 
 # Ensure we can import backfill.py from the orchestrator dir
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-from data_infra.orchestrator.backfill import backfill_data
+from data_infra.orchestrator.backfill.backfill import backfill_data
+
+def parse_date_arg(date_str):
+    """Parses date string in DDMMYY format and returns a datetime.date object."""
+    try:
+        return datetime.strptime(date_str, "%d%m%y").date()
+    except ValueError:
+        print(f"❌ Invalid date format: {date_str}. Expected format: DDMMYY (e.g., 040325 for March 4, 2025).")
+        sys.exit(1)
 
 def backfill_db(tickers, start_date, end_date, interval, exchange):
     for ticker in tickers:
@@ -76,9 +84,25 @@ if __name__ == "__main__":
     # 1. Define tickers
     my_tickers = ['TXG', 'MMM', 'ETNB']
 
-    # 2. Define date range (e.g., last 5 trading days)
-    end_date = datetime.now().date()
-    start_date = end_date - timedelta(days=6)
+    # 2. Parse command-line arguments
+    start_date_arg = None
+    end_date_arg = None
+
+    for arg in sys.argv[1:]:
+        if arg.startswith("startdate="):
+            start_date_arg = arg.split("=")[1]
+        elif arg.startswith("enddate="):
+            end_date_arg = arg.split("=")[1]
+
+    # Validate date arguments
+    if not start_date_arg or not end_date_arg:
+        print("❌ Missing required arguments: startdate and enddate.")
+        print("Usage: python3 specific_backfill.py startdate=040325 enddate=300325")
+        sys.exit(1)
+
+    # Parse and convert date strings
+    start_date = parse_date_arg(start_date_arg)
+    end_date = parse_date_arg(end_date_arg)
 
     # 3. Perform backfill and inject into DB
     backfill_db(
