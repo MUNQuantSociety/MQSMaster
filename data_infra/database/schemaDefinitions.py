@@ -98,6 +98,16 @@ class SchemaDefinitions:
             created_at TIMESTAMP DEFAULT NOW()
         );
         """
+        create_positions_table = """
+        CREATE TABLE IF NOT EXISTS positions (
+            position_id SERIAL PRIMARY KEY,
+            portfolio_id VARCHAR(50) NOT NULL,
+            ticker VARCHAR(10) NOT NULL,
+            quantity NUMERIC NOT NULL,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE (portfolio_id, ticker)
+        );
+        """
 
         statements = [
             create_user_creds_table,
@@ -105,7 +115,8 @@ class SchemaDefinitions:
             create_trade_logs_table,
             create_pnl_book_table,
             create_risk_book_table,
-            create_cash_equity_book_table
+            create_cash_equity_book_table,
+            create_positions_table
         ]
 
         for stmt in statements:
