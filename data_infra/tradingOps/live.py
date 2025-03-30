@@ -4,14 +4,13 @@ from data_infra.brokerAPI.brokerClient import brokerClient
 from data_infra.database.schemaDefinitions import MQSDBConnector
 
 class tradeExecutor:
-    def __init__(self, portfolio_ID):
-        self.portfolio_ID = portfolio_ID
+    def __init__(self):
         self.table = MQSDBConnector()
         self.broker_client = brokerClient()  
 
     # --- Helper Methods ---
 
-    def _get_cash_balance(self):
+    def _get_cash_balance(self, portfolio_id):
         """Retrieve the latest cash balance (notional) for the portfolio."""
         sql_cash = """
             SELECT *
@@ -20,21 +19,21 @@ class tradeExecutor:
             ORDER BY timestamp DESC
             LIMIT 1
         """
-        cash_result = self.table.execute_query(sql_cash, values=(self.portfolio_ID,), fetch=True)
+        cash_result = self.table.execute_query(sql_cash, values=(portfolio_id,), fetch=True)
         if cash_result['status'] != 'success' or not cash_result['data']:
-            logging.error(f"Could not retrieve cash_equity_book for portfolio {self.portfolio_ID}")
+            logging.error(f"Could not retrieve cash_equity_book for portfolio {portfolio_id}")
             return None
         return float(cash_result['data'][0]['notional'])
 
-    def _update_cash_balance(self, new_balance):
+    def _update_cash_balance(self, portfolio_id, new_balance):
         """Update the cash_equity_book with a new notional value."""
         return self.table.update_data(
             table='cash_equity_book',
             data={'notional': new_balance},
-            conditions={'portfolio_id': self.portfolio_ID}
+            conditions={'portfolio_id': portfolio_id}
         )
 
-    def _update_positions(self, ticker, quantity_change):
+    def _update_positions(self, portfolio_id, ticker, quantity_change):
         """
         Update the positions table by incrementing (or decrementing) the quantity for a given ticker.
         Use a positive quantity_change for BUY and negative for SELL.
@@ -46,12 +45,12 @@ class tradeExecutor:
             DO UPDATE SET quantity = positions.quantity + EXCLUDED.quantity,
                           updated_at = NOW()
         """
-        return self.table.execute_query(sql_update_position, values=(self.portfolio_ID, ticker, quantity_change))
+        return self.table.execute_query(sql_update_position, values=(portfolio_id, ticker, quantity_change))
 
-    def _insert_trade_log(self, ticker, side, quantity, price):
+    def _insert_trade_log(self, portfolio_id, ticker, side, quantity, price):
         """Insert a trade log record into trade_execution_logs."""
         trade_data = {
-            'portfolio_id': self.portfolio_ID,
+            'portfolio_id': portfolio_id,
             'ticker': ticker,
             'side': side,
             'quantity': quantity,
@@ -80,7 +79,18 @@ class tradeExecutor:
 
     # --- Trading Methods ---
 
-    def buy(self, ticker, quantity):
+    def execute_trade(self, portfolio_id, action, ticker, quantity):
+        """
+        Execute a trade based on the action (BUY or SELL).
+        """
+        if action == 'BUY':
+            self.buy(portfolio_id, ticker, quantity)
+        elif action == 'SELL':
+            self.sell(portfolio_id, ticker, quantity)
+        else:
+            logging.error(f"Invalid action: {action}. Must be BUY or SELL.")
+
+    def buy(self, portfolio_id, ticker, quantity):
         """
         Execute a BUY trade:
           1. Check available cash.
@@ -89,7 +99,7 @@ class tradeExecutor:
           4. Update cash_equity_book.
           5. Update positions table (increment the holding).
         """
-        cash = self._get_cash_balance()
+        cash = self._get_cash_balance(portfolio_id)
         if cash is None:
             return
 
@@ -107,20 +117,20 @@ class tradeExecutor:
             return
 
         # Insert trade log.
-        result = self._insert_trade_log(ticker, 'BUY', quantity, price)
+        result = self._insert_trade_log(portfolio_id, ticker, 'BUY', quantity, price)
         if result['status'] != 'success':
             logging.error(f"Failed to insert BUY record: {result['message']}")
             return
 
         # Update cash balance.
         new_cash_balance = cash - total_cost
-        cash_update = self._update_cash_balance(new_cash_balance)
+        cash_update = self._update_cash_balance(portfolio_id, new_cash_balance)
         if cash_update['status'] != 'success':
             logging.error(f"Failed to update cash_equity_book: {cash_update['message']}")
             return
 
         # Update positions table.
-        pos_update = self._update_positions(ticker, quantity)
+        pos_update = self._update_positions(portfolio_id, ticker, quantity)
         if pos_update['status'] != 'success':
             logging.error(f"Failed to update positions for BUY: {pos_update['message']}")
             return
@@ -130,7 +140,7 @@ class tradeExecutor:
             f"New cash balance: {new_cash_balance}"
         )
 
-    def sell(self, ticker, quantity):
+    def sell(self, portfolio_id, ticker, quantity):
         """
         Execute a SELL trade:
           1. Retrieve current available shares from positions.
@@ -146,9 +156,9 @@ class tradeExecutor:
             FROM positions
             WHERE portfolio_id = %s AND ticker = %s
         """
-        pos_result = self.table.execute_query(sql_get_position, values=(self.portfolio_ID, ticker), fetch=True)
+        pos_result = self.table.execute_query(sql_get_position, values=(portfolio_id, ticker), fetch=True)
         if pos_result['status'] != 'success' or not pos_result['data']:
-            logging.error(f"No position record found for ticker {ticker} in portfolio {self.portfolio_ID}")
+            logging.error(f"No position record found for ticker {ticker} in portfolio {portfolio_id}")
             return
 
         current_shares = float(pos_result['data'][0]['quantity'])
@@ -164,23 +174,23 @@ class tradeExecutor:
         total_proceeds = price * quantity
 
         # Insert trade log.
-        result = self._insert_trade_log(ticker, 'SELL', quantity, price)
+        result = self._insert_trade_log(portfolio_id, ticker, 'SELL', quantity, price)
         if result['status'] != 'success':
             logging.error(f"Failed to insert SELL record: {result['message']}")
             return
 
         # Update cash balance.
-        cash = self._get_cash_balance()
+        cash = self._get_cash_balance(portfolio_id)
         if cash is None:
             return
         new_cash_balance = cash + total_proceeds
-        cash_update = self._update_cash_balance(new_cash_balance)
+        cash_update = self._update_cash_balance(portfolio_id, new_cash_balance)
         if cash_update['status'] != 'success':
             logging.error(f"Failed to update cash_equity_book: {cash_update['message']}")
             return
 
         # Update positions table (decrement the holding).
-        pos_update = self._update_positions(ticker, -quantity)
+        pos_update = self._update_positions(portfolio_id, ticker, -quantity)
         if pos_update['status'] != 'success':
             logging.error(f"Failed to update positions for SELL: {pos_update['message']}")
             return
@@ -190,7 +200,7 @@ class tradeExecutor:
             f"New cash balance: {new_cash_balance}"
         )
 
-    def liquidate(self):
+    def liquidate(self, portfolio_id):
         """
         Liquidate all positions:
           1. Retrieve all positions with a positive quantity from the positions table.
@@ -202,9 +212,9 @@ class tradeExecutor:
             FROM positions
             WHERE portfolio_id = %s AND quantity > 0
         """
-        pos_result = self.table.execute_query(sql_get_positions, values=(self.portfolio_ID,), fetch=True)
+        pos_result = self.table.execute_query(sql_get_positions, values=(portfolio_id,), fetch=True)
         if pos_result['status'] != 'success':
-            logging.error(f"Failed to retrieve positions for portfolio {self.portfolio_ID}")
+            logging.error(f"Failed to retrieve positions for portfolio {portfolio_id}")
             return
 
         for pos in pos_result['data']:
@@ -212,6 +222,6 @@ class tradeExecutor:
             available_quantity = float(pos['quantity'])
             if available_quantity > 0:
                 # Call the sell method for each ticker to update all tables.
-                self.sell(ticker, available_quantity)
+                self.sell(portfolio_id, ticker, available_quantity)
 
-        logging.info(f"All positions for portfolio {self.portfolio_ID} have been liquidated.")
+        logging.info(f"All positions for portfolio {portfolio_id} have been liquidated.")
