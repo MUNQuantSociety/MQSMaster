@@ -12,7 +12,7 @@ Results:
 import sys
 import os
 # Ensure we can import backfill.py from the orchestrator dir
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
 
 from data_infra.orchestrator.backfill.backfill import backfill_data
 from datetime import datetime, timedelta

@@ -11,7 +11,7 @@ from psycopg2.extras import execute_values
 from data_infra.database.MQSDBConnector import MQSDBConnector
 
 # Ensure we can import backfill.py from the orchestrator dir
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
 from data_infra.orchestrator.backfill.backfill import backfill_data
 
 def parse_date_arg(date_str):
