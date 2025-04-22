@@ -1,14 +1,15 @@
-from data_infra.tradingOps.main import tradeExecutor
 from data_infra.database.MQSDBConnector import MQSDBConnector
-from portfolios.portfolio_1.strategy import SimpleMomentum
-# import more portfolios as needed
+from portfolios.portfolio_2.strategy import SimpleMeanReversion
+
 
 def main():
     db = MQSDBConnector()
-    executor = tradeExecutor()
 
-    portfolio_1 = SimpleMomentum(db_connector=db, executor=executor)
-    portfolio_1.run()
+    portfolio_2 = SimpleMeanReversion(db_connector=db, executor=None)
+    portfolio_2.run()
+
+
+    print("Backtest executed successfully.")
 
 if __name__ == '__main__':
     main()
