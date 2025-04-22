@@ -8,10 +8,14 @@ import sys
 import os
 from datetime import datetime
 from psycopg2.extras import execute_values
-from data_infra.database.MQSDBConnector import MQSDBConnector
 
 # Ensure we can import backfill.py from the orchestrator dir
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+print("Full sys.path:")
+for p in sys.path:
+    print("  ", p)
+
+from data_infra.database.MQSDBConnector import MQSDBConnector
 from data_infra.orchestrator.backfill.backfill import backfill_data
 
 def parse_date_arg(date_str):
@@ -82,7 +86,7 @@ def backfill_db(tickers, start_date, end_date, interval, exchange):
 
 if __name__ == "__main__":
     # 1. Define tickers
-    my_tickers = ['TXG', 'MMM', 'ETNB']
+    my_tickers = ['SPY']
 
     # 2. Parse command-line arguments
     start_date_arg = None

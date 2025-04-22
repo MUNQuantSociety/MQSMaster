@@ -4,3 +4,4 @@ pandas==2.2.3
 psycopg2-binary==2.9.10
 numpy==2.2.3
 urllib3==2.3.0
+plotly==5.24.1

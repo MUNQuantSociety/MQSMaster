@@ -8,9 +8,9 @@ def read_config_param(param: str):
     and returns the value for the requested parameter.
     """
     # Get the path of the calling file
-    caller_file = inspect.stack()[1].filename
+    caller_file = inspect.stack()[2].filename
     caller_dir = os.path.dirname(caller_file)
-
+    print(caller_dir)
     # Construct path to config.json
     config_path = os.path.join(caller_dir, 'config.json')
 
