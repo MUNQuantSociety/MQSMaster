@@ -108,6 +108,18 @@ class SchemaDefinitions:
             UNIQUE (portfolio_id, ticker)
         );
         """
+        create_port_weights_table = """
+        CREATE TABLE IF NOT EXISTS portfolio_weights (
+        weights_id SERIAL PRIMARY KEY,
+        portfolio_id VARCHAR(50) NOT NULL,
+        ticker VARCHAR(10) NOT NULL,
+        weight NUMERIC NOT NULL, 
+        model VARCHAR(50), -- version or name of the model used to calculate the weight
+        date DATE NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE (portfolio_id, ticker, date, model) -- Ensures one weight per asset, per portfolio, per day, per model
+        );
+        """
 
         statements = [
             create_user_creds_table,
@@ -116,7 +128,8 @@ class SchemaDefinitions:
             create_pnl_book_table,
             create_risk_book_table,
             create_cash_equity_book_table,
-            create_positions_table
+            create_positions_table,
+            create_port_weights_table
         ]
 
         for stmt in statements:
