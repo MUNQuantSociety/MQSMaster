@@ -75,7 +75,7 @@ class SimpleMeanReversion(BasePortfolio):
         # Determine the reference time
         # Use current_time if provided (from backtester), MUST be the correct time for backtest trades!
         # If live mode (current_time is None), use the latest time from the data batch.
-        ref_time = current_time if current_time is not None else df['timestamp'].max()
+        ref_time = current_time if current_time is not None else datetime.now()
         if pd.isna(ref_time):
              self.logger.warning("Could not determine reference time.")
              return

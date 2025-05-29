@@ -167,7 +167,7 @@ class BasePortfolio(ABC):
             self.logger.error(f"Invalid signal type '{signal_type}' for {ticker}.")
             return
 
-        # Optionally clamp confidence
+        # Clamp Confidence
         confidence = max(0.0, min(1.0, confidence))
 
         try:

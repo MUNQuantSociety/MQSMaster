@@ -8,12 +8,10 @@ import sys
 import os
 from datetime import datetime
 from psycopg2.extras import execute_values
+import json
 
 # Ensure we can import backfill.py from the orchestrator dir
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
-print("Full sys.path:")
-for p in sys.path:
-    print("  ", p)
 
 from data_infra.database.MQSDBConnector import MQSDBConnector
 from data_infra.orchestrator.backfill.backfill import backfill_data
@@ -85,8 +83,19 @@ def backfill_db(tickers, start_date, end_date, interval, exchange):
                 db.release_connection(conn)
 
 if __name__ == "__main__":
-    # 1. Define tickers
-    my_tickers = ['SPY']
+    # 1. Load tickers from tickers.json
+    script_dir = os.path.dirname(__file__)
+    ticker_file_path = os.path.join(script_dir, '..', 'tickers.json')
+
+    try:
+        with open(ticker_file_path, 'r') as f:
+            MY_TICKERS = json.load(f)
+    except FileNotFoundError:
+        print(f"Error: Ticker file not found at {ticker_file_path}. Please create it.")
+        sys.exit(1)
+    except json.JSONDecodeError:
+        print(f"Error: Invalid JSON in {ticker_file_path}. Please check the file format.")
+        sys.exit(1)
 
     # 2. Parse command-line arguments
     start_date_arg = None
@@ -110,7 +119,7 @@ if __name__ == "__main__":
 
     # 3. Perform backfill and inject into DB
     backfill_db(
-        tickers=my_tickers,
+        tickers=MY_TICKERS,
         start_date=start_date,
         end_date=end_date,
         interval=1,

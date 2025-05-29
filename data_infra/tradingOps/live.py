@@ -47,7 +47,7 @@ class tradeExecutor:
         """
         return self.table.execute_query(sql_update_position, values=(portfolio_id, ticker, quantity_change))
 
-    def _insert_trade_log(self, portfolio_id, ticker, side, quantity, price):
+    def _insert_trade_log(self, portfolio_id, ticker, side, quantity, price, timestamp):
         """Insert a trade log record into trade_execution_logs."""
         trade_data = {
             'portfolio_id': portfolio_id,
@@ -55,7 +55,7 @@ class tradeExecutor:
             'side': side,
             'quantity': quantity,
             'price_last': price,
-            'exec_timestamp': datetime.now()
+            'exec_timestamp': timestamp
         }
         return self.table.inject_to_db('trade_execution_logs', trade_data)
 
@@ -79,18 +79,18 @@ class tradeExecutor:
 
     # --- Trading Methods ---
 
-    def execute_trade(self, portfolio_id, action, ticker, quantity):
+    def execute_trade(self, portfolio_id, action, ticker, quantity, timestamp):
         """
         Execute a trade based on the action (BUY or SELL).
         """
         if action == 'BUY':
-            self.buy(portfolio_id, ticker, quantity)
+            self.buy(portfolio_id, ticker, quantity, timestamp)
         elif action == 'SELL':
-            self.sell(portfolio_id, ticker, quantity)
+            self.sell(portfolio_id, ticker, quantity, timestamp)
         else:
             logging.error(f"Invalid action: {action}. Must be BUY or SELL.")
 
-    def buy(self, portfolio_id, ticker, quantity):
+    def buy(self, portfolio_id, ticker, quantity, timestamp):
         """
         Execute a BUY trade:
           1. Check available cash.
@@ -117,7 +117,7 @@ class tradeExecutor:
             return
 
         # Insert trade log.
-        result = self._insert_trade_log(portfolio_id, ticker, 'BUY', quantity, price)
+        result = self._insert_trade_log(portfolio_id, ticker, 'BUY', quantity, price, timestamp)
         if result['status'] != 'success':
             logging.error(f"Failed to insert BUY record: {result['message']}")
             return
@@ -140,7 +140,7 @@ class tradeExecutor:
             f"New cash balance: {new_cash_balance}"
         )
 
-    def sell(self, portfolio_id, ticker, quantity):
+    def sell(self, portfolio_id, ticker, quantity, timestamp):
         """
         Execute a SELL trade:
           1. Retrieve current available shares from positions.
@@ -174,7 +174,7 @@ class tradeExecutor:
         total_proceeds = price * quantity
 
         # Insert trade log.
-        result = self._insert_trade_log(portfolio_id, ticker, 'SELL', quantity, price)
+        result = self._insert_trade_log(portfolio_id, ticker, 'SELL', quantity, price, timestamp)
         if result['status'] != 'success':
             logging.error(f"Failed to insert SELL record: {result['message']}")
             return
@@ -217,11 +217,12 @@ class tradeExecutor:
             logging.error(f"Failed to retrieve positions for portfolio {portfolio_id}")
             return
 
+        exec_time = datetime.now() # Use a consistent timestamp for all liquidations
         for pos in pos_result['data']:
             ticker = pos['ticker']
             available_quantity = float(pos['quantity'])
             if available_quantity > 0:
                 # Call the sell method for each ticker to update all tables.
-                self.sell(portfolio_id, ticker, available_quantity)
+                self.sell(portfolio_id, ticker, available_quantity, exec_time)
 
         logging.info(f"All positions for portfolio {portfolio_id} have been liquidated.")
