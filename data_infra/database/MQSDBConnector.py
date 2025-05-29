@@ -31,7 +31,7 @@ class MQSDBConnector:
         try:
             self.pool = psycopg2.pool.ThreadedConnectionPool(
                 minconn=1,
-                maxconn=5,  # Adjust pool size as needed.
+                maxconn=9,  # Adjust pool size as needed.
                 host=self.db_host,
                 port=self.db_port,
                 dbname=self.db_name,
