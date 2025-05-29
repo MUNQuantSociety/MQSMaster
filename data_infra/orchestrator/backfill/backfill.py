@@ -16,7 +16,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.
 from data_infra.marketData.fmpMarketData import FMPMarketData
 
 # Batch size: number of days per API call (e.g., 2 means requesting 2 days at once)
-BATCH_DAYS = 2
+BATCH_DAYS = 3
 
 # Directory for storing temporary CSVs
 TEMP_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../data/backfill_cache"))
