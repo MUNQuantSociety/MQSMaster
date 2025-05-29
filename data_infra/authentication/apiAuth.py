@@ -2,7 +2,7 @@
 apiAuth.py
 ----------
 Handles the Financial Modeling Prep (FMP) API key. 
-For now, we just store it in code or optionally in an env variable for future flexibility.
+For now, we just store it in env file. You need the FMP_API_KEY for it to run.
 """
 
 import os
@@ -18,12 +18,11 @@ class APIAuth:
     """
 
     def __init__(self):
-        # Option A: Hard-code for dev
-        self.fmp_api_key = "taxFvdsV3ZQiBkff3fkxrAcatQV9C8wG"
-
-        # Option B: (If you want an env-based fallback)
-        # api_key_env = os.getenv('FMP_API_KEY')
-        # self.fmp_api_key = api_key_env if api_key_env else "taxFvdsV3ZQiBkff3fkxrAcatQV9C8wG"
+        api_key_env = os.getenv('FMP_API_KEY')
+        if api_key_env:
+            self.fmp_api_key = api_key_env 
+        else:
+            print("⚠️ No FMP_API_KEY environment variable set. Using default key.")
 
     def get_fmp_api_key(self) -> str:
         """
