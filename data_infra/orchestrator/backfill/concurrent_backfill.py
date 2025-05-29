@@ -21,8 +21,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.
 from data_infra.orchestrator.backfill.backfill import backfill_data
 from data_infra.database.MQSDBConnector import MQSDBConnector
 
-# Number of threads to use. Adjust based on CPU/network constraints.
-MAX_WORKERS = 3
+# Number of threads to use. NEEDS TO BE LESS THAN MQSDBCONNECTOR MAX CONN VALUE!
+MAX_WORKERS = 6
 
 
 def parse_date_arg(date_str):
@@ -34,11 +34,12 @@ def parse_date_arg(date_str):
         sys.exit(1)
 
 
-def backfill_single_ticker(ticker, start_date, end_date, interval, exchange):
+def backfill_single_ticker(ticker, start_date, end_date, interval, exchange, db_connector):
     """
-    Calls backfill_data(...) for a single ticker. 
-    Instead of writing to CSV, injects data directly into DB.
+    Calls backfill_data(...) for a single ticker and injects data into the DB.
+    This function now receives a shared MQSDBConnector instance.
     """
+    conn = None
     try:
         # Fetch the data in-memory (output_filename=None => returns DataFrame)
         df = backfill_data(
@@ -55,9 +56,11 @@ def backfill_single_ticker(ticker, start_date, end_date, interval, exchange):
             print(f"[{ticker}] No data returned from backfill.")
             return
 
-        # Create DB connection
-        db = MQSDBConnector()
-        conn = db.get_connection()
+        # Get a DB connection from the shared pool
+        conn = db_connector.get_connection()
+        if not conn:
+            print(f"[{ticker}] Could not get DB connection from pool.")
+            return
 
         insert_data = []
         for _, row in df.iterrows():
@@ -97,14 +100,15 @@ def backfill_single_ticker(ticker, start_date, end_date, interval, exchange):
     except Exception as e:
         print(f"[{ticker}] Error during backfill or insert: {e}")
     finally:
-        if 'conn' in locals():
-            db.release_connection(conn)
+        # Release the connection back to the pool
+        if conn:
+            db_connector.release_connection(conn)
 
 
 def concurrent_backfill(tickers, start_date, end_date, interval, exchange=None):
     """
     Spawns multiple threads, each calling 'backfill_data' for a single ticker.
-    Injects each ticker's results directly into the DB.
+    Injects each ticker's results directly into the DB using a shared connector.
     """
     if isinstance(start_date, str):
         start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -114,25 +118,32 @@ def concurrent_backfill(tickers, start_date, end_date, interval, exchange=None):
     print(f"[ConcurrentBackfill] Starting concurrency for {len(tickers)} tickers.")
     print(f"  Date range: {start_date} to {end_date}, interval={interval} min, exchange={exchange}")
     print(f"  Using up to {MAX_WORKERS} threads.")
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = [
-            executor.submit(backfill_single_ticker, ticker, start_date, end_date, interval, exchange)
-            for ticker in tickers
-        ]
-        for fut in futures:
-            try:
-                fut.result()
-            except Exception as ex:
-                print(f"[ConcurrentBackfill:ERROR] A worker failed with: {ex}")
-
-    print("[ConcurrentBackfill] All threads completed.")
+    
+    # Only ONE shared database connector instance
+    db_connector = MQSDBConnector()
+    try:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            # Pass the single db_connector instance to each worker
+            futures = [
+                executor.submit(backfill_single_ticker, ticker, start_date, end_date, interval, exchange, db_connector)
+                for ticker in tickers
+            ]
+            for fut in futures:
+                try:
+                    fut.result()
+                except Exception as ex:
+                    print(f"[ConcurrentBackfill:ERROR] A worker failed with: {ex}")
+    finally:
+        # Ensure all pool connections are closed at the end
+        print("[ConcurrentBackfill] All threads completed. Closing connection pool.")
+        db_connector.close_all_connections()
 
 
 if __name__ == "__main__":
     # 1. Load tickers from tickers.json
     script_dir = os.path.dirname(__file__)
-    ticker_file_path = os.path.join(script_dir, '..', 'tickers.jsonx')
+    # Corrected typo from .jsonx to .json for robustness
+    ticker_file_path = os.path.join(script_dir, '..', 'tickers.json')
 
     try:
         with open(ticker_file_path, 'r') as f:
