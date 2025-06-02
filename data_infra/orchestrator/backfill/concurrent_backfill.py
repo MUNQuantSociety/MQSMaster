@@ -119,7 +119,7 @@ def concurrent_backfill(tickers, start_date, end_date, interval, exchange=None):
     print(f"  Date range: {start_date} to {end_date}, interval={interval} min, exchange={exchange}")
     print(f"  Using up to {MAX_WORKERS} threads.")
     
-    # Only ONE shared database connector instance
+    # Create ONE shared database connector instance
     db_connector = MQSDBConnector()
     try:
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
