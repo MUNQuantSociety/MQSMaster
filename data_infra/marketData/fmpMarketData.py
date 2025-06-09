@@ -187,7 +187,7 @@ class FMPMarketData:
             list: A list of dictionaries, where each dict contains quote data for a ticker.
                   Returns None if the API call fails.
         """
-        url = "https://financialmodelingprep.com/api/v4/batch-exchange-quote"
+        url = "https://financialmodelingprep.com/stable/batch-exchange-quote?"
         params = {"exchange": exchange, "apikey": self.fmp_api_key}
         
         print(f"Fetching batch data for {exchange}...")
