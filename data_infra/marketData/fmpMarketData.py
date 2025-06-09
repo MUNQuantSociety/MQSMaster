@@ -188,7 +188,7 @@ class FMPMarketData:
                   Returns None if the API call fails.
         """
         url = "https://financialmodelingprep.com/stable/batch-exchange-quote?"
-        params = {"exchange": exchange, "apikey": self.fmp_api_key}
+        params = {"exchange": exchange, "short": "false", "apikey": self.fmp_api_key}
         
         print(f"Fetching batch data for {exchange}...")
         data = self._make_request(url, params)
