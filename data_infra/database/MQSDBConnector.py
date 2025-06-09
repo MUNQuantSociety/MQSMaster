@@ -51,11 +51,10 @@ class MQSDBConnector:
         """Retrieve a connection from the pool and verify it is active."""
         try:
             conn = self.pool.getconn()
-            # Check if the connection is closed or unusable.
             if conn.closed:
                 logging.warning("Acquired a closed connection, retrying...")
-                conn = self.pool.getconn()
-            # Perform a simple health check.
+                # self.pool.putconn(conn) # Return the closed conn before getting a new one
+                conn = self.pool.getconn() # Get a new one
             with conn.cursor() as cursor:
                 cursor.execute("SELECT 1")
             return conn
@@ -98,7 +97,6 @@ class MQSDBConnector:
                 conn.commit()
                 return {'status': 'success', 'message': 'Query executed successfully.'}
         except Exception as e:
-            # Attempt to rollback the transaction.
             try:
                 conn.rollback()
             except Exception as rollback_error:
@@ -117,6 +115,52 @@ class MQSDBConnector:
         schema_str = f"{schema}." if schema else ""
         sql = f"INSERT INTO {schema_str}{table} ({columns}) VALUES ({placeholders})"
         return self.execute_query(sql, tuple(data.values()))
+
+    def bulk_inject_to_db(self, table, data: list[dict], schema=None):
+        """
+        Efficiently inserts multiple rows into a table using execute_values.
+        Leverages 'ON CONFLICT DO NOTHING' to prevent errors from duplicate keys.
+        Assumes a UNIQUE constraint exists on (ticker, timestamp).
+        """
+        if not data:
+            return {'status': 'success', 'message': 'No data to insert.'}
+
+        conn = self.get_connection()
+        if not conn:
+            return {'status': 'error', 'message': 'Could not obtain a database connection.'}
+
+        try:
+            with conn.cursor() as cursor:
+                columns = data[0].keys()
+                schema_str = f"{schema}." if schema else ""
+                
+                # Assumes the unique constraint is named 'unique_ticker_timestamp'
+                # Or more generically, you define it on the columns (ticker, timestamp)
+                sql = f"""
+                    INSERT INTO {schema_str}{table} ({', '.join(columns)})
+                    VALUES %s
+                    ON CONFLICT (ticker, timestamp) DO NOTHING
+                """
+                
+                # Prepare data for execute_values
+                values = [[row[col] for col in columns] for row in data]
+                
+                psycopg2.extras.execute_values(cursor, sql, values)
+                inserted_count = cursor.rowcount
+                conn.commit()
+                
+                return {'status': 'success', 'message': f'Successfully inserted or ignored {inserted_count} rows.'}
+
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception as rollback_error:
+                logging.error("Rollback failed: %s", rollback_error)
+            logging.error("Error during bulk insert: %s", e)
+            return {'status': 'error', 'message': str(e)}
+        finally:
+            self.release_connection(conn)
+
 
     def update_data(self, table, data, conditions=None, schema=None):
         """

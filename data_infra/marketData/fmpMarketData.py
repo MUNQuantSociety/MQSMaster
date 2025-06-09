@@ -24,7 +24,7 @@ class FMPMarketData:
 
         # Rate Limiting Config
         self.request_timestamps = []
-        self.MAX_REQUESTS_PER_MIN = 299
+        self.MAX_REQUESTS_PER_MIN = 3000
         self.LOCK_WINDOW_SECONDS = 60
 
         # API Request Config
@@ -176,29 +176,25 @@ class FMPMarketData:
         print("[FMP API] No intraday data found.")
         return None
         
-    def get_realtime_quote(self, ticker):
+    def get_realtime_data(self, exchange="NASDAQ"):
         """
-        Fetches the latest available intraday quote for a single ticker.
+        Fetch real-time stock data for an entire exchange using a single batch request.
 
-        :param ticker: Stock symbol (string)
-        :return: Dictionary containing the latest quote data for the ticker
+        Args:
+            exchange (str): The stock exchange to query (e.g., "NASDAQ", "NYSE").
+
+        Returns:
+            list: A list of dictionaries, where each dict contains quote data for a ticker.
+                  Returns None if the API call fails.
         """
-        # Use today's date to ensure we're only fetching intraday data
-        today_date = datetime.now().strftime("%Y-%m-%d")
+        url = "https://financialmodelingprep.com/api/v4/batch-exchange-quote"
+        params = {"exchange": exchange, "apikey": self.fmp_api_key}
+        
+        print(f"Fetching batch data for {exchange}...")
+        data = self._make_request(url, params)
+        
+        if isinstance(data, list):
+            return data
 
-        # Fetch intraday data at 1-minute intervals
-        intraday_data = self.get_intraday_data(ticker, from_date=today_date, to_date=today_date, interval=1)
-
-        if not intraday_data or not isinstance(intraday_data, list):
-            print(f"[FMP API] No intraday data received for {ticker} or invalid format.")
-            return None
-
-        # Ensure there is at least one record
-        if len(intraday_data) == 0:
-            print(f"[FMP API] No intraday data available for {ticker}.")
-            return None
-
-        # Extract the latest record (highest timestamp)
-        latest_record = max(intraday_data, key=lambda x: datetime.strptime(x["date"], "%Y-%m-%d %H:%M:%S"))
-
-        return latest_record
+        print(f"[FMP API] Failed to fetch or parse batch data for {exchange}.")
+        return None
