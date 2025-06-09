@@ -1,8 +1,13 @@
+import sys
+import os
 import time
 import logging
 import pandas as pd
 import pytz
 from datetime import datetime, time as dtime
+
+# Ensure we can import data_infra.py
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
 from data_infra.marketData.fmpMarketData import FMPMarketData
 from data_infra.database.MQSDBConnector import MQSDBConnector
