@@ -88,7 +88,8 @@ def process_market_data(api_data: list, tickers_to_track: set, last_known_volume
     # 2. Vectorized Interval Volume Calculation
     df_last_volumes = pd.DataFrame(last_known_volumes.items(), columns=['symbol', 'last_volume'])
     df = pd.merge(df, df_last_volumes, on='symbol', how='left')
-    df['last_volume'].fillna(0, inplace=True)
+    # Avoid inplace=True by reassigning the column.
+    df['last_volume'] = df['last_volume'].fillna(0) 
     df['interval_volume'] = df['volume'] - df['last_volume']
     df.loc[df['interval_volume'] < 0, 'interval_volume'] = df['volume']
 
