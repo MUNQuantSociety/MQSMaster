@@ -22,7 +22,7 @@ from data_infra.orchestrator.backfill.backfill import backfill_data
 from data_infra.database.MQSDBConnector import MQSDBConnector
 
 # Number of threads to use. NEEDS TO BE LESS THAN MQSDBCONNECTOR MAX CONN VALUE!
-MAX_WORKERS = 6
+MAX_WORKERS = 8
 
 
 def parse_date_arg(date_str):
@@ -82,7 +82,7 @@ def backfill_single_ticker(ticker, start_date, end_date, interval, exchange, db_
 
         # Bulk insert
         insert_sql = """
-            INSERT INTO market_data_new (
+            INSERT INTO market_data (
                 ticker, timestamp, date, exchange,
                 open_price, high_price, low_price, close_price, volume
             )
