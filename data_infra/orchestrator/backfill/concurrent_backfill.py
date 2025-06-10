@@ -82,7 +82,7 @@ def backfill_single_ticker(ticker, start_date, end_date, interval, exchange, db_
 
         # Bulk insert
         insert_sql = """
-            INSERT INTO market_data (
+            INSERT INTO market_data_new (
                 ticker, timestamp, date, exchange,
                 open_price, high_price, low_price, close_price, volume
             )
