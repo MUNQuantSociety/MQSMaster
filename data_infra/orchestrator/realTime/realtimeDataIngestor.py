@@ -124,6 +124,7 @@ def process_market_data(api_data: list, tickers_to_track: set, last_known_volume
 
 def run_ingestion_cycle(fmp: FMPMarketData, db: MQSDBConnector, tickers_to_track: set, volume_state: dict):
     """
+
     Executes a single fetch-process-inject cycle.
     """
     logging.info("--- New Ingestion Cycle ---")

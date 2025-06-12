@@ -1,6 +1,6 @@
 {
   "PORTFOLIO_ID": "02",
-  "TICKERS": ["CRWD", "FTNT", "PANW"],
+  "TICKERS": ["TSLA"],
   "INTERVAL": 1800,
-  "LOOKBACK_DAYS": 1
+  "LOOKBACK_DAYS": 30
 }
