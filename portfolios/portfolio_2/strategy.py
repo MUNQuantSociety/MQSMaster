@@ -34,7 +34,7 @@ class SimpleMeanReversion(BasePortfolio):
         # Strategy specific logger and params
         self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
         self.strategy_lookback_minutes = 30
-        self.logger.info(f"SimpleMeanReversion portfolio '{self.portfolio_id}' initialized (Lookback: {self.strategy_lookback_minutes} mins).")
+        self.logger.info(f"SimpleMeanReversion portfolio '{self.portfolio_id}'.")
 
 
     # *** MODIFIED: Update signature and logic ***

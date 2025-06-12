@@ -100,7 +100,7 @@ class BacktestRunner:
              self.logger.error("Invalid start or end date for data preparation.")
              return False
         self.logger.info(f"Preparing data for tickers: {self.portfolio.tickers}")
-        self.logger.info(f"Data range: {self.start_date.strftime('%Y-%m-%d')} -> {self.end_date.strftime('%Y-%m-%d')}")
+        self.logger.info(f"Requested date range (naive): {self.start_date.strftime('%Y-%m-%d')} -> {self.end_date.strftime('%Y-%m-%d')}")
 
         df = fetch_historical_data(self.portfolio, self.start_date, self.end_date)
         if df.empty:
@@ -109,38 +109,73 @@ class BacktestRunner:
 
         # --- Data Preprocessing ---
         try:
-            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-            # Convert numeric columns, coercing errors to NaN
+            # --- Robust Timestamp Conversion ---
+            # The logs show the timestamp column has mixed formats. Using `utc=True` is the most robust solution.
+            # It will parse different timezone-aware string formats and convert all of them to a consistent UTC timezone.
+            self.logger.info("Converting timestamp column to unified UTC timezone for consistency.")
+            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
+            
+            # Check for any timestamps that *still* failed to parse.
+            failed_rows = df['timestamp'].isnull().sum()
+            if failed_rows > 0:
+                self.logger.warning(f"{failed_rows} rows still have unparseable timestamps and will be dropped.")
+
+            # --- Numeric Conversion & Dropping NaNs ---
             numeric_cols = ['open_price', 'high_price', 'low_price', 'close_price', 'volume']
             for col in numeric_cols:
                  if col in df.columns:
                       df[col] = pd.to_numeric(df[col], errors='coerce')
 
             initial_rows = len(df)
-            # Drop rows where essential data is missing AFTER conversion attempts
-            df = df.dropna(subset=['timestamp', 'close_price', 'ticker'])
+            essential_cols = ['timestamp', 'close_price', 'ticker']
+            df = df.dropna(subset=essential_cols)
             if len(df) < initial_rows:
                 self.logger.warning(f"Dropped {initial_rows - len(df)} rows due to NaNs in essential columns.")
 
-            # Filter strictly within the requested date range (inclusive)
-            df = df[(df['timestamp'] >= self.start_date) & (df['timestamp'] <= self.end_date)]
-
             if df.empty:
-                self.logger.error("No data remains after filtering for the requested range or cleaning.")
+                self.logger.error("No data remains after cleaning.")
                 return False
 
-            # Sort data globally by timestamp - CRITICAL for sequential processing
+            # --- Timezone-aware Filtering ---
+            # The timestamp column is now consistently in UTC, so the filter dates will be localized to it.
+            start_filter = self.start_date
+            end_filter = self.end_date + timedelta(days=1)
+            
+            # The data is now guaranteed to be tz-aware (UTC).
+            data_tz = df['timestamp'].dt.tz
+            self.logger.info(f"Applying filter to UTC-normalized data (tz={data_tz}).")
+            
+            # Localize the naive start/end dates to the data's timezone (which is now UTC).
+            start_filter = pd.Timestamp(start_filter).tz_localize(data_tz)
+            end_filter = pd.Timestamp(end_filter).tz_localize(data_tz)
+            
+            self.logger.info(f"Filtering data between {start_filter} and {end_filter}")
+            df = df[(df['timestamp'] >= start_filter) & (df['timestamp'] < end_filter)]
+
+            if df.empty:
+                self.logger.error("No data remains after filtering for the requested range.")
+                return False
+
             df.sort_values('timestamp', inplace=True)
-            # *** Ensure default RangeIndex for iloc performance ***
             df.reset_index(drop=True, inplace=True)
 
+            # *** TYPO FIX: Correctly assign to self.main_data_df ***
             self.main_data_df = df
             self.logger.info(f"Data prepared: {len(self.main_data_df)} rows loaded.")
-            self.logger.debug(f"Data sample:\n{self.main_data_df.head()}")
             return True
         except Exception as e:
             self.logger.exception(f"Error during data preparation: {e}", exc_info=True)
             return False
+        
+    def _setup_executor(self) -> None:
+        """Sets up the MultiTickerExecutor."""
+        self.logger.info(f"Setting up MultiTickerExecutor with {self.initial_capital_per_ticker:.2f} initial capital per ticker.")
+        self.multi_executor = MultiTickerExecutor(
+            tickers=self.portfolio.tickers,
+            initial_capital_per_ticker=self.initial_capital_per_ticker
+        )
+        self.portfolio._original_executor = getattr(self.portfolio, 'executor', None)
+        self.portfolio.executor = self.multi_executor
 
 
     def _setup_executor(self) -> None:

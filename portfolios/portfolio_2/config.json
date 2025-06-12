@@ -1,6 +1,6 @@
 {
   "PORTFOLIO_ID": "02",
-  "TICKERS": ["TSLA"],
-  "INTERVAL": 1800,
-  "LOOKBACK_DAYS": 30
+  "TICKERS": ["NVDA"],
+  "INTERVAL": 900,
+  "LOOKBACK_DAYS": 1
 }

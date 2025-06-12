@@ -22,7 +22,6 @@ class SingleTickerExecutor:
         self.logger = logging.getLogger(self.__class__.__name__)
 
 
-    # *** MODIFIED: Add optional timestamp argument ***
     def execute_trade(self,
                       portfolio_id: str,
                       ticker: str,
@@ -32,7 +31,7 @@ class SingleTickerExecutor:
         """
         Simulates executing a trade for this single ticker.
 
-        - BUY invests up to confidence * initial_capital, limited by available cash.
+        - BUY invests up to confidence * current portfolio value, limited by available cash.
         - SELL sells confidence * current holdings.
         - Logs the trade using the provided timestamp or falls back to UTC now.
         """
@@ -51,16 +50,17 @@ class SingleTickerExecutor:
         # Clamp confidence just in case
         confidence = max(0.0, min(1.0, confidence))
 
-        # *** MODIFIED: Determine log timestamp ***
         # Use provided timestamp, otherwise use current UTC time for consistency
         log_ts = timestamp or datetime.now(timezone.utc)
-        # *** END MODIFICATION ***
 
 
         # --- BUY Logic ---
         if signal_type == 'BUY':
-            # Calculate intended investment based on *initial* capital and confidence
-            intended_investment = confidence * self.initial_capital
+            # *** MODIFIED FOR COMPOUNDING ***
+            # Calculate intended investment based on the *current* portfolio value and confidence.
+            intended_investment = confidence * self.get_portfolio_value()
+            # *** END MODIFICATION ***
+            
             # Investment cannot exceed available cash
             actual_investment = min(intended_investment, self.cash)
 
@@ -98,7 +98,7 @@ class SingleTickerExecutor:
             })
             self.logger.debug(f"Executed BUY {shares_to_buy:.4f} {ticker} @ {self.latest_price:.4f}")
 
-        # --- SELL Logic ---
+        # --- SELL Logic (Unchanged) ---
         elif signal_type == 'SELL':
             if self.quantity <= tolerance:
                 self.logger.debug(f"{ticker}: Skipping SELL - No current holdings ({self.quantity}).")
@@ -138,7 +138,7 @@ class SingleTickerExecutor:
 
 
     def get_portfolio_value(self) -> float:
-        """ Calculate current value = cash + (quantity * latest_price). """
+        """ Calculate current value = cash + (quantity * latest_price). (Unchanged) """
         # Use max with 0 to avoid potential negative value if latest_price dips unexpectedly below 0
         holdings_value = self.quantity * max(self.latest_price, 0.0)
         return self.cash + holdings_value

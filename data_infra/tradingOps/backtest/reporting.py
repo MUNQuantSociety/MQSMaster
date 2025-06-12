@@ -38,22 +38,61 @@ def _compute_max_drawdown(portfolio_values: pd.Series) -> float:
     return min(max_dd, 0.0)
 
 
-def _compute_sharpe_ratio(portfolio_values: pd.Series, periods_per_year: int = 252) -> float:
-    """Calculates the annualized Sharpe ratio from portfolio values (assuming daily data)."""
-    if len(portfolio_values) < 3: return 0.0 # Need at least 3 points for 2 returns
-    # Calculate daily returns from portfolio values
-    daily_returns = portfolio_values.pct_change().dropna()
+def _compute_sharpe_ratio(perf_df: pd.DataFrame) -> float:
+    """
+    Calculates the annualized Sharpe ratio from a performance DataFrame.
+    The annualization factor is dynamically calculated based on the data's temporality.
+    """
+    # 1. Validate input DataFrame
+    if perf_df.empty or 'timestamp' not in perf_df.columns or 'portfolio_value' not in perf_df.columns:
+        logging.warning("Sharpe Ratio: perf_df is invalid. Returning 0.0")
+        return 0.0
+    if len(perf_df) < 3:  # Need at least 3 points for 2 returns
+        return 0.0
 
-    if daily_returns.empty or len(daily_returns) < 2: return 0.0
+    df = perf_df.copy()
 
-    mean_ret = np.mean(daily_returns)
-    std_ret = np.std(daily_returns)
+    # 2. Ensure timestamp is datetime and set as index
+    try:
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df.set_index('timestamp', inplace=True)
+    except Exception as e:
+        logging.error(f"Sharpe Ratio: Failed to process timestamp column. Error: {e}")
+        return 0.0
 
-    if std_ret == 0: return 0.0 # Avoid division by zero
+    # 3. Calculate returns of the strategy (from portfolio value)
+    returns = df['portfolio_value'].pct_change().dropna()
 
-    # Annualize (default assumes daily data -> 252 trading days)
-    sharpe = (mean_ret / std_ret) * np.sqrt(periods_per_year)
-    return float(sharpe)
+    if returns.empty or len(returns) < 2:
+        return 0.0
+
+    # 4. Dynamically calculate the annualization factor
+    # Count unique calendar days in the original data's index
+    trading_days = df.index.normalize().nunique()
+
+    # If the backtest spans less than two full days, annualization is statistically unstable.
+    if trading_days < 2:
+        logging.warning(f"Sharpe Ratio: Backtest spans less than 2 days ({trading_days}). Annualized result may be misleading but will be calculated.")
+    
+    # Calculate the average number of return periods (e.g., minutes, hours) per trading day
+    periods_per_day = len(returns) / trading_days if trading_days > 0 else 0
+    
+    # The standard number of trading days in a year
+    TRADING_DAYS_PER_YEAR = 252
+    annualization_factor = periods_per_day * TRADING_DAYS_PER_YEAR
+
+    # 5. Calculate Sharpe Ratio
+    mean_return = returns.mean()
+    std_dev = returns.std()
+
+    if std_dev == 0 or pd.isna(std_dev):
+        # A std dev of 0 means no risk; if returns are positive, Sharpe is infinite.
+        # This is unrealistic and likely means a constant portfolio value. Returning 0 is a safe, conventional choice.
+        return 0.0
+
+    sharpe_ratio = (mean_return / std_dev) * np.sqrt(annualization_factor)
+
+    return float(sharpe_ratio)
 
 
 def aggregate_final_metrics(perf_df: pd.DataFrame) -> pd.DataFrame:
@@ -63,7 +102,8 @@ def aggregate_final_metrics(perf_df: pd.DataFrame) -> pd.DataFrame:
 
     final_val = perf_df['portfolio_value'].iloc[-1]
     max_dd = _compute_max_drawdown(perf_df['portfolio_value'])
-    sharpe = _compute_sharpe_ratio(perf_df['portfolio_value']) # Use value series for Sharpe
+    # MODIFIED: Pass the entire DataFrame to the new Sharpe function
+    sharpe = _compute_sharpe_ratio(perf_df) 
 
     # Add more metrics as needed (e.g., CAGR, Volatility)
     # cagr = _compute_cagr(perf_df)
