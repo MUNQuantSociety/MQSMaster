@@ -4,10 +4,8 @@ from portfolios.portfolio_2.strategy import SimpleMeanReversion
 
 def main():
     db = MQSDBConnector()
-    portfolio_1 = SimpleMeanReversion(db_connector=db, executor=None)
-
-    portfolio_1.backtest()
-
+    portfolio_2 = SimpleMeanReversion(db_connector=db, executor=None)
+    portfolio_2.backtest()
 
     print("Backtest executed successfully.")
 

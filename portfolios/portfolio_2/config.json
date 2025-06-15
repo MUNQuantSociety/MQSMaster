@@ -1,6 +1,11 @@
 {
   "PORTFOLIO_ID": "02",
-  "TICKERS": ["NVDA"],
+  "TICKERS": ["TSLA", "NVDA"],
   "INTERVAL": 900,
-  "LOOKBACK_DAYS": 1
+  "LOOKBACK_DAYS": 1,
+  "EXCH": "NASDAQ",
+  "WEIGHTS": {
+    "TSLA": 0.5,
+    "NVDA": 0.5
+  }
 }
