@@ -5,4 +5,5 @@
 __pycache__/
 *.py[cod]
 data_infra/data/
-MQS/ # Assuming this is your venv
+# Assuming this is your venv
+MQS/ 
