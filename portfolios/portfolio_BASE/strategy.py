@@ -9,6 +9,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Union, Any
 
+
 class BasePortfolio(ABC):
     def __init__(self, db_connector, executor, debug=False, config_dict=None):
         """
