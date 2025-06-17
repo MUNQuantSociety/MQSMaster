@@ -1,26 +1,27 @@
-# portfolios/portfolio_3/strategy.py
+# portfolio_1.py
 
 import os
 import json
 import logging
 import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
+from typing import Dict, Optional
 from portfolios.portfolio_BASE.strategy import BasePortfolio
-from typing import List, Dict, Optional, Union
 
-class MovingAverageCrossover(BasePortfolio):
+
+class SAMPLE_PORTFOLIO(BasePortfolio):
     """
-    Implements a Moving Average Crossover strategy with dynamic confidence.
-    - Buys on Golden Cross (SMA > LMA), confidence based on diff magnitude.
-    - Sells on Death Cross (SMA < LMA), confidence based on diff magnitude.
-    (Uses shorter windows for potentially more frequent trading)
+    Simple Mean Reversion Strategy for Portfolio 1:
+    - For each ticker, look back 3 hours from current time (or backtest time),
+      compute mean of close_price, compare latest price to mean, generate BUY/SELL.
     """
     def __init__(self, db_connector, executor, debug=False):
+        # Load config.json from this directory
         child_dir = os.path.dirname(__file__)
         config_path = os.path.join(child_dir, "config.json")
         if not os.path.exists(config_path):
             raise FileNotFoundError(f"No config.json in {child_dir}")
+
         try:
             with open(config_path, 'r') as f:
                 config_data = json.load(f)
@@ -32,116 +33,124 @@ class MovingAverageCrossover(BasePortfolio):
                          debug=debug,
                          config_dict=config_data)
 
-        self.short_window_days = 10 # e.g., 5-day SMA
-        self.long_window_days = 30  # e.g., 30-day LMA
-
-        # Convert days to timedelta string format for pandas rolling
-        self.short_window_str = f"{self.short_window_days}D"
-        self.long_window_str = f"{self.long_window_days}D"
-        # Adjust minimum lookback needed based on the longest window
-        self.min_lookback_td = timedelta(days=self.long_window_days + 5) # e.g., 35 days
-
-        # Confidence calculation parameters (can keep as before or adjust)
-        self.confidence_scaling_factor = 20.0 # Scales relative diff; 20 -> 5% diff = 1.0 confidence
-        self.min_confidence_threshold = 0.0 # Allow any calculated confidence > 0
-        self.epsilon = 1e-9 # For floating point comparisons
-
         self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
-        self.logger.info(
-            f"{self.__class__.__name__} '{self.portfolio_id}' initialized "
-            # *** Update log message to reflect new windows ***
-            f"(Windows: {self.short_window_str}/{self.long_window_str}, "
-            f"Min Conf: {self.min_confidence_threshold})"
-        )
-
-    def _preprocess_market_data(self, market_data: Union[pd.DataFrame, List[Dict]]) -> Optional[pd.DataFrame]:
-        """Handles DataFrame/List input and basic validation."""
-        # (No changes needed in this method)
-        if isinstance(market_data, pd.DataFrame):
-            df = market_data
-        elif isinstance(market_data, list):
-            if not market_data: return None
-            try:
-                df = pd.DataFrame(market_data)
-                required_cols = ['timestamp', 'ticker', 'close_price']
-                if not all(col in df.columns for col in required_cols):
-                    self.logger.error("Live market data missing required columns.")
-                    return None
-                df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-                df['close_price'] = pd.to_numeric(df['close_price'], errors='coerce')
-                df = df.dropna(subset=required_cols)
-                df.sort_values('timestamp', inplace=True)
-            except Exception as e:
-                self.logger.error(f"Error processing live market data list: {e}"); return None
-        else:
-            self.logger.error(f"Unexpected data type: {type(market_data)}"); return None
-
-        return df if not df.empty else None
+        self.strategy_lookback_hours = 3
+        self.logger.info(f"SAMPLE_PORTFOLIO '{self.portfolio_id}' initialized with tickers: {self.tickers}")
 
     def generate_signals_and_trade(self,
-                                     market_data: Union[pd.DataFrame, List[Dict]],
-                                     current_time: Optional[datetime] = None):
-        """Calculates SMAs/LMAs and generates trade signals based on crossovers and confidence."""
-        # (No changes needed in the logic of this method, it uses the updated window parameters from __init__)
+                                   dataframes_dict: Dict[str, pd.DataFrame],
+                                   current_time: Optional[datetime] = None):
+        """
+        dataframes_dict keys: 'MARKET_DATA', 'CASH_EQUITY', 'POSITIONS', 'PORT_NOTIONAL'
+        current_time: provided by backtest runner; if None, use datetime.now()
+        """
+        market_data = dataframes_dict.get('MARKET_DATA', None)
+        cash_available = dataframes_dict.get('CASH_EQUITY', None)
+        positions = dataframes_dict.get('POSITIONS', None)
+        port_notional = dataframes_dict.get('PORT_NOTIONAL', None)
 
-        df = self._preprocess_market_data(market_data)
-        if df is None:
-            # self.logger.debug("Strategy received no valid market data.") # Optional: reduce noise
+        if market_data is None or market_data.empty:
+            self.logger.debug("Strategy received no valid market data.")
             return
 
-        ref_time = current_time if current_time is not None else df['timestamp'].max()
-        if pd.isna(ref_time):
-            self.logger.warning("Could not determine reference time."); return
-
-        trade_ts = current_time # Simulation time for accurate logging
+        df = market_data
 
         for ticker in self.tickers:
-            ticker_data = df[df['ticker'] == ticker].copy()
-            if ticker_data['timestamp'].nunique() < 2: continue
-
-            time_range = ticker_data['timestamp'].max() - ticker_data['timestamp'].min()
-            # Uses the updated self.min_lookback_td
-            if time_range < self.min_lookback_td:
-                continue
-
             try:
-                ticker_data.set_index('timestamp', inplace=True, drop=False)
-                ticker_data = ticker_data[~ticker_data.index.duplicated(keep='last')].sort_index()
+                ticker_data = df[df['ticker'] == ticker].copy()
+                if ticker_data.empty:
+                    self.logger.debug(f"{ticker}: No market data rows.")
+                    continue
 
-                # Uses the updated self.short/long_window_str and days
-                sma = ticker_data['close_price'].rolling(self.short_window_str, min_periods=self.short_window_days // 2).mean()
-                lma = ticker_data['close_price'].rolling(self.long_window_str, min_periods=self.long_window_days // 2).mean()
+                # Ensure timestamp column is datetime and sorted
+                ticker_data['timestamp'] = pd.to_datetime(ticker_data['timestamp'], errors='coerce')
+                ticker_data = ticker_data.dropna(subset=['timestamp', 'close_price'])
+                ticker_data = ticker_data.sort_values('timestamp')
+                ticker_data = ticker_data[~ticker_data['timestamp'].duplicated(keep='last')]
+                ticker_data = ticker_data.set_index('timestamp', drop=False)
 
-                sma_valid = sma.dropna()
-                lma_valid = lma.dropna()
+                # Determine trade timestamp
+                trade_ts = current_time if current_time is not None else datetime.now()
 
-                if len(sma_valid) < 2 or len(lma_valid) < 2: continue
+                # Compute lookback window
+                window_start = trade_ts - timedelta(hours=self.strategy_lookback_hours)
+                df_window = ticker_data[
+                    (ticker_data['timestamp'] >= window_start) &
+                    (ticker_data['timestamp'] <= trade_ts)
+                ].copy()
 
-                sma_last, sma_prev = sma_valid.iloc[-1], sma_valid.iloc[-2]
-                lma_last, lma_prev = lma_valid.iloc[-1], lma_valid.iloc[-2]
+                if df_window.empty:
+                    self.logger.debug(f"{ticker}: No data in last {self.strategy_lookback_hours} hours before {trade_ts}.")
+                    continue
 
-                if not all(np.isfinite([sma_last, sma_prev, lma_last, lma_prev])): continue
+                # Compute mean of close_price in window
+                mean_price = df_window['close_price'].mean()
+
+                # Latest price: take the last row by timestamp <= trade_ts
+                # If exact match of timestamp isn't present, idxmax ensures latest available
+                latest_idx = df_window['timestamp'].idxmax()
+                latest_row = df_window.loc[latest_idx]
+                latest_price = latest_row['close_price']
+
+                if pd.isna(latest_price) or pd.isna(mean_price):
+                    self.logger.warning(f"{ticker}: NaN encountered (latest_price={latest_price}, mean={mean_price}).")
+                    continue
+
+                # Decide signal
+                if latest_price < mean_price:
+                    signal = 'BUY'
+                else:
+                    signal = 'SELL'
+
+                # Gather execution params
+                # cash_available and port_notional assumed DataFrame with column 'notional'
+                cash_amt = 0.0
+                if cash_available is not None and not cash_available.empty:
+                    # assume column name 'notional'
+                    try:
+                        cash_amt = float(cash_available.iloc[0].get('notional', 0.0))
+                    except Exception:
+                        cash_amt = 0.0
+
+                pos_qty = 0
+                if positions is not None and not positions.empty:
+                    # find row for this ticker
+                    try:
+                        row = positions[positions['ticker'] == ticker]
+                        if not row.empty:
+                            pos_qty = float(row.iloc[0].get('quantity', 0.0))
+                    except Exception:
+                        pos_qty = 0
+
+                port_not = 0.0
+                if port_notional is not None and not port_notional.empty:
+                    try:
+                        port_not = float(port_notional.iloc[0].get('notional', 0.0))
+                    except Exception:
+                        port_not = 0.0
+
+                weight = None
+                if self.portfolio_weights:
+                    weight = self.portfolio_weights.get(ticker)
+                if weight is None:
+                    # fallback equal weight
+                    weight = 1.0 / len(self.tickers) if self.tickers else 0.0
+
+                # Execute trade via executor
+                self.executor.execute_trade(
+                    self.portfolio_id,
+                    ticker,
+                    signal_type=signal,
+                    confidence=1.0,
+                    arrival_price=latest_price,
+                    cash=cash_amt,
+                    positions=pos_qty,
+                    port_notional=port_not,
+                    ticker_weight=weight,
+                    timestamp=trade_ts
+                )
+
+                self.logger.debug(f"{ticker}: Executed {signal} at {latest_price:.2f} (mean {mean_price:.2f}) at {trade_ts}")
 
             except Exception as e:
-                self.logger.debug(f"{ticker}: Error calculating MAs @ {ref_time}: {e}") # Log as debug
-                continue
-
-            # Signal & Confidence Logic (remains the same)
-            signal_type = None
-            confidence = 0.0
-            relative_diff = 0.0
-
-            if sma_last > lma_last + self.epsilon and sma_prev <= lma_prev + self.epsilon:
-                signal_type = 'BUY'
-                if abs(lma_last) > self.epsilon:
-                     relative_diff = abs(sma_last - lma_last) / abs(lma_last)
-                     confidence = min(1.0, self.confidence_scaling_factor * relative_diff)
-
-            elif sma_last < lma_last - self.epsilon and sma_prev >= lma_prev - self.epsilon:
-                signal_type = 'SELL'
-                if abs(lma_last) > self.epsilon:
-                     relative_diff = abs(sma_last - lma_last) / abs(lma_last)
-                     confidence = min(1.0, self.confidence_scaling_factor * relative_diff)
-            
-            if signal_type and confidence >= self.min_confidence_threshold:
-                self.execute_trade(ticker, signal_type, confidence=confidence, timestamp=trade_ts)
+                self.logger.exception(f"{ticker}: Error in portfolio_1 generate_signals_and_trade at {datetime.now()}: {e}")
