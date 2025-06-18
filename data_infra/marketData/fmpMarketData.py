@@ -4,6 +4,7 @@ import time
 import pandas as pd
 from datetime import datetime
 from data_infra.authentication.apiAuth import APIAuth
+import logging
 
 class FMPMarketData:
     """
@@ -21,6 +22,7 @@ class FMPMarketData:
     def __init__(self):
         self.api_auth = APIAuth()
         self.fmp_api_key = self.api_auth.get_fmp_api_key()
+        self.logger = logging.getLogger(self.__class__.__name__)
 
         # Rate Limiting Config
         self.request_timestamps = []
@@ -208,7 +210,7 @@ class FMPMarketData:
         params = {"apikey": self.fmp_api_key}
 
         try:
-            data = self.marketData._make_request(url, params)
+            data = self._make_request(url, params)
             if isinstance(data, list) and data and 'price' in data[0] and data[0]['price'] is not None:
                 return float(data[0]['price'])
 

@@ -5,8 +5,7 @@ from data_infra.database.schemaDefinitions import MQSDBConnector
 from data_infra.authentication.apiAuth import APIAuth
 from data_infra.marketData.fmpMarketData import FMPMarketData
 
-# --- Best Practice: Configure logging once at the application entry point ---
-# This basic configuration will show log messages of INFO level and higher.
+# This basic config will show log messages of INFO level and higher.
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 class tradeExecutor:
@@ -16,10 +15,8 @@ class tradeExecutor:
         self.api_auth = APIAuth()
         self.fmp_api_key = self.api_auth.get_fmp_api_key()
         self.marketData = FMPMarketData()
-        # Correctly initialize the logger for the class instance
         self.logger = logging.getLogger(__name__)
         self.logger.info("tradeExecutor initialized.")
-
 
     def execute_trade(self,
                   portfolio_id,
@@ -34,31 +31,41 @@ class tradeExecutor:
                   timestamp):
         """
         Calculates trade size based on a real-time execution price and executes it.
+        Logs HOLD signals to the database.
         """
+        cash = float(cash)
+        positions = float(positions)
+        port_notional = float(port_notional)
+
         signal_type = signal_type.upper()
         if signal_type not in ('BUY', 'SELL', 'HOLD'):
             self.logger.error(f"Invalid signal type '{signal_type}' for {ticker}. No trade executed.")
             return
 
-        # Clamp confidence to be between 0.0 and 1.0
         confidence = max(0.0, min(1.0, confidence))
 
+        # --- FIX: Handle HOLD signal by logging it ---
         if signal_type == 'HOLD' or confidence == 0.0:
-            self.logger.info(f"Signal is HOLD or confidence is 0 for {ticker}. No trade executed.")
-            return
+            self.logger.info(f"Signal is HOLD or confidence is 0 for {ticker}. Logging to database.")
+            # For a HOLD, we log it with 0 quantity and no change to cash/positions.
+            # We use arrival_price as the price, since no execution happens.
+            return self.update_database(
+                portfolio_id, ticker, 'HOLD', 0,
+                cash, positions, arrival_price, arrival_price, 0, timestamp
+            )
 
-        # --- Get live execution price and calculate slippage ---
         exec_price = self.marketData.get_current_price(ticker)
         if exec_price <= 0:
             self.logger.error(f"Could not fetch a valid execution price for {ticker} (got: {exec_price}). Aborting trade.")
             return
 
-        # Slippage in Basis Points: ((exec / arrival) - 1) * 10000
-        # For BUYs, a positive value is unfavorable (paid more).
-        # For SELLs, a positive value is favorable (sold for more).
-        slippage_bps = ((exec_price / arrival_price) - 1) * 10000 if arrival_price > 0 else 0
+        slippage_bps = 0
+        if arrival_price > 0 and exec_price > 0:
+            if signal_type == 'BUY':
+                slippage_bps = ((exec_price / arrival_price) - 1) * 10000
+            elif signal_type == 'SELL':
+                slippage_bps = ((arrival_price / exec_price) - 1) * 10000
 
-        # --- Core Position Sizing Logic (using exec_price) ---
         current_notional_value = positions * exec_price
         max_target_notional_value = port_notional * ticker_weight
 
@@ -71,39 +78,41 @@ class tradeExecutor:
             target_buy_notional = max_target_notional_value * confidence
             buy_notional = min(available_notional_to_buy, target_buy_notional)
             actual_buy_notional = min(buy_notional, cash)
-            quantity_to_trade = math.floor(actual_buy_notional / exec_price)
-
-            updated_cash = cash - (quantity_to_trade * exec_price)
-            updated_quantity = positions + quantity_to_trade
+            quantity_to_trade = math.floor(actual_buy_notional / exec_price) if exec_price > 0 else 0
+            if quantity_to_trade > 0:
+                updated_cash = cash - (quantity_to_trade * exec_price)
+                updated_quantity = positions + quantity_to_trade
 
         elif signal_type == 'SELL':
             available_notional_to_sell = current_notional_value
             target_sell_notional = max_target_notional_value * confidence
             sell_notional = min(available_notional_to_sell, target_sell_notional)
-            quantity_to_trade = math.floor(sell_notional / exec_price)
+            quantity_to_trade = math.floor(sell_notional / exec_price) if exec_price > 0 else 0
+            if quantity_to_trade > 0:
+                updated_cash = cash + (quantity_to_trade * exec_price)
+                updated_quantity = positions - quantity_to_trade
 
-            updated_cash = cash + (quantity_to_trade * exec_price)
-            updated_quantity = positions - quantity_to_trade
-
-        # --- Final check before execution ---
+        # --- FIX: Log trades with 0 quantity as HOLD ---
         if quantity_to_trade == 0:
-            self.logger.info(f"Calculated trade quantity for {ticker} is 0. No database update needed.")
-            return
+            self.logger.info(f"Calculated trade quantity for {ticker} is 0. Logging as HOLD.")
+            return self.update_database(
+                portfolio_id, ticker, 'HOLD', 0,
+                cash, positions, arrival_price, exec_price, 0, timestamp
+            )
 
         return self.update_database(
             portfolio_id, ticker, signal_type, quantity_to_trade,
             updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp
         )
 
-
     def update_database(self, portfolio_id, ticker, signal_type, quantity_to_trade,
                      updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp):
         """
-        Update database tables after trade execution within a single transaction.
-        If any operation fails, all changes are rolled back.
+        Updates database tables. For BUY/SELL, updates all tables.
+        For HOLD, only updates the trade execution log.
         """
         date_part = timestamp.date()
-        trade_notional = abs(quantity_to_trade * exec_price)
+        trade_notional = abs(quantity_to_trade * exec_price) if signal_type in ('BUY', 'SELL') else 0
 
         conn = None
         try:
@@ -113,27 +122,27 @@ class tradeExecutor:
                 return
 
             with conn.cursor() as cursor:
-                # Update cash_equity_book
-                cash_query = """
-                    INSERT INTO cash_equity_book (timestamp, date, portfolio_id, currency, notional)
-                    VALUES (%s, %s, %s, %s, %s)
-                """
-                cash_values = (timestamp, date_part, portfolio_id, 'USD', updated_cash)
-                cursor.execute(cash_query, cash_values)
+                # --- FIX: Only update cash and positions for actual BUY/SELL trades ---
+                if signal_type in ('BUY', 'SELL') and quantity_to_trade > 0:
+                    cash_query = """
+                        INSERT INTO cash_equity_book (timestamp, date, portfolio_id, currency, notional)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """
+                    cash_values = (timestamp, date_part, portfolio_id, 'USD', updated_cash)
+                    cursor.execute(cash_query, cash_values)
 
-                # Update positions_book (upsert)
-                position_query = """
-                    INSERT INTO positions_book (portfolio_id, ticker, quantity, updated_at)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (portfolio_id, ticker)
-                    DO UPDATE SET
-                        quantity = EXCLUDED.quantity,
-                        updated_at = EXCLUDED.updated_at
-                """
-                position_values = (portfolio_id, ticker, updated_quantity, timestamp)
-                cursor.execute(position_query, position_values)
+                    position_query = """
+                        INSERT INTO positions_book (portfolio_id, ticker, quantity, updated_at)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (portfolio_id, ticker)
+                        DO UPDATE SET
+                            quantity = EXCLUDED.quantity,
+                            updated_at = EXCLUDED.updated_at
+                    """
+                    position_values = (portfolio_id, ticker, updated_quantity, timestamp)
+                    cursor.execute(position_query, position_values)
 
-                # Insert trade log with new fields
+                # --- Always update the trade log for any signal type ---
                 trade_log_query = """
                     INSERT INTO trade_execution_logs (
                         portfolio_id, ticker, exec_timestamp, side, quantity,
@@ -149,7 +158,7 @@ class tradeExecutor:
                 cursor.execute(trade_log_query, trade_log_values)
 
             conn.commit()
-            self.logger.info(f"Database successfully updated for trade: {signal_type} {quantity_to_trade} {ticker} @ {exec_price:.2f}")
+            self.logger.info(f"Database successfully updated for {signal_type} signal on {ticker}.")
             return {'status': 'success', 'quantity': quantity_to_trade}
 
         except Exception as e:
