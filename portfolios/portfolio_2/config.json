@@ -5,7 +5,6 @@
   "LOOKBACK_DAYS": 60,
   "EXCH": "NASDAQ",
   "WEIGHTS": {
-    "GOOG": 0.25,
     "TSLA": 0.25,
     "NFLX": 0.25,
     "META": 0.25
