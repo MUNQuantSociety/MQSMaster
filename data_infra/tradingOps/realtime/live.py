@@ -10,9 +10,9 @@ from data_infra.marketData.fmpMarketData import FMPMarketData
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 class tradeExecutor:
-    def __init__(self):
+    def __init__(self, db_connector: MQSDBConnector):
         """Initializes the tradeExecutor and its components."""
-        self.dbconn = MQSDBConnector()
+        self.dbconn = db_connector
         self.api_auth = APIAuth()
         self.fmp_api_key = self.api_auth.get_fmp_api_key()
         self.marketData = FMPMarketData()
