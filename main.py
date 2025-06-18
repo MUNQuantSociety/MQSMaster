@@ -1,38 +1,38 @@
+# main.py
+
+import logging
 from data_infra.database.MQSDBConnector import MQSDBConnector
+from data_infra.tradingOps.realtime.live import tradeExecutor # For live trading
+# from data_infra.tradingOps.backtest.backtest_executor import BacktestExecutor # For backtesting (hypothetical)
+
+# Import portfolio classes, not instances
+from portfolios.portfolio_1.strategy import SAMPLE_PORTFOLIO
 from portfolios.portfolio_2.strategy import SimpleMeanReversion
-from data_infra.tradingOps.realtime.live import tradeExecutor
+
 from engines.run_engine import RunEngine
-from engines.backtest_engine import BacktestEngine
 
-
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 def main():
+    """
+    Main entry point for the MQS Trading System.
+    """
 
-    # Current Old Implementation
     dbconn = MQSDBConnector()
-    tradeExecutor = tradeExecutor(dbconn)
-    portfolio_2 = SimpleMeanReversion(db_connector=dbconn, executor=tradeExecutor)
-    portfolio_2.run()
+    live_trade_executor = tradeExecutor(dbconn)
 
-    print("Backtest executed successfully.")
-
-    """
-    New Implementation Example
-    For real-time trading:
-
-    Instead of initializing multiple portfolios directly like portfolio_1 = SAMPLE_PORTFOLIO_1(dbconn, tradeExecutor, debug=False), ...
-    you can use the RunEngine to manage multiple portfolios which will initialize them and run them concurrently.
-
-    runner = RunEngine(dbconn, tradeExecutor)
-    runner.load_portfolios([portfolio_1, portfolio_2])
-    runner.run()
-
-    # Or backtest:
-    backtest = BacktestEngine(dbconn, backtestExecutor)
-    backtest.setup([portfolio_1], start_date="2025-01-01", end_date="2025-06-01")
-    backtester.run()
     
-    """
+    run_engine = RunEngine(db_connector=dbconn, executor=live_trade_executor, debug=False)
+    
+    # Pass a list of the portfolio classes you want to run
+    run_engine.load_portfolios([
+        SAMPLE_PORTFOLIO,
+        SimpleMeanReversion
+    ])
+    
+    # Start all loaded portfolios. This will block until Ctrl+C is pressed.
+    run_engine.run()
+
 
 if __name__ == '__main__':
     main()
