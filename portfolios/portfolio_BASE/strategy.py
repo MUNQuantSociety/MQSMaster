@@ -40,15 +40,10 @@ class BasePortfolio(ABC):
             self.portfolio_weights = config_dict.get("WEIGHTS", None)  # Optional weights for tickers
             self.data_feeds = config_dict.get("DATA_FEEDS", ["MARKET_DATA", "POSITIONS", "CASH_EQUITY", "PORT_NOTIONAL"])
         else:
-            # Fallback if no config provided
-            self.portfolio_id = "0"
-            self.tickers = []
-            self.poll_interval = 1
-            self.lookback_days = 1
-            self.portfolio_weights = None  # Equal weights by default
+            raise ValueError("config_dict is unreadable for portfolio configuration.")
 
         # Logging
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
         self.logger.setLevel(logging.INFO)
         self.logger.info(f"Initialized portfolio {self.portfolio_id} with {len(self.tickers)} tickers.")
 
@@ -56,35 +51,20 @@ class BasePortfolio(ABC):
 
         self.last_seen = {}
 
-    def run(self):
-        """Main polling loop."""
-        self.logger.info("Portfolio execution started.")
-        while self.running:
-            try:
-                start_time = time.time()
-                data = self.get_data(self.data_feeds)
-                if data:
-                    self.generate_signals_and_trade(data)
-                else:
-                    self.logger.info("No new market data.")
+    @abstractmethod
+    def generate_signals_and_trade(self, data: Dict[str, pd.DataFrame], current_time: Optional[datetime] = None):
+        """
+        Subclasses implement this method for strategy-specific signal generation and trade logic.
+        Must call `self.executor.execute_trade(...)`.
+        
+        Args:
+            data: A dictionary containing dataframes for different feeds like 'MARKET_DATA'.
+            current_time: The timestamp for the current event, used primarily for backtesting.
+                          In live trading, this can be None.
+        """
+        pass
 
-                if self.debug:
-                    self.logger.info("Debug mode: exiting after one iteration.")
-                    break
-                elapsed_time = time.time() - start_time
-                sleep_time = max(0, self.poll_interval - elapsed_time)
-                logging.info(f"Trade execution finished in {elapsed_time:.2f}s.")
-                time.sleep(sleep_time)
-
-            except KeyboardInterrupt:
-                self.logger.warning("Keyboard interrupt received. Exiting.")
-                self.running = False
-            except Exception as e:
-                self.logger.exception(f"Exception during portfolio loop: {e}")
-
-        self.logger.info("Portfolio execution stopped.")
-
-    def get_data(self, data_feeds: List[str]):
+    def get_data(self, data_feeds: List[str]) -> Dict[str, pd.DataFrame]:
         """
         Fetches data from the specified data feeds.
         :param data_feeds: List of data feed names to fetch.
@@ -102,45 +82,12 @@ class BasePortfolio(ABC):
                 data[feed] = self._get_portfolio_notional(self.portfolio_id)
         return data
 
-    def backtest(self,
-                 start_date: Optional[Union[str, datetime]] = None,
-                 end_date: Optional[Union[str, datetime]] = None,
-                 initial_capital_per_ticker: float = 100000.0): # Make capital configurable
-        from data_infra.tradingOps.backtest.runner import BacktestRunner
-        """
-        Performs a backtest using the BacktestRunner.
-
-        Args:
-            start_date: Start date for the backtest.
-            end_date: End date for the backtest.
-            initial_capital_per_ticker: The starting capital for each ticker's sub-portfolio.
-        """
-        self.logger.info(f"Initiating backtest for portfolio '{self.portfolio_id}'...")
-        if not hasattr(self, 'executor'):
-             self.executor = None # Or assign a default dummy executor if needed outside backtest
-
-        try:
-            # Instantiate the runner
-            runner = BacktestRunner(
-                portfolio=self,
-                start_date=start_date,
-                end_date=end_date,
-                initial_capital_per_ticker=initial_capital_per_ticker
-            )
-            # Execute the backtest
-            runner.run()
-
-        except Exception as e:
-             self.logger.exception(f"Backtest failed for portfolio '{self.portfolio_id}': {e}", exc_info=True)
-
-        self.logger.info(f"Backtest process completed for portfolio '{self.portfolio_id}'. Check logs and report files.")
-
-    def get_market_data(self):
+    def get_market_data(self) -> pd.DataFrame:
         """
         Fetch recent market data for portfolio tickers within lookback window.
         Optionally filters out previously seen timestamps.
         """
-        end_time = datetime.date.now()
+        end_time = datetime.now()
         start_time = end_time - timedelta(days=self.lookback_days)
 
         placeholders = ', '.join(['%s'] * len(self.tickers))
@@ -150,22 +97,25 @@ class BasePortfolio(ABC):
             WHERE ticker IN ({placeholders})
               AND date BETWEEN %s AND %s
         """
-        params = [start_time, end_time] + self.tickers
+        # Note: The order of parameters must match the query
+        params = self.tickers + [start_time, end_time]
         result = self.db.execute_query(sql, params, fetch=True)
 
         if result['status'] != 'success':
             self.logger.error(f"DB read failed: {result['message']}")
             return pd.DataFrame()
+        
         if not result['data']:
-            market_data = pd.DataFrame(result['data'])
-            market_data['timestamp'] = pd.to_datetime(market_data['timestamp'], errors='coerce')
-            market_data['close_price'] = market_data.to_numeric(market_data['close_price'], errors='coerce')
-            market_data = market_data.dropna(subset=['timestamp', 'ticker', 'close_price'])
-            market_data.sort_values('timestamp', inplace=True)
+            return pd.DataFrame()
+
+        market_data = pd.DataFrame(result['data'])
+        market_data['timestamp'] = pd.to_datetime(market_data['timestamp'], errors='coerce')
+        market_data['close_price'] = pd.to_numeric(market_data['close_price'], errors='coerce')
+        market_data = market_data.dropna(subset=['timestamp', 'ticker', 'close_price'])
+        market_data.sort_values('timestamp', inplace=True)
         return market_data
     
-
-    def _get_cash_balance(self, portfolio_id):
+    def _get_cash_balance(self, portfolio_id: str) -> pd.DataFrame:
         """Retrieve the latest cash balance (notional) for the portfolio."""
         sql_cash = """
             SELECT *
@@ -174,31 +124,29 @@ class BasePortfolio(ABC):
             ORDER BY timestamp DESC
             LIMIT 1
         """
-        cash_result = self.db.execute_query(sql_cash, values=(portfolio_id), fetch=True)
+        cash_result = self.db.execute_query(sql_cash, values=(portfolio_id,), fetch=True)
         if cash_result['status'] != 'success' or not cash_result['data']:
             logging.error(f"Could not retrieve cash_equity_book for portfolio {portfolio_id}")
             return pd.DataFrame()
-
-        return pd.DataFrame(cash_result)
+        return pd.DataFrame(cash_result['data'])
     
-
-    def _get_portfolio_notional(self, portfolio_id):
-        """Retrieve the latest cash balance (notional) for the portfolio."""
-        sql_cash = """
+    def _get_portfolio_notional(self, portfolio_id: str) -> pd.DataFrame:
+        """Retrieve the latest portfolio notional value."""
+        sql_pnl = """
             SELECT *
             FROM pnl_book
             WHERE portfolio_id = %s
             ORDER BY timestamp DESC
             LIMIT 1
         """
-        portfolio_result = self.db.execute_query(sql_cash, values=(portfolio_id), fetch=True)
+        portfolio_result = self.db.execute_query(sql_pnl, values=(portfolio_id,), fetch=True)
         if portfolio_result['status'] != 'success' or not portfolio_result['data']:
-            logging.error(f"Could not retrieve cash_equity_book for portfolio {portfolio_id}")
+            logging.error(f"Could not retrieve pnl_book for portfolio {portfolio_id}")
             return pd.DataFrame()
-        return pd.DataFrame(portfolio_result) #portfolio_result['data'][0]['notional'])
+        return pd.DataFrame(portfolio_result['data'])
     
-    def _get_current_positions(self, portfolio_id):
-        """Retrieve the latest cash balance (notional) for the portfolio."""
+    def _get_current_positions(self, portfolio_id: str) -> pd.DataFrame:
+        """Retrieve the latest position for each ticker in the portfolio."""
         sql_positions = """
             SELECT DISTINCT ON (ticker)
                 *
@@ -209,19 +157,10 @@ class BasePortfolio(ABC):
             ORDER BY
                 ticker, timestamp DESC;
         """
-        result = self.db.execute_query(sql_positions,values=(portfolio_id), fetch=True)
-
+        result = self.db.execute_query(sql_positions, values=(portfolio_id,), fetch=True)
         if result['status'] != 'success':
-            self.logger.error(f"positions read failed: {result['message']}")
+            self.logger.error(f"Positions read failed: {result['message']}")
             return pd.DataFrame()
         if not result['data']:
-            positions_data = pd.DataFrame(result['data'])
-        return positions_data
-
-    @abstractmethod
-    def generate_signals_and_trade(self, data: Dict[str, pd.DataFrame]):
-        """
-        Subclasses implement this method for strategy-specific signal generation and trade logic.
-        Must call `self.execute_trade(ticker, signal_type, confidence)`.
-        """
-        pass
+            return pd.DataFrame()
+        return pd.DataFrame(result['data'])
