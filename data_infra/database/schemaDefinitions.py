@@ -51,7 +51,9 @@ class SchemaDefinitions:
             exec_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
             side VARCHAR(4) NOT NULL,  -- e.g. 'BUY' or 'SELL'
             quantity NUMERIC NOT NULL,
-            price_last NUMERIC NOT NULL,
+            arrival_price NUMERIC NOT NULL, -- Price at the time of order arrival
+            exec_price NUMERIC NOT NULL, -- Average execution price for the order
+            slippage_bps NUMERIC, -- Slippage in basis points
             notional NUMERIC,
             notional_local NUMERIC,
             currency VARCHAR(10),
@@ -59,6 +61,8 @@ class SchemaDefinitions:
             created_at TIMESTAMP DEFAULT NOW()
         );
         """
+
+        
 
         create_pnl_book_table = """
         CREATE TABLE IF NOT EXISTS pnl_book (
