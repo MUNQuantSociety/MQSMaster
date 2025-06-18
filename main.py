@@ -1,26 +1,33 @@
 from data_infra.database.MQSDBConnector import MQSDBConnector
 from portfolios.portfolio_2.strategy import SimpleMeanReversion
+from data_infra.tradingOps.realtime.live import tradeExecutor
 from engines.run_engine import RunEngine
 from engines.backtest_engine import BacktestEngine
 
 
 
 def main():
-    db = MQSDBConnector()
-    portfolio_2 = SimpleMeanReversion(db_connector=db, executor=None)
-    portfolio_2.backtest()
+
+    # Current Old Implementation
+    dbconn = MQSDBConnector()
+    tradeExecutor = tradeExecutor(dbconn)
+    portfolio_2 = SimpleMeanReversion(db_connector=dbconn, executor=tradeExecutor)
+    portfolio_2.run()
 
     print("Backtest executed successfully.")
 
     """
-    strategy = SAMPLE_PORTFOLIO(db, executor, debug=False)
+    New Implementation Example
+    For real-time trading:
 
-    # Live run:
-    runner = RunEngine(strategy)
-    runner.start()
+    Instead of initializing multiple portfolios directly like portfolio_1 = SAMPLE_PORTFOLIO_1(dbconn, tradeExecutor, debug=False), ...
+    you can use the RunEngine to manage multiple portfolios which will initialize them and run them concurrently.
+
+    runner = RunEngine([portfolio_1, portfolio_2], dbconn, tradeExecutor)
+    runner.run()
 
     # Or backtest:
-    backtester = BacktestEngine(strategy, start_date="2025-01-01", end_date="2025-06-01")
+    backtester = BacktestEngine([portfolio_1], start_date="2025-01-01", end_date="2025-06-01")
     backtester.run()
     
     """
