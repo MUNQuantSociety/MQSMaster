@@ -23,11 +23,13 @@ def main():
     Instead of initializing multiple portfolios directly like portfolio_1 = SAMPLE_PORTFOLIO_1(dbconn, tradeExecutor, debug=False), ...
     you can use the RunEngine to manage multiple portfolios which will initialize them and run them concurrently.
 
-    runner = RunEngine([portfolio_1, portfolio_2], dbconn, tradeExecutor)
+    runner = RunEngine(dbconn, tradeExecutor)
+    runner.load_portfolios([portfolio_1, portfolio_2])
     runner.run()
 
     # Or backtest:
-    backtester = BacktestEngine([portfolio_1], start_date="2025-01-01", end_date="2025-06-01")
+    backtest = BacktestEngine(dbconn, backtestExecutor)
+    backtest.setup([portfolio_1], start_date="2025-01-01", end_date="2025-06-01")
     backtester.run()
     
     """
