@@ -48,7 +48,7 @@ class tradeExecutor:
             return
 
         # --- Get live execution price and calculate slippage ---
-        exec_price = self.get_current_price(ticker)
+        exec_price = self.marketData.get_current_price(ticker)
         if exec_price <= 0:
             self.logger.error(f"Could not fetch a valid execution price for {ticker} (got: {exec_price}). Aborting trade.")
             return
@@ -164,28 +164,6 @@ class tradeExecutor:
         finally:
             if conn:
                 self.dbconn.release_connection(conn)
-
-    def get_current_price(self, ticker):
-        """
-        Fetch real-time stock price for a single ticker using FMP API.
-        Returns float: Current price of the ticker, or 0.0 if not found or on error.
-        """
-        url = f"https://financialmodelingprep.com/api/v3/quote/{ticker}"
-        params = {"apikey": self.fmp_api_key}
-
-        try:
-            data = self.marketData._make_request(url, params)
-            if isinstance(data, list) and data and 'price' in data[0] and data[0]['price'] is not None:
-                return float(data[0]['price'])
-
-            self.logger.warning(f"No valid price found for ticker {ticker} in API response. Response: {data}")
-            return 0.0
-
-        except Exception as e:
-            self.logger.error(f"Price fetch failed for {ticker}: {e}")
-            return 0.0
-        
-
     
     
     def liquidate(self, portfolio_id):

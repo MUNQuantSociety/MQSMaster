@@ -155,7 +155,7 @@ class BasePortfolio(ABC):
             WHERE
                 portfolio_id = %s
             ORDER BY
-                ticker, timestamp DESC;
+                ticker DESC;
         """
         result = self.db.execute_query(sql_positions, values=(portfolio_id,), fetch=True)
         if result['status'] != 'success':
