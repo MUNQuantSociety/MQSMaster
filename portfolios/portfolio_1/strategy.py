@@ -7,6 +7,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 from portfolios.portfolio_BASE.strategy import BasePortfolio
+import pytz
 
 
 class SAMPLE_PORTFOLIO(BasePortfolio):
@@ -55,6 +56,8 @@ class SAMPLE_PORTFOLIO(BasePortfolio):
 
         df = market_data
 
+        
+
         for ticker in self.tickers:
             try:
                 ticker_data = df[df['ticker'] == ticker].copy()
@@ -69,8 +72,15 @@ class SAMPLE_PORTFOLIO(BasePortfolio):
                 ticker_data = ticker_data[~ticker_data['timestamp'].duplicated(keep='last')]
                 ticker_data = ticker_data.set_index('timestamp', drop=False)
 
-                # Determine trade timestamp
-                trade_ts = current_time if current_time is not None else datetime.now()
+                tz = ticker_data.index.tz
+                if tz is None:
+                    self.logger.warning(f"{ticker}: Timestamp column has no timezone info. Assuming UTC.")
+                    tz = pytz.UTC
+
+                # Create timezone-AWARE datetime objects
+                trade_ts = current_time if current_time is not None else datetime.now(tz)
+                if trade_ts.tzinfo is None: # If current_time was passed without tz
+                    trade_ts = tz.localize(trade_ts)
 
                 # Compute lookback window
                 window_start = trade_ts - timedelta(hours=self.strategy_lookback_hours)

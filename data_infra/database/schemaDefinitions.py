@@ -94,7 +94,7 @@ class SchemaDefinitions:
         create_cash_equity_book_table = """
         CREATE TABLE IF NOT EXISTS cash_equity_book (
             id SERIAL PRIMARY KEY,
-            timestamp IMESTAMP WITH TIME ZONE NOT NULL,
+            timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
             date DATE NOT NULL,
             portfolio_id VARCHAR(50) NOT NULL,
             currency VARCHAR(10) NOT NULL,

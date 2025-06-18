@@ -50,23 +50,38 @@ class DailyAllocator:
         """Calculates the total market value of all positions in a portfolio."""
         query = "SELECT ticker, quantity FROM positions_book WHERE portfolio_id = %s AND quantity > 0;"
         result = self.db_connector.execute_query(query, (portfolio_id,), fetch='all')
-        if not (result and result.get('data')):
+
+        if not result or not result.get('data'):
             return Decimal('0.0')
 
-        total_value = Decimal('0.0')
         positions = result['data']
-        tickers = [pos['ticker'] for pos in positions]
-        prices = self.market_data.get_batch_prices(tickers)
+        if not positions:
+            return Decimal('0.0')
 
+        tickers = [pos['ticker'] for pos in positions]
+        
+        prices = {}
+        for ticker in tickers:
+            # Assuming get_current_price(ticker) returns a Decimal, float, or None.
+            price = self.market_data.get_current_price(ticker)
+            if price is not None:
+                # Populate the dictionary with the price for each ticker.
+                prices[ticker] = price
+
+        total_value = Decimal('0.0')
         for pos in positions:
             ticker = pos['ticker']
-            quantity = pos['quantity']
-            price = Decimal(prices.get(ticker, 0.0))
-            if price > 0:
-                total_value += Decimal(quantity) * price
+            quantity = Decimal(pos['quantity'])
+            price = Decimal(prices.get(ticker, '0.0'))
+
+            if price > Decimal('0.0'):
+                total_value += quantity * price
             else:
-                logger.warning(f"Could not fetch price for {ticker} in portfolio {portfolio_id}. It will be valued at 0.")
-        
+                logger.warning(
+                    f"Could not fetch a valid price for {ticker} in portfolio {portfolio_id}. "
+                    "It will be valued at 0."
+                )
+                
         return total_value
 
     def _execute_internal_transfer(self, cursor, from_portfolio: str, to_portfolio: str, amount: Decimal, new_from_balance: Decimal, new_to_balance: Decimal):

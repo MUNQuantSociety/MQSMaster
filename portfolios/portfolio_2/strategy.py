@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from portfolios.portfolio_BASE.strategy import BasePortfolio
 from typing import List, Dict, Optional, Union
+import pytz
 
 
 class SimpleMeanReversion(BasePortfolio):
@@ -52,7 +53,17 @@ class SimpleMeanReversion(BasePortfolio):
                 ticker_data.set_index('timestamp', inplace=True, drop=False)
                 ticker_data = ticker_data[~ticker_data.index.duplicated(keep='last')].sort_index()
 
-                trade_ts = current_time if current_time is not None else datetime.now()
+                tz = ticker_data.index.tz
+                if tz is None:
+                    self.logger.warning(f"{ticker}: Timestamp column has no timezone info. Assuming UTC.")
+                    tz = pytz.UTC
+
+                # Create timezone-AWARE datetime objects
+                trade_ts = current_time if current_time is not None else datetime.now(tz)
+                if trade_ts.tzinfo is None: # If current_time was passed without tz
+                    trade_ts = tz.localize(trade_ts)
+
+                
                 window_start = trade_ts - timedelta(minutes=self.strategy_lookback_minutes)
 
                 df_window = ticker_data[(ticker_data['timestamp'] >= window_start) & 
@@ -65,7 +76,6 @@ class SimpleMeanReversion(BasePortfolio):
                 mean_price = df_window['close_price'].mean()
                 latest_row = ticker_data.iloc[-1]
                 latest_price = latest_row['close_price']
-                latest_ts_used = latest_row['timestamp']
 
                 if pd.isna(latest_price) or pd.isna(mean_price):
                     self.logger.warning(f"{ticker}: Invalid price or mean encountered.")
