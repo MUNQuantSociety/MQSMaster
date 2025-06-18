@@ -9,7 +9,7 @@ class FMPMarketData:
     """
     Thread-safe FMP market data client.
     Allows multiple threads/processes to call get_intraday_data / get_historical_data
-    simultaneously, without exceeding 299 requests per minute.
+    simultaneously, without exceeding 2999 requests per minute.
     Also handles internet outages, request retries, and timeouts.
     """
 
@@ -28,7 +28,7 @@ class FMPMarketData:
         self.LOCK_WINDOW_SECONDS = 60
 
         # API Request Config
-        self.MAX_RETRIES = 3
+        self.MAX_RETRIES = 6
         self.TIMEOUT_SECONDS = 10  # Prevents script from freezing on a request
 
         # A lock to protect rate-limiter data (request_timestamps), etc.
