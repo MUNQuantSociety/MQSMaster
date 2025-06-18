@@ -1,5 +1,5 @@
 {
-  "PORTFOLIO_ID": "02",
+  "PORTFOLIO_ID": "2",
   "TICKERS": ["GOOG", "TSLA", "NFLX", "META"],
   "INTERVAL": 600,
   "LOOKBACK_DAYS": 60,
