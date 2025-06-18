@@ -1,5 +1,5 @@
 {
-  "PORTFOLIO_ID": "01",
+  "PORTFOLIO_ID": "1",
   "TICKERS": ["NVDA", "AAPL", "AMZN", "MSFT"],
   "INTERVAL": 900,
   "LOOKBACK_DAYS": 90,
