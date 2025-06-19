@@ -32,7 +32,7 @@ def get_current_cash(db_connector: MQSDBConnector, portfolio_id: str) -> float:
     try:
         result = db_connector.execute_query(query, (portfolio_id,), fetch='one')
         if result and result['data']:
-            return float(result['data'][0])
+            return float(result['data'][0]['notional'])
         return 0.0  # No cash balance found, assume 0
     except Exception as e:
         logger.exception(f"Failed to fetch cash for portfolio {portfolio_id}: {e}")
