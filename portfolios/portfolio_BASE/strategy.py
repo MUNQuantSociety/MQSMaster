@@ -70,6 +70,7 @@ class BasePortfolio(ABC):
         :param data_feeds: List of data feed names to fetch.
         :return: Dictionary with data feed names as keys and their data as values.
         """
+        
         data = {}
         for feed in data_feeds:
             if feed == "MARKET_DATA":
@@ -81,6 +82,8 @@ class BasePortfolio(ABC):
             elif feed == "PORT_NOTIONAL":
                 data[feed] = self._get_portfolio_notional(self.portfolio_id)
         return data
+        
+
 
     def get_market_data(self) -> pd.DataFrame:
         """
@@ -155,7 +158,7 @@ class BasePortfolio(ABC):
             WHERE
                 portfolio_id = %s
             ORDER BY
-                ticker DESC;
+                ticker, timestamp DESC;
         """
         result = self.db.execute_query(sql_positions, values=(portfolio_id,), fetch=True)
         if result['status'] != 'success':
