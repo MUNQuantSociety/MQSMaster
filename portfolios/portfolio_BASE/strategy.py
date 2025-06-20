@@ -134,7 +134,10 @@ class BasePortfolio(ABC):
         return pd.DataFrame(cash_result['data'])
     
     def _get_portfolio_notional(self, portfolio_id: str) -> pd.DataFrame:
-        """Retrieve the latest portfolio notional value."""
+        """
+        Retrieve the latest portfolio notional value.
+        If no entry exists in pnl_book (first live run), fall back to cash_equity_book.
+        """
         sql_pnl = """
             SELECT *
             FROM pnl_book
@@ -142,28 +145,100 @@ class BasePortfolio(ABC):
             ORDER BY timestamp DESC
             LIMIT 1
         """
-        portfolio_result = self.db.execute_query(sql_pnl, values=(portfolio_id,), fetch=True)
-        if portfolio_result['status'] != 'success' or not portfolio_result['data']:
-            logging.error(f"Could not retrieve pnl_book for portfolio {portfolio_id}")
-            return pd.DataFrame()
-        return pd.DataFrame(portfolio_result['data'])
+        pnl_result = self.db.execute_query(sql_pnl, values=(portfolio_id,), fetch=True)
+
+        # If we got a successful row, return it directly
+        if pnl_result.get('status') == 'success' and pnl_result.get('data'):
+            return pd.DataFrame(pnl_result['data'])
+
+        # Otherwise—first run or error—fall back to cash_equity
+        logging.info(f"No pnl_book entry for portfolio {portfolio_id}; initializing notional from cash_equity_book.")
+        cash_df = self._get_cash_balance(portfolio_id)
+        if not cash_df.empty and 'notional' in cash_df.columns:
+            # Return only the notional column (with its timestamp, if present)
+            return cash_df[['timestamp', 'notional']].copy()
+        
+        # Last fallback: zero notional
+        logging.warning(f"cash_equity_book also empty for portfolio {portfolio_id}; returning zero notional.")
+        return pd.DataFrame([{
+            'timestamp': datetime.now(),
+            'notional': 0.0
+        }])
     
+
     def _get_current_positions(self, portfolio_id: str) -> pd.DataFrame:
-        """Retrieve the latest position for each ticker in the portfolio."""
+        """
+        Retrieve the latest position for each ticker in the portfolio.
+        If no rows exist in positions_book for this portfolio, initialize
+        quantity=0 for each ticker (letting defaults fill other columns) and
+        return those.
+        """
+        # 1) Try to read existing positions
         sql_positions = """
             SELECT DISTINCT ON (ticker)
-                *
-            FROM
-                positions_book
-            WHERE
-                portfolio_id = %s
-            ORDER BY
-                ticker, timestamp DESC;
+                position_id,
+                portfolio_id,
+                ticker,
+                quantity,
+                updated_at
+            FROM positions_book
+            WHERE portfolio_id = %s
+            ORDER BY ticker, updated_at DESC;
         """
         result = self.db.execute_query(sql_positions, values=(portfolio_id,), fetch=True)
         if result['status'] != 'success':
             self.logger.error(f"Positions read failed: {result['message']}")
             return pd.DataFrame()
-        if not result['data']:
-            return pd.DataFrame()
-        return pd.DataFrame(result['data'])
+
+        # 2) If truly empty *for this portfolio*, seed zero-quantity rows
+        if not result.get('data'):
+            self.logger.info(f"No positions for portfolio {portfolio_id}; inserting zero-quantity baseline.")
+            insert_sql = """
+                INSERT INTO positions_book
+                    (portfolio_id, ticker, quantity)
+                VALUES
+                    (%s, %s, %s)
+                RETURNING position_id, portfolio_id, ticker, quantity, updated_at;
+            """
+            seeded_rows = []
+            for t in self.tickers:
+                try:
+                    res = self.db.execute_query(insert_sql, values=(portfolio_id, t, 0), fetch=True)
+                    if res['status'] == 'success' and res.get('data'):
+                        # fetch=True on INSERT with RETURNING yields data list of one dict
+                        seeded_rows.append(res['data'][0])
+                    else:
+                        self.logger.error(f"Failed to seed position for {t}: {res.get('message')}")
+                except Exception as e:
+                    self.logger.exception(f"Exception while seeding zero position for {t}: {e}")
+            if not seeded_rows:
+                self.logger.error("Seeding zero-quantity positions failed for all tickers.")
+                return pd.DataFrame()
+            return pd.DataFrame(seeded_rows)
+
+        # 3) Otherwise, build DataFrame of what we fetched
+        df = pd.DataFrame(result['data'])
+
+        # 4) In the rare case some tickers are still missing, append them with zero
+        missing = set(self.tickers) - set(df['ticker'])
+        if missing:
+            self.logger.info(f"Missing positions for {missing}; inserting zero-quantity baseline for those.")
+            insert_sql = """
+                INSERT INTO positions_book
+                    (portfolio_id, ticker, quantity)
+                VALUES
+                    (%s, %s, %s)
+                RETURNING position_id, portfolio_id, ticker, quantity, updated_at;
+            """
+            for t in missing:
+                try:
+                    res = self.db.execute_query(insert_sql, values=(portfolio_id, t, 0), fetch=True)
+                    if res['status'] == 'success' and res.get('data'):
+                        df = pd.concat([df, pd.DataFrame(res['data'])], ignore_index=True)
+                    else:
+                        self.logger.error(f"Failed to seed missing ticker {t}: {res.get('message')}")
+                except Exception as e:
+                    self.logger.exception(f"Exception while seeding missing ticker {t}: {e}")
+
+        # 5) Finally, return only the columns our strategies expect
+        return df[['position_id', 'portfolio_id', 'ticker', 'quantity', 'updated_at']]
