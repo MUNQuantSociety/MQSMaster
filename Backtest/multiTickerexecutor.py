@@ -1,11 +1,9 @@
-# data_infra/tradingOps/backtest/multi_ticker_executor.py
 import pandas as pd
 import logging
-# Import necessary types
 from typing import Optional
 from datetime import datetime
-# Correct relative import assuming singleTickerExecutor is in the same directory
-from .singleTickerExecutor import SingleTickerExecutor
+from .singleTickerexecutor import SingleTickerExecutor  # Adjust import as needed
+#from .ba import SingleTickerExecutor
 
 
 class MultiTickerExecutor:
@@ -13,67 +11,69 @@ class MultiTickerExecutor:
     A backtest executor that treats each ticker as an independent sub-portfolio,
     each with its own starting capital (e.g. $100k).
     """
+
     def __init__(self, tickers: list[str], initial_capital_per_ticker: float = 100000.0):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.tickers = tickers
         self.initial_capital_per_ticker = initial_capital_per_ticker
 
         # Create one SingleTickerExecutor per ticker
-        self.executors: dict[str, SingleTickerExecutor] = {}
-        for t in tickers:
-            self.executors[t] = SingleTickerExecutor(initial_capital=self.initial_capital_per_ticker)
-        self.logger.info(f"MultiTickerExecutor initialized for {len(tickers)} tickers.")
-
-    # *** MODIFIED: Add optional timestamp argument ***
-    def __call__(self,
-                 portfolio_id: str,
-                 ticker: str,
-                 signal_type: str,
-                 confidence: float,
-                 timestamp: Optional[datetime] = None): # Added timestamp
-        """
-        The portfolio calls self.executor(...) for trades.
-        We route that call to the sub-executor for the specific ticker, passing the timestamp.
-        """
-        if ticker not in self.executors:
-            self.logger.warning(f"Trade signal for untracked ticker {ticker}. Ignoring.")
-            return
-
-        # *** MODIFIED: Pass timestamp down to SingleTickerExecutor ***
-        self.executors[ticker].execute_trade(
-            portfolio_id, ticker, signal_type, confidence, timestamp=timestamp
-        )
-
-    def update_price(self, ticker: str, price: float):
-        """
-        Let the sub-executor for that ticker know the new price.
-        """
-        if ticker in self.executors:
-            # Ensure price is a float
-            try:
-                 self.executors[ticker].latest_price = float(price)
-            except (ValueError, TypeError):
-                 self.logger.error(f"Invalid price format '{price}' for ticker {ticker}. Cannot update.")
-        # else:
-             # Optional: Log if price update is for an untracked ticker
-             # self.logger.debug(f"Received price update for untracked ticker {ticker}.")
+        self.executors: dict[str, SingleTickerExecutor] = {
+            t: SingleTickerExecutor(initial_capital=self.initial_capital_per_ticker)
+            for t in tickers
+        }
+        self.logger.info(f"Initialized MultiTickerExecutor for tickers: {tickers}")
 
     def execute_trade(self,
                       portfolio_id: str,
                       ticker: str,
                       signal_type: str,
                       confidence: float,
-                      arrival_price=float,
-                      cash=float,
-                      positions=float,
-                      port_notional=float,
-                      ticker_weight=float,
+                      arrival_price: float,
+                      cash: float,
+                      positions: float,
+                      port_notional: float,
+                      ticker_weight: float,
                       timestamp: Optional[datetime] = None):
         """
-        Routing method so that strategy calls executor.execute_trade(...)
+        Route the multi‐param call from your strategy to the single‐ticker executors,
+        passing all arguments along.
         """
-        # Delegate to the __call__ handler you already wrote:
-        return self.__call__(portfolio_id, ticker, signal_type, confidence, timestamp)
+        if ticker not in self.executors:
+            self.logger.warning(f"Received trade for untracked ticker '{ticker}', ignoring.")
+            return
+
+        self.logger.debug(
+            f"Routing {signal_type.upper()} for {ticker} — "
+            f"conf={confidence:.2f}, price={arrival_price:.2f}, cash={cash:.2f}, "
+            f"pos={positions:.2f}, port_notional={port_notional:.2f}, weight={ticker_weight:.2f}"
+        )
+
+        # Forward all params exactly as strategy expects
+        self.executors[ticker].execute_trade(
+            portfolio_id=portfolio_id,
+            ticker=ticker,
+            signal_type=signal_type,
+            confidence=confidence,
+            arrival_price=arrival_price,
+            cash=cash,
+            positions=positions,
+            port_notional=port_notional,
+            ticker_weight=ticker_weight,
+            timestamp=timestamp
+        )
+
+    def update_price(self, ticker: str, price: float):
+        if ticker not in self.executors:
+            self.logger.debug(f"Price update for untracked ticker '{ticker}', ignoring.")
+            return
+        try:
+            self.executors[ticker].latest_price = float(price)
+            self.logger.debug(f"{ticker} price updated to {price:.2f}")
+        except Exception as e:
+            self.logger.error(f"Failed to update price for {ticker}: {e}")
+
+    # ... rest of class unchanged ...
     def get_portfolio_value(self) -> float:
         """ Aggregated portfolio value across all tickers. """
         total = 0.0
