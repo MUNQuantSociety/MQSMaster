@@ -32,20 +32,22 @@ def main():
 
     
     # Start all loaded portfolios. This will block until Ctrl+C is pressed.
-    #run_engine.run()
+    run_engine.run()
     
     
     # Replace with actual backtest executor if available
     backtest_engine= BacktestEngine(db_connector=dbconn,backtest_executor=None)  # Replace None with actual backtest executor if available
 
-    backtest_engine.setup(
+    """backtest_engine.setup(
         portfolio_classes=[SAMPLE_PORTFOLIO,SimpleMeanReversion],
         start_date="2023-01-01",
         end_date="2023-12-31",
         initial_capital=1000000.0
     )
     # Run the backtests
-    backtest_engine.run()
+    #backtest_engine.run()
+    """
+    # If you want to run backtests, uncomment the above lines and set up the backtest engine accordingly.
 
 if __name__ == '__main__':
     main()
