@@ -27,6 +27,11 @@ class SingleTickerExecutor:
                       ticker: str,
                       signal_type: str,
                       confidence: float,
+                      arrival_price=float,
+                      cash=float,
+                      positions=float,
+                      port_notional=float,
+                      ticker_weight=float,
                       timestamp: Optional[datetime] = None): # Added timestamp
         """
         Simulates executing a trade for this single ticker.

@@ -3,8 +3,11 @@
 import logging
 from datetime import datetime
 from typing import Optional, Union, List
-from data_infra.tradingOps.backtest.runner import BacktestRunner # Assuming this will be the backtest data provider
+#from data_infra.tradingOps.backtest.runner import BacktestRunner # Assuming this will be the backtest data provider
 from portfolios.portfolio_BASE.strategy import BasePortfolio
+from Backtest.runner import BacktestRunner  # Assuming this is the correct import path for the BacktestRunner
+
+
 
 class BacktestEngine:
     """
@@ -59,7 +62,6 @@ class BacktestEngine:
             return
         
         self.logger.info(f"Starting backtest engine for {len(self.backtest_configs)} configurations.")
-
         for config in self.backtest_configs:
             portfolio = config['portfolio_instance']
             self.logger.info(f"Running backtest for portfolio {portfolio.portfolio_id} from {config['start_date']} to {config['end_date']}.")
@@ -71,6 +73,7 @@ class BacktestEngine:
                     end_date=config['end_date'],
                     initial_capital_per_ticker=config['initial_capital']
                 )
+                
                 runner.run()
                 self.logger.info(f"Backtest for portfolio {portfolio.portfolio_id} completed.")
             except Exception as e:

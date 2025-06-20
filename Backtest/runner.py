@@ -1,4 +1,4 @@
-# data_infra/tradingOps/backtest/runner.py
+#Backtest\runner.py
 
 import pandas as pd
 import numpy as np
@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Union
 
-from .multiTickerExecutor import MultiTickerExecutor
+from .multiTickerexecutor import MultiTickerExecutor
 from .reporting import generate_backtest_report # Consolidated reporting function
 from .utils import fetch_historical_data # Keep data fetching separate
 # BasePortfolio import is handled via string hint below
