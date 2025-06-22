@@ -5,6 +5,7 @@ from data_infra.database.schemaDefinitions import MQSDBConnector
 from data_infra.authentication.apiAuth import APIAuth
 from data_infra.marketData.fmpMarketData import FMPMarketData
 
+
 # --- Best Practice: Configure logging once at the application entry point ---
 # This basic configuration will show log messages of INFO level and higher.
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -35,6 +36,23 @@ class tradeExecutor:
         """
         Calculates trade size based on a real-time execution price and executes it.
         """
+
+        try:
+            cash = float(cash)
+            positions = float(positions)
+            port_notional = float(port_notional)
+            arrival_price = float(arrival_price)
+            confidence = float(confidence)
+            ticker_weight = float(ticker_weight)
+        except Exception as e:
+            self.logger.error(f"Numeric conversion failed: {e} -- "
+                              f"cash={cash}, positions={positions}, port_notional={port_notional}, arrival_price={arrival_price}")
+            return
+
+
+
+
+
         signal_type = signal_type.upper()
         if signal_type not in ('BUY', 'SELL', 'HOLD'):
             self.logger.error(f"Invalid signal type '{signal_type}' for {ticker}. No trade executed.")

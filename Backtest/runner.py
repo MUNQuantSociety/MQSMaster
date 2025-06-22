@@ -37,23 +37,25 @@ class BacktestRunner:
         self.start_date = self._ensure_datetime(start_date)
         self.end_date = self._ensure_datetime(end_date, default_is_yesterday=True)
 
+        # --- NEW: Set the lookback window using the portfolio's configuration ---
+        lookback_days = getattr(self.portfolio, 'lookback_days', 365) # Default to 365 if not set
+        self.strategy_lookback_window = pd.Timedelta(days=lookback_days)
+        self.logger.info(f"Using strategy lookback window of {lookback_days} days, as defined by the portfolio.")
+        # ---
+
         # Default start_date if None
         if self.start_date is None:
             # Default to 2 years before end_date if end_date is valid
             if self.end_date:
                  self.start_date = self.end_date - timedelta(days=365 * 2)
             else:
-                 # Handle case where end_date could also not be determined
                  self.logger.error("Cannot determine start_date as end_date is invalid.")
-                 # Or raise an error, depending on desired behavior
-                 # raise ValueError("Cannot determine backtest dates.")
 
 
         self.perf_records: List[Dict] = []
         self.main_data_df: pd.DataFrame = pd.DataFrame()
         self.multi_executor: Optional[MultiTickerExecutor] = None
 
-        # Ensure tickers is iterable before calculating total_start_capital
         if hasattr(self.portfolio, 'tickers') and self.portfolio.tickers:
              self.total_start_capital = len(self.portfolio.tickers) * self.initial_capital_per_ticker
         else:
@@ -183,146 +185,77 @@ class BacktestRunner:
 
 
     def _run_event_loop(self) -> None:
-        """Runs the main backtest simulation loop using iloc optimization."""
+        """
+        Runs the main backtest simulation loop.
+        (This version is optimized to use a rolling window for performance)
+        """
         if self.main_data_df.empty or self.multi_executor is None:
             self.logger.error("Cannot run event loop: Data or executor not ready.")
             return
 
-        # --- OPTIMIZATION: Pre-calculate max index for each timestamp ---
-        self.logger.info("Pre-calculating timestamp index map...")
-        timestamp_to_max_index: Optional[pd.Series] = None # Initialize
-        try:
-            # Check if timestamp column exists and is datetime-like
-            if 'timestamp' in self.main_data_df.columns and pd.api.types.is_datetime64_any_dtype(self.main_data_df['timestamp']):
-                 # Group by timestamp once and find the max index in the original DataFrame for each group
-                 grouped_by_time = self.main_data_df.groupby('timestamp', sort=True)
-                 # Create a Series: timestamp -> max_original_index
-                 timestamp_to_max_index = grouped_by_time.apply(lambda x: x.index.max())
-                 # Ensure the map itself is sorted by timestamp (index of the Series)
-                 if not timestamp_to_max_index.index.is_monotonic_increasing:
-                     timestamp_to_max_index = timestamp_to_max_index.sort_index()
-                 self.logger.info("Timestamp index map calculated successfully.")
-            else:
-                 self.logger.error("Timestamp column missing or not datetime type. Cannot pre-calculate index map.")
+        # Ensure unique_times is a sorted DatetimeIndex for efficient slicing
+        unique_times = pd.to_datetime(np.sort(self.main_data_df['timestamp'].unique()))
+        total_timestamps = len(unique_times)
+        if total_timestamps == 0:
+            self.logger.warning("No unique timestamps found in data range. Event loop will not run.")
+            return
 
-        except Exception as e:
-             self.logger.exception(f"Failed to pre-calculate index map: {e}. Will find index within loop (slower).", exc_info=True)
-             timestamp_to_max_index = None # Ensure fallback if error occurs
-        # --- End Pre-calculation ---
-
-        # Determine unique timestamps, preferably from the pre-calculated map
-        try:
-             if timestamp_to_max_index is not None and not timestamp_to_max_index.empty:
-                  unique_times = timestamp_to_max_index.index
-             elif 'timestamp' in self.main_data_df.columns:
-                  unique_times = np.sort(self.main_data_df['timestamp'].unique())
-             else:
-                   self.logger.error("Cannot determine unique timestamps.")
-                   return # Cannot proceed
-
-             total_timestamps = len(unique_times)
-             if total_timestamps == 0:
-                  self.logger.warning("No unique timestamps found in data range. Event loop will not run.")
-                  return
-             self.logger.info(f"Starting event loop over {total_timestamps} unique timestamps...")
-        except Exception as e:
-             self.logger.exception(f"Error determining unique timestamps: {e}", exc_info=True)
-             return
-
+        self.logger.info(f"Starting event loop over {total_timestamps} unique timestamps...")
 
         poll_td = pd.Timedelta(seconds=self.portfolio.poll_interval)
-        last_poll_time: Optional[datetime] = None
-        self.perf_records = [] # Reset records
-        logged_milestones = set()
-        milestones = { # Recalculate milestones based on actual unique_times count
-            int(total_timestamps * 0.25): "25%", int(total_timestamps * 0.50): "50%",
-            int(total_timestamps * 0.75): "75%", total_timestamps: "100%"
-        }
-        last_known_max_index = -1 # Track previous index for efficient chunk slicing
+        last_poll_time: Optional[pd.Timestamp] = None
+        self.perf_records = []
+        
+        # We need the timestamp column as a Series for fast searching
+        timestamps_series = self.main_data_df['timestamp']
 
         # --- Loop starts ---
-        for i, current_timestamp in enumerate(unique_times): # Iterate directly over sorted unique timestamps
-            step_number = i + 1
+        for i, current_timestamp in enumerate(unique_times):
+            
+            # --- Polling interval check ---
+            if last_poll_time is not None and (current_timestamp - last_poll_time) < poll_td:
+                continue
+            last_poll_time = current_timestamp
 
-            # --- Poll Interval Check ---
-            # Ensure current_timestamp is comparable (it should be datetime from map index or unique())
-            if last_poll_time is not None and isinstance(current_timestamp, datetime):
-                 time_diff = current_timestamp - last_poll_time
-                 if time_diff < poll_td:
-                      continue # Skip this timestamp if interval not met
-            # Update last poll time only if it's a valid datetime
-            if isinstance(current_timestamp, datetime):
-                 last_poll_time = current_timestamp
+            # --- Get data for the current time step efficiently ---
+            current_data_chunk = self.main_data_df[timestamps_series == current_timestamp]
+            if current_data_chunk.empty:
+                continue
 
-            # --- OPTIMIZATION: Get current_max_index efficiently ---
-            current_max_index: int = -1 # Use type hint
-            try:
-                if timestamp_to_max_index is not None:
-                    # Direct lookup in the pre-calculated map (Series)
-                    current_max_index = timestamp_to_max_index.loc[current_timestamp]
-                else:
-                    # Fallback: Find index within the loop (slower)
-                    # This requires getting the chunk first, which is less efficient
-                    chunk_df_for_index = self.main_data_df[self.main_data_df['timestamp'] == current_timestamp]
-                    if not chunk_df_for_index.empty:
-                         current_max_index = chunk_df_for_index.index.max()
+            # --- Update Prices ---
+            price_updates = dict(zip(current_data_chunk['ticker'], current_data_chunk['close_price']))
+            for ticker, price in price_updates.items():
+                if ticker in self.multi_executor.executors and pd.notna(price):
+                    self.multi_executor.update_price(ticker, float(price))
 
-                if not isinstance(current_max_index, (int, np.integer)) or current_max_index < 0:
-                     raise ValueError(f"Invalid index found: {current_max_index}")
+            # --- MAJOR OPTIMIZATION: Create a rolling window slice ---
+            window_start_time = current_timestamp - self.strategy_lookback_window
+            
+            # Use pandas' searchsorted for a highly efficient index lookup
+            start_index = timestamps_series.searchsorted(window_start_time, side='left')
+            end_index = current_data_chunk.index.max()
 
-            except KeyError:
-                 self.logger.warning(f"Timestamp {current_timestamp} not found in pre-calculated index map (KeyError).")
-                 current_max_index = -1 # Ensure it's marked as invalid
-            except Exception as e:
-                 self.logger.error(f"Error determining max index for timestamp {current_timestamp}: {e}")
-                 current_max_index = -1 # Ensure it's marked as invalid
-
-            if current_max_index == -1:
-                 self.logger.warning(f"Skipping step for timestamp {current_timestamp} due to index lookup failure.")
-                 continue
-            # ---
-
-            # --- Update Prices (Needs data for the current timestamp only) ---
-            # Efficiently get the chunk for price updates using iloc
-            start_index = last_known_max_index + 1
-            # Slice from start_index up to and including current_max_index
-            chunk_df = self.main_data_df.iloc[start_index : current_max_index + 1]
-
-            for _, row in chunk_df.iterrows(): # Iterate over the small chunk
-                ticker = row.get('ticker')
-                price_val = row.get('close_price')
-                # Check if ticker is tracked and price is valid before updating
-                if ticker and ticker in self.multi_executor.executors and pd.notna(price_val):
-                    try:
-                        self.multi_executor.update_price(ticker, float(price_val))
-                    except (ValueError, TypeError) as e:
-                         self.logger.error(f"Error updating price for {ticker} with value {price_val}: {e}")
-
-            # --- OPTIMIZATION: Create historical slice using iloc ---
-            # Slice up to and including current_max_index
-            # Use copy() to avoid potential SettingWithCopyWarning in strategy if it modifies the slice
-            historical_slice_df = self.main_data_df.iloc[:current_max_index + 1].copy()
-            # --- END OPTIMIZATION ---
+            # Create the final, smaller historical slice by index location
+            historical_slice_df = self.main_data_df.iloc[start_index : end_index + 1].copy()
+            # --- END OF MAJOR OPTIMIZATION ---
 
             # --- Call Strategy ---
             if not historical_slice_df.empty:
                 try:
-                     # Ensure current_timestamp is passed as datetime
-                     sim_time = pd.to_datetime(current_timestamp).to_pydatetime() if not isinstance(current_timestamp, datetime) else current_timestamp
-
-                     data_dict = {
-                                'MARKET_DATA': historical_slice_df,
-                                'CASH_EQUITY': self.multi_executor.get_cash_equity_df(),
-                                'POSITIONS':    self.multi_executor.get_positions_df(),
-                                'PORT_NOTIONAL': self.multi_executor.get_port_notional_df()}
-                     self.portfolio.generate_signals_and_trade(data_dict, current_time=sim_time)
-                     
+                    sim_time = current_timestamp.to_pydatetime()
+                    data_dict = {
+                        'MARKET_DATA': historical_slice_df,
+                        'CASH_EQUITY': self.multi_executor.get_cash_equity_df(),
+                        'POSITIONS': self.multi_executor.get_positions_df(),
+                        'PORT_NOTIONAL': self.multi_executor.get_port_notional_df()
+                    }
+                    self.portfolio.generate_signals_and_trade(data_dict, current_time=sim_time)
                 except Exception as e:
-                     self.logger.exception(f"Error occurred within strategy generate_signals_and_trade at {current_timestamp}: {e}", exc_info=True)
-                     # Optionally: decide whether to continue or stop the backtest on strategy error
-
+                    self.logger.exception(f"Error in strategy at {current_timestamp}: {e}", exc_info=True)
 
             # --- Record Portfolio State ---
+            # For accuracy, we get the total portfolio value directly from the executor,
+            # which always tracks the full history of cash and positions correctly.
             record = {'timestamp': current_timestamp}
             total_portfolio_value = 0.0
             for t in self.portfolio.tickers:
@@ -332,22 +265,13 @@ class BacktestRunner:
                         record[t] = ticker_value
                         total_portfolio_value += ticker_value
                     except Exception as e:
-                         self.logger.error(f"Error getting portfolio value for ticker {t}: {e}")
-                         record[t] = 'Error' # Indicate error in record
+                        self.logger.error(f"Error getting portfolio value for ticker {t}: {e}")
+                        record[t] = 'Error'
                 else:
                     record[t] = 0.0 # Ticker not managed by executor
             record['portfolio_value'] = total_portfolio_value
             self.perf_records.append(record)
-
-            # --- Progress Logging Check ---
-            for milestone_step, percentage in milestones.items():
-                if step_number >= milestone_step and percentage not in logged_milestones:
-                    self.logger.info(f"Backtest progress: {percentage} completed ({step_number}/{total_timestamps} steps).")
-                    logged_milestones.add(percentage)
-            # ---
-
-            # Update index tracker for next iteration's chunk slicing
-            last_known_max_index = current_max_index
+            # (Progress logging can be added here if desired)
 
         self.logger.info("Event loop finished.")
 
