@@ -7,7 +7,7 @@ from MQSDBConnector import MQSDBConnector
 try:
     db = MQSDBConnector()
 except Exception as e:
-    print("❌ Failed to initialize the MQSDBConnector:", e)
+    print("❌ Failed to initialize the MQSDBConnector:", e) #Need to check hostname/ server issue
     db = None  # Avoid crash in test_connection()
 
 # Test Connection
