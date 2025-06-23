@@ -204,40 +204,6 @@ class BacktestRunner:
             self.logger.warning("No unique timestamps found in data range. Event loop will not run.")
             return
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         self.logger.info(f"Starting event loop over {total_timestamps} unique timestamps...")
 
         poll_td = pd.Timedelta(seconds=self.portfolio.poll_interval)
@@ -246,9 +212,6 @@ class BacktestRunner:
         
         # We need the timestamp column as a Series for fast searching
         timestamps_series = self.main_data_df['timestamp']
-
-
-
 
         # --- Loop starts ---
         for i, current_timestamp in enumerate(unique_times):
@@ -276,43 +239,9 @@ class BacktestRunner:
             start_index = timestamps_series.searchsorted(window_start_time, side='left')
             end_index = current_data_chunk.index.max()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             # Create the final, smaller historical slice by index location
             historical_slice_df = self.main_data_df.iloc[start_index : end_index + 1].copy()
             # --- END OF MAJOR OPTIMIZATION ---
-
-
 
             # --- Call Strategy ---
             if not historical_slice_df.empty:
@@ -325,12 +254,8 @@ class BacktestRunner:
                         'PORT_NOTIONAL': self.multi_executor.get_port_notional_df()
                     }
                     self.portfolio.generate_signals_and_trade(data_dict, current_time=sim_time)
-
-
                 except Exception as e:
                     self.logger.exception(f"Error in strategy at {current_timestamp}: {e}", exc_info=True)
-
-
 
             # --- Record Portfolio State ---
             # For accuracy, we get the total portfolio value directly from the executor,
@@ -351,15 +276,6 @@ class BacktestRunner:
             record['portfolio_value'] = total_portfolio_value
             self.perf_records.append(record)
             # (Progress logging can be added here if desired)
-
-
-
-
-
-
-
-
-
 
         self.logger.info("Event loop finished.")
 
