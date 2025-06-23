@@ -1,10 +1,9 @@
-# data_infra/tradingOps/backtest/utils.py
+# In munquantsociety/mqsmaster/MQSMaster-nas_refactor/Backtest/utils.py
 
 import pandas as pd
 import logging
 from typing import List, Optional, Union
 from datetime import datetime
-
 from portfolios.portfolio_BASE.strategy import BasePortfolio
 
 
@@ -15,14 +14,6 @@ def fetch_historical_data(
 ) -> pd.DataFrame:
     """
     Fetches historical market data for the portfolio's tickers within the date range.
-
-    Args:
-        portfolio: The portfolio instance containing tickers and DB connection.
-        start_date: The start datetime for the data query.
-        end_date: The end datetime for the data query.
-
-    Returns:
-        A pandas DataFrame containing cleaned market data, or an empty DataFrame on failure.
     """
     logger = portfolio.logger
     tickers = getattr(portfolio, "tickers", [])
@@ -31,7 +22,6 @@ def fetch_historical_data(
         logger.warning("No tickers specified in the portfolio; returning empty DataFrame.")
         return pd.DataFrame()
 
-    # Prepare SQL
     placeholders = ", ".join(["%s"] * len(tickers))
     sql = f"""
         SELECT *
@@ -41,7 +31,6 @@ def fetch_historical_data(
          ORDER BY timestamp ASC
     """
     params = tickers + [start_date, end_date]
-
     logger.debug(
         f"Executing historical data query for {len(tickers)} tickers "
         f"from {start_date} to {end_date}."
@@ -65,32 +54,36 @@ def fetch_historical_data(
 
     df = pd.DataFrame(raw_data)
 
-    # Parse and clean
-    # 1) Timestamp → datetime (America/New_York timezone)
-    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    # --- Start of Final, Corrected Cleaning Logic ---
+
+    # Step 1: Convert timestamp column to datetime objects, standardizing to UTC.
+    # This robustly handles mixed timezone formats and is the fix for the original NaT issue.
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
     
-    if df["timestamp"].dt.tz is not None:
-        df["timestamp"] = df["timestamp"].dt.tz_convert('America/New_York')
-    else:
-        df["timestamp"] = df["timestamp"].dt.tz_localize('America/New_York')
+    # Step 2: Now that the column has a datetime type, convert from UTC to 'America/New_York'.
+    # This fixes the "Can only use .dt accessor" error.
+    df["timestamp"] = df["timestamp"].dt.tz_convert('America/New_York')
     
-    # 2) Numeric columns
+    # Step 3: Convert all numeric columns.
     numeric_cols = ["open_price", "high_price", "low_price", "close_price", "volume"]
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
+            
+    # --- End of Corrected Logic ---
 
+    # Step 4: Drop any rows that failed coercion in the steps above.
     before_drop = len(df)
     df.dropna(subset=["timestamp", "ticker", "close_price"], inplace=True)
     dropped = before_drop - len(df)
     if dropped > 0:
-        logger.warning(f"Dropped {dropped} rows due to missing timestamp, ticker, or close_price.")
+        logger.warning(f"Dropped {dropped} rows due to missing or invalid values.")
 
     if df.empty:
         logger.error("No valid data remains after cleaning; returning empty DataFrame.")
         return pd.DataFrame()
 
-    # Sort and reset index
+    # Final sort and index reset
     df.sort_values("timestamp", inplace=True)
     df.reset_index(drop=True, inplace=True)
 
