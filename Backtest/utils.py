@@ -66,8 +66,9 @@ def fetch_historical_data(
     df = pd.DataFrame(raw_data)
 
     # Parse and clean
-    # 1) Timestamp → datetime (UTC)
-    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+    # 1) Timestamp → datetime (America/New_York timezone)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").dt.tz_localize('America/New_York')
+    
     # 2) Numeric columns
     numeric_cols = ["open_price", "high_price", "low_price", "close_price", "volume"]
     for col in numeric_cols:
