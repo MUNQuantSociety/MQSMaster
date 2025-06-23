@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 import logging
+from zoneinfo import ZoneInfo
 
 class SingleTickerExecutor:
     """
@@ -52,7 +53,7 @@ class SingleTickerExecutor:
             return
 
         confidence = max(0.0, min(1.0, confidence))
-        log_ts = timestamp or datetime.now(timezone.utc)
+        log_ts = timestamp or datetime.now(ZoneInfo("America/New_York"))
 
         if signal == "BUY":
             intended = confidence * self.get_portfolio_value()
