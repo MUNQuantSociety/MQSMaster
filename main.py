@@ -3,7 +3,7 @@
 import logging
 from data_infra.database.MQSDBConnector import MQSDBConnector
 from data_infra.tradingOps.realtime.live import tradeExecutor # For live trading
-from Backtest.runner import BacktestRunner  # Assuming this is the backtest runner
+from backtest.runner import BacktestRunner  # This is the backtest runner
 
 # Import portfolio classes, not instances
 from portfolios.portfolio_1.strategy import SAMPLE_PORTFOLIO

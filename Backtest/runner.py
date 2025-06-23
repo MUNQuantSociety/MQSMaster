@@ -116,10 +116,14 @@ class BacktestRunner:
         # --- Data Preprocessing ---
         try:
             # --- Robust Timestamp Conversion ---
-            # The logs show the timestamp column has mixed formats. Using `utc=True` is the most robust solution.
+            # The logs show the timestamp column has mixed formats.
             # It will parse different timezone-aware string formats and convert all of them to a consistent UTC timezone.
-            self.logger.info("Converting timestamp column to unified UTC timezone for consistency.")
-            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
+            self.logger.info("Converting timestamp column to unified America/New_York timezone for consistency.")
+            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+            if df["timestamp"].dt.tz is not None:
+                df["timestamp"] = df["timestamp"].dt.tz_convert('America/New_York')
+            else:
+                df["timestamp"] = df["timestamp"].dt.tz_localize('America/New_York')
 
             # Check for any timestamps that *still* failed to parse.
             failed_rows = df['timestamp'].isnull().sum()
@@ -143,13 +147,13 @@ class BacktestRunner:
                 return False
 
             # --- Timezone-aware Filtering ---
-            # The timestamp column is now consistently in UTC, so the filter dates will be localized to it.
+            # The timestamp column is now consistently in NY timezeone, so the filter dates will be localized to it.
             start_filter = self.start_date
             end_filter = self.end_date + timedelta(days=1)
 
-            # The data is now guaranteed to be tz-aware (UTC).
+            # The data is now guaranteed to be tz-aware (NY timezeone).
             data_tz = df['timestamp'].dt.tz
-            self.logger.info(f"Applying filter to UTC-normalized data (tz={data_tz}).")
+            self.logger.info(f"Applying filter to NY timezeone-normalized data (tz={data_tz}).")
 
             # Localize the naive start/end dates to the data's timezone (which is now UTC).
             start_filter = pd.Timestamp(start_filter).tz_localize(data_tz)
