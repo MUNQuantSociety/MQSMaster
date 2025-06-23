@@ -71,7 +71,7 @@ class BacktestEngine:
                     portfolio=portfolio,
                     start_date=config['start_date'],
                     end_date=config['end_date'],
-                    initial_capital_per_ticker=config['initial_capital']
+                    initial_capital=config['initial_capital']
                 )
                 
                 runner.run()

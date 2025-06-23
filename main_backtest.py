@@ -31,7 +31,7 @@ def main():
         backtest_engine = BacktestEngine(db_connector=dbconn, backtest_executor=None)
 
         backtest_engine.setup(
-            portfolio_classes=[SAMPLE_PORTFOLIO],
+            portfolio_classes=[SimpleMeanReversion],
             start_date="2023-01-01",
             end_date="2023-12-31",
             initial_capital=1000000.0

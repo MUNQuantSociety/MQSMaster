@@ -1,4 +1,4 @@
-#Backtest\runner.py
+#Backtest\runner.pyMore actions
 
 import pandas as pd
 import numpy as np
@@ -21,7 +21,7 @@ class BacktestRunner:
                  portfolio: 'BasePortfolio',
                  start_date: Optional[Union[str, datetime, pd.Timestamp]] = None,
                  end_date: Optional[Union[str, datetime, pd.Timestamp]] = None,
-                 initial_capital_per_ticker: float = 100000.0):
+                 initial_capital: float = 100000.0):
         """
         Initializes the BacktestRunner.
 
@@ -33,7 +33,7 @@ class BacktestRunner:
         """
         self.portfolio = portfolio
         self.logger = portfolio.logger # Use the portfolio's logger
-        self.initial_capital_per_ticker = initial_capital_per_ticker
+        self.total_start_capital = initial_capital
         self.start_date = self._ensure_datetime(start_date)
         self.end_date = self._ensure_datetime(end_date, default_is_yesterday=True)
 
@@ -49,15 +49,19 @@ class BacktestRunner:
             if self.end_date:
                  self.start_date = self.end_date - timedelta(days=365 * 2)
             else:
+
                  self.logger.error("Cannot determine start_date as end_date is invalid.")
+
+
 
 
         self.perf_records: List[Dict] = []
         self.main_data_df: pd.DataFrame = pd.DataFrame()
         self.multi_executor: Optional[MultiTickerExecutor] = None
 
+
         if hasattr(self.portfolio, 'tickers') and self.portfolio.tickers:
-             self.total_start_capital = len(self.portfolio.tickers) * self.initial_capital_per_ticker
+             self.initial_capital_per_ticker= self.total_start_capital / len(self.portfolio.tickers)
         else:
              self.logger.warning("Portfolio tickers are missing or empty. Total start capital set to 0.")
              self.total_start_capital = 0.0
@@ -116,7 +120,7 @@ class BacktestRunner:
             # It will parse different timezone-aware string formats and convert all of them to a consistent UTC timezone.
             self.logger.info("Converting timestamp column to unified UTC timezone for consistency.")
             df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
-            
+
             # Check for any timestamps that *still* failed to parse.
             failed_rows = df['timestamp'].isnull().sum()
             if failed_rows > 0:
@@ -142,15 +146,15 @@ class BacktestRunner:
             # The timestamp column is now consistently in UTC, so the filter dates will be localized to it.
             start_filter = self.start_date
             end_filter = self.end_date + timedelta(days=1)
-            
+
             # The data is now guaranteed to be tz-aware (UTC).
             data_tz = df['timestamp'].dt.tz
             self.logger.info(f"Applying filter to UTC-normalized data (tz={data_tz}).")
-            
+
             # Localize the naive start/end dates to the data's timezone (which is now UTC).
             start_filter = pd.Timestamp(start_filter).tz_localize(data_tz)
             end_filter = pd.Timestamp(end_filter).tz_localize(data_tz)
-            
+
             self.logger.info(f"Filtering data between {start_filter} and {end_filter}")
             df = df[(df['timestamp'] >= start_filter) & (df['timestamp'] < end_filter)]
 
@@ -168,7 +172,7 @@ class BacktestRunner:
         except Exception as e:
             self.logger.exception(f"Error during data preparation: {e}", exc_info=True)
             return False
-        
+
 
     def _setup_executor(self) -> None:
         """Sets up the MultiTickerExecutor."""
@@ -200,6 +204,40 @@ class BacktestRunner:
             self.logger.warning("No unique timestamps found in data range. Event loop will not run.")
             return
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         self.logger.info(f"Starting event loop over {total_timestamps} unique timestamps...")
 
         poll_td = pd.Timedelta(seconds=self.portfolio.poll_interval)
@@ -208,6 +246,9 @@ class BacktestRunner:
         
         # We need the timestamp column as a Series for fast searching
         timestamps_series = self.main_data_df['timestamp']
+
+
+
 
         # --- Loop starts ---
         for i, current_timestamp in enumerate(unique_times):
@@ -235,9 +276,43 @@ class BacktestRunner:
             start_index = timestamps_series.searchsorted(window_start_time, side='left')
             end_index = current_data_chunk.index.max()
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             # Create the final, smaller historical slice by index location
             historical_slice_df = self.main_data_df.iloc[start_index : end_index + 1].copy()
             # --- END OF MAJOR OPTIMIZATION ---
+
+
 
             # --- Call Strategy ---
             if not historical_slice_df.empty:
@@ -250,8 +325,12 @@ class BacktestRunner:
                         'PORT_NOTIONAL': self.multi_executor.get_port_notional_df()
                     }
                     self.portfolio.generate_signals_and_trade(data_dict, current_time=sim_time)
+
+
                 except Exception as e:
                     self.logger.exception(f"Error in strategy at {current_timestamp}: {e}", exc_info=True)
+
+
 
             # --- Record Portfolio State ---
             # For accuracy, we get the total portfolio value directly from the executor,
@@ -272,6 +351,15 @@ class BacktestRunner:
             record['portfolio_value'] = total_portfolio_value
             self.perf_records.append(record)
             # (Progress logging can be added here if desired)
+
+
+
+
+
+
+
+
+
 
         self.logger.info("Event loop finished.")
 
@@ -363,4 +451,3 @@ class BacktestRunner:
         finally:
             # --- Always attempt to restore executor ---
             self._restore_executor()
-            self.logger.info("===== Backtest Run Finished =====")
