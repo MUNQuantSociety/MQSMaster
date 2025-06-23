@@ -118,12 +118,7 @@ class BacktestRunner:
             # --- Robust Timestamp Conversion ---
             # The logs show the timestamp column has mixed formats.
             # It will parse different timezone-aware string formats and convert all of them to a consistent UTC timezone.
-            self.logger.info("Converting timestamp column to unified America/New_York timezone for consistency.")
-            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-            if df["timestamp"].dt.tz is not None:
-                df["timestamp"] = df["timestamp"].dt.tz_convert('America/New_York')
-            else:
-                df["timestamp"] = df["timestamp"].dt.tz_localize('America/New_York')
+            self.logger.info("Converting timestamp column to unified America/New_York timezone already done.")
 
             # Check for any timestamps that *still* failed to parse.
             failed_rows = df['timestamp'].isnull().sum()
