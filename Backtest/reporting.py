@@ -29,33 +29,45 @@ def _compute_max_drawdown(portfolio_values: pd.Series) -> float:
 
 def _compute_sharpe_ratio(perf_df: pd.DataFrame) -> float:
     """
-    Calculates annualized Sharpe ratio from performance DataFrame.
+    Calculates the annualized Sharpe ratio from a performance DataFrame, robust to
+    variable data frequencies. It achieves this by resampling returns to a daily
+    frequency before calculating the ratio.
     """
     if perf_df.empty or 'timestamp' not in perf_df or 'portfolio_value' not in perf_df:
-        logging.warning("Invalid perf_df for Sharpe; returning 0.0")
+        logging.warning("Invalid perf_df for Sharpe Ratio calculation; returning 0.0")
         return 0.0
 
+    # 1. Prepare the DataFrame
     df = perf_df.copy()
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df.set_index('timestamp', inplace=True)
 
-    returns = df['portfolio_value'].pct_change().dropna()
-    if returns.empty:
+    # 2. Resample the portfolio value to get the last value for each day
+    # This standardizes the frequency of our data points. 'D' stands for calendar day.
+    daily_values = df['portfolio_value'].resample('D').last()
+
+    # 3. Calculate the percentage change of the daily values to get daily returns
+    daily_returns = daily_values.pct_change().dropna()
+
+    if daily_returns.empty or len(daily_returns) < 2:
+        logging.warning("Not enough daily returns data to calculate a meaningful Sharpe ratio.")
         return 0.0
 
-    trading_days = df.index.normalize().nunique()
-    if trading_days < 2:
-        logging.warning(f"Sharpe over <2 days ({trading_days}); result may be misleading")
+    # 4. Calculate the mean and standard deviation of the standardized daily returns
+    mean_daily_return = daily_returns.mean()
+    std_daily_return = daily_returns.std()
 
-    periods_per_day = len(returns) / trading_days if trading_days > 0 else 0
-    annual_factor = periods_per_day * 252
-
-    mean_ret = returns.mean()
-    std_ret = returns.std()
-    if std_ret == 0 or np.isnan(std_ret):
+    if std_daily_return == 0 or np.isnan(std_daily_return):
+        # If standard deviation is zero, there is no risk.
+        # We return 0.0 to avoid division-by-zero errors
         return 0.0
 
-    return float((mean_ret / std_ret) * np.sqrt(annual_factor))
+    # 5. Annualize the Sharpe ratio. The standard factor for daily returns is sqrt(252).
+    # The risk-free rate is assumed to be 0 for this calculation.
+    annualization_factor = np.sqrt(252)
+    sharpe_ratio = (mean_daily_return / std_daily_return) * annualization_factor
+
+    return float(sharpe_ratio)
 
 def aggregate_final_metrics(perf_df: pd.DataFrame) -> pd.DataFrame:
     """Aggregates key metrics from perf_df."""
@@ -92,9 +104,12 @@ def _compute_rolling_stats(
 
     for w in windows_days:
         window_str = f'{w}D'
+        
+        # This calculation remains the same
         rolling_mean = df[columns_to_analyze].rolling(window=window_str, min_periods=max(2, w // 2)).mean()
-        daily_diff = df[columns_to_analyze].diff()
-        rolling_vol = daily_diff.rolling(window=window_str, min_periods=max(2, w // 2)).std()
+        
+
+        rolling_vol = df[columns_to_analyze].rolling(window=window_str, min_periods=max(2, w // 2)).std()
 
         wdf = pd.DataFrame(index=df.index)
         for col in columns_to_analyze:

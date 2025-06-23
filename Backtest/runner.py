@@ -103,33 +103,30 @@ class BacktestRunner:
     def _prepare_data(self) -> bool:
         """Fetches, cleans, sorts, and prepares historical market data."""
         if not self.start_date or not self.end_date:
-             self.logger.error("Invalid start or end date for data preparation.")
-             return False
+                self.logger.error("Invalid start or end date for data preparation.")
+                return False
         self.logger.info(f"Preparing data for tickers: {self.portfolio.tickers}")
         self.logger.info(f"Requested date range (naive): {self.start_date.strftime('%Y-%m-%d')} -> {self.end_date.strftime('%Y-%m-%d')}")
 
+        # --- Fetch all data from the database ---
         df = fetch_historical_data(self.portfolio, self.start_date, self.end_date)
+        
         if df.empty:
             self.logger.error("No historical data found for the specified criteria.")
             return False
 
         # --- Data Preprocessing ---
         try:
-            # --- Robust Timestamp Conversion ---
-            # The logs show the timestamp column has mixed formats.
-            # It will parse different timezone-aware string formats and convert all of them to a consistent UTC timezone.
             self.logger.info("Converting timestamp column to unified America/New_York timezone already done.")
-
-            # Check for any timestamps that *still* failed to parse.
+            
             failed_rows = df['timestamp'].isnull().sum()
             if failed_rows > 0:
                 self.logger.warning(f"{failed_rows} rows still have unparseable timestamps and will be dropped.")
 
-            # --- Numeric Conversion & Dropping NaNs ---
             numeric_cols = ['open_price', 'high_price', 'low_price', 'close_price', 'volume']
             for col in numeric_cols:
-                 if col in df.columns:
-                      df[col] = pd.to_numeric(df[col], errors='coerce')
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
 
             initial_rows = len(df)
             essential_cols = ['timestamp', 'close_price', 'ticker']
@@ -137,23 +134,25 @@ class BacktestRunner:
             if len(df) < initial_rows:
                 self.logger.warning(f"Dropped {initial_rows - len(df)} rows due to NaNs in essential columns.")
 
+            # --- START OF NEW DEBUG BLOCK ---
+            print(f"\nSTEP 3: AFTER dropna()")
+            print(f"  - Shape of DataFrame: {df.shape}")
+            if not df.empty:
+                print(f"  - Cleaned Date Range: {df['timestamp'].min()} -> {df['timestamp'].max()}")
+            print("="*80 + "\n")
+            # --- END OF NEW DEBUG BLOCK ---
+
             if df.empty:
                 self.logger.error("No data remains after cleaning.")
                 return False
 
             # --- Timezone-aware Filtering ---
-            # The timestamp column is now consistently in NY timezeone, so the filter dates will be localized to it.
             start_filter = self.start_date
             end_filter = self.end_date + timedelta(days=1)
-
-            # The data is now guaranteed to be tz-aware (NY timezeone).
             data_tz = df['timestamp'].dt.tz
             self.logger.info(f"Applying filter to NY timezeone-normalized data (tz={data_tz}).")
-
-            # Localize the naive start/end dates to the data's timezone (which is now UTC).
             start_filter = pd.Timestamp(start_filter).tz_localize(data_tz)
             end_filter = pd.Timestamp(end_filter).tz_localize(data_tz)
-
             self.logger.info(f"Filtering data between {start_filter} and {end_filter}")
             df = df[(df['timestamp'] >= start_filter) & (df['timestamp'] < end_filter)]
 
@@ -163,8 +162,6 @@ class BacktestRunner:
 
             df.sort_values('timestamp', inplace=True)
             df.reset_index(drop=True, inplace=True)
-
-            # *** TYPO FIX: Correctly assign to self.main_data_df ***
             self.main_data_df = df
             self.logger.info(f"Data prepared: {len(self.main_data_df)} rows loaded.")
             return True

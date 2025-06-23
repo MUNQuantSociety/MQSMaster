@@ -1,6 +1,6 @@
 {
   "PORTFOLIO_ID": "2",
-  "TICKERS": ["GOOG", "TSLA", "NFLX", "META"],
+  "TICKERS": ["AAPL", "TSLA", "AMZN"],
   "INTERVAL": 600,
   "LOOKBACK_DAYS": 60,
   "EXCH": "NASDAQ",
