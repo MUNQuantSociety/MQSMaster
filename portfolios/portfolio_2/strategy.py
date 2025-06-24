@@ -72,13 +72,6 @@ class SimpleMeanReversion(BasePortfolio):
             return
 
         df = market_data
-        
-        self.debug_logger.debug("\n" + "="*80)
-        self.debug_logger.debug(f"NEW STRATEGY EXECUTION CYCLE AT: {current_time}")
-        self.debug_logger.debug(f"Total rows in market_data received: {len(df)}")
-        if not df.empty:
-            self.debug_logger.debug(f"Market data time range: {df['timestamp'].min()} -> {df['timestamp'].max()}")
-        self.debug_logger.debug("="*80)
 
         for ticker in self.tickers:
             try:

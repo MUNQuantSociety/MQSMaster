@@ -7,7 +7,7 @@ import pstats
 from data_infra.database.MQSDBConnector import MQSDBConnector
 
 # Import portfolio classes, not instances
-from portfolios.portfolio_1.strategy import SAMPLE_PORTFOLIO
+from portfolios.portfolio_1.strategy import SimpleMomentum
 from portfolios.portfolio_2.strategy import SimpleMeanReversion
 
 from engines.backtest_engine import BacktestEngine
@@ -18,7 +18,6 @@ def main():
     """
     Main entry point for the MQS Trading System.
     """
-    
     # 1. Set up the profiler
     profiler = cProfile.Profile()
     profiler.enable()
@@ -31,9 +30,9 @@ def main():
         backtest_engine = BacktestEngine(db_connector=dbconn, backtest_executor=None)
 
         backtest_engine.setup(
-            portfolio_classes=[SimpleMeanReversion],
+            portfolio_classes=[SimpleMomentum],
             start_date="2023-01-01",
-            end_date="2023-12-31",
+            end_date="2025-06-23",
             initial_capital=1000000.0
         )
         
