@@ -134,14 +134,6 @@ class BacktestRunner:
             if len(df) < initial_rows:
                 self.logger.warning(f"Dropped {initial_rows - len(df)} rows due to NaNs in essential columns.")
 
-            # --- START OF NEW DEBUG BLOCK ---
-            print(f"\nSTEP 3: AFTER dropna()")
-            print(f"  - Shape of DataFrame: {df.shape}")
-            if not df.empty:
-                print(f"  - Cleaned Date Range: {df['timestamp'].min()} -> {df['timestamp'].max()}")
-            print("="*80 + "\n")
-            # --- END OF NEW DEBUG BLOCK ---
-
             if df.empty:
                 self.logger.error("No data remains after cleaning.")
                 return False
