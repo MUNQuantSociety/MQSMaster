@@ -1,4 +1,12 @@
-# This is the complete main.py file with profiling included.
+# This is where backtests are setup.
+# Simply add you portfolio class to the list of portfolio classes in the `setup` method.
+
+# High level overview of how to set up a backtest:
+
+# 1. Load your portfolio through imports such as `from portfolios.portfolio_1.strategy import SimpleMomentum`
+# 2. Set up the backtest engine with the database connector and backtest executor.
+# 3. Call the `setup` method with the portfolio class, start date, end date, and initial capital.
+# 4. Call the `run` method to execute the backtest.
 
 import logging
 import cProfile
@@ -18,7 +26,7 @@ def main():
     """
     Main entry point for the MQS Trading System.
     """
-    # 1. Set up the profiler
+    # 1. Set up the profiler to analyse the performance of the backtest
     profiler = cProfile.Profile()
     profiler.enable()
 
@@ -26,7 +34,7 @@ def main():
     try:
         dbconn = MQSDBConnector()
         
-        # In a backtest, the executor is handled by the BacktestRunner, so passing None here is correct.
+        # In a backtest, backtest_executor is none.
         backtest_engine = BacktestEngine(db_connector=dbconn, backtest_executor=None)
 
         backtest_engine.setup(
@@ -45,7 +53,7 @@ def main():
         logging.info("===== PROFILING RESULTS =====")
         # Sort stats by cumulative time and print the top 20 results
         stats = pstats.Stats(profiler).sort_stats('cumtime')
-        stats.print_stats(20)
+        stats.print_stats(6)
 
 
 if __name__ == '__main__':
