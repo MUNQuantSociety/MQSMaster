@@ -23,95 +23,96 @@ class tradeExecutor:
 
 
     def execute_trade(self,
-                  portfolio_id,
-                  ticker,
-                  signal_type,
-                  confidence,
-                  arrival_price,
-                  cash,
-                  positions,
-                  port_notional,
-                  ticker_weight,
-                  timestamp):
-        """
-        Calculates trade size based on a real-time execution price and executes it.
-        """
+                    portfolio_id,
+                    ticker,
+                    signal_type,
+                    confidence,
+                    arrival_price,
+                    cash,
+                    positions,
+                    port_notional,
+                    ticker_weight,
+                    timestamp):
+            """
+            Calculates and executes a trade using a "Direct Fractional Order" model.
+            A trade's notional value is a direct fraction of the max target allocation,
+            constrained by cash, current holdings, and the maximum weight cap.
+            """
+            try:
+                cash = float(cash)
+                positions = float(positions)
+                port_notional = float(port_notional)
+                arrival_price = float(arrival_price)
+                confidence = float(confidence)
+                ticker_weight = float(ticker_weight)
+            except Exception as e:
+                self.logger.error(f"Numeric conversion failed: {e} -- "
+                                f"cash={cash}, positions={positions}, port_notional={port_notional}, arrival_price={arrival_price}")
+                return
 
-        try:
-            cash = float(cash)
-            positions = float(positions)
-            port_notional = float(port_notional)
-            arrival_price = float(arrival_price)
-            confidence = float(confidence)
-            ticker_weight = float(ticker_weight)
-        except Exception as e:
-            self.logger.error(f"Numeric conversion failed: {e} -- "
-                              f"cash={cash}, positions={positions}, port_notional={port_notional}, arrival_price={arrival_price}")
-            return
+            signal_type = signal_type.upper()
+            if signal_type not in ('BUY', 'SELL', 'HOLD'):
+                self.logger.error(f"Invalid signal type '{signal_type}' for {ticker}. No trade executed.")
+                return
 
+            confidence = max(0.0, min(1.0, confidence))
+            if signal_type == 'HOLD' or confidence == 0.0:
+                self.logger.info(f"Signal is HOLD or confidence is 0 for {ticker}. No trade executed.")
+                return
+            
+            exec_price = self.get_current_price(ticker)
+            if exec_price <= 0:
+                self.logger.error(f"Could not fetch a valid execution price for {ticker} (got: {exec_price}). Aborting trade.")
+                return
 
+            slippage_bps = ((exec_price / arrival_price) - 1) * 10000 if arrival_price > 0 else 0
 
+            # --- Direct Fractional Order Sizing Logic ---
+            current_notional_value = positions * exec_price
+            max_target_notional = port_notional * ticker_weight
+            
+            # 1. Calculate the direct notional value of the trade order based on confidence.
+            # This is the amount we *want* to buy or sell.
+            direct_order_notional = max_target_notional * confidence
 
+            quantity_to_trade = 0
+            updated_cash = cash
+            updated_quantity = positions
 
-        signal_type = signal_type.upper()
-        if signal_type not in ('BUY', 'SELL', 'HOLD'):
-            self.logger.error(f"Invalid signal type '{signal_type}' for {ticker}. No trade executed.")
-            return
+            if signal_type == 'BUY':
+                # 2. For a BUY, apply all constraints.
+                # Constraint 1: Available Cash
+                final_trade_notional = min(direct_order_notional, cash)
+                
+                # Constraint 2: Maximum weight cap.
+                # Calculate how much "room" is left before hitting the weight limit.
+                room_before_cap = max(0, max_target_notional - current_notional_value)
+                final_trade_notional = min(final_trade_notional, room_before_cap)
 
-        # Clamp confidence to be between 0.0 and 1.0
-        confidence = max(0.0, min(1.0, confidence))
+                quantity_to_trade = math.floor(final_trade_notional / exec_price)
+                
+                if quantity_to_trade > 0:
+                    updated_cash = cash - (quantity_to_trade * exec_price)
+                    updated_quantity = positions + quantity_to_trade
 
-        if signal_type == 'HOLD' or confidence == 0.0:
-            self.logger.info(f"Signal is HOLD or confidence is 0 for {ticker}. No trade executed.")
-            return
+            elif signal_type == 'SELL':
+                # 2. For a SELL, the only constraint is what you currently hold.
+                final_trade_notional = min(direct_order_notional, current_notional_value)
 
-        # --- Get live execution price and calculate slippage ---
-        exec_price = self.get_current_price(ticker)
-        if exec_price <= 0:
-            self.logger.error(f"Could not fetch a valid execution price for {ticker} (got: {exec_price}). Aborting trade.")
-            return
+                quantity_to_trade = math.floor(final_trade_notional / exec_price)
 
-        # Slippage in Basis Points: ((exec / arrival) - 1) * 10000
-        # For BUYs, a positive value is unfavorable (paid more).
-        # For SELLs, a positive value is favorable (sold for more).
-        slippage_bps = ((exec_price / arrival_price) - 1) * 10000 if arrival_price > 0 else 0
-
-        # --- Core Position Sizing Logic (using exec_price) ---
-        current_notional_value = positions * exec_price
-        max_target_notional_value = port_notional * ticker_weight
-
-        quantity_to_trade = 0
-        updated_cash = cash
-        updated_quantity = positions
-
-        if signal_type == 'BUY':
-            available_notional_to_buy = max(0, max_target_notional_value - current_notional_value)
-            target_buy_notional = max_target_notional_value * confidence
-            buy_notional = min(available_notional_to_buy, target_buy_notional)
-            actual_buy_notional = min(buy_notional, cash)
-            quantity_to_trade = math.floor(actual_buy_notional / exec_price)
-
-            updated_cash = cash - (quantity_to_trade * exec_price)
-            updated_quantity = positions + quantity_to_trade
-
-        elif signal_type == 'SELL':
-            available_notional_to_sell = current_notional_value
-            target_sell_notional = max_target_notional_value * confidence
-            sell_notional = min(available_notional_to_sell, target_sell_notional)
-            quantity_to_trade = math.floor(sell_notional / exec_price)
-
-            updated_cash = cash + (quantity_to_trade * exec_price)
-            updated_quantity = positions - quantity_to_trade
-
-        # --- Final check before execution ---
-        if quantity_to_trade == 0:
-            self.logger.info(f"Calculated trade quantity for {ticker} is 0. No database update needed.")
-            return
-
-        return self.update_database(
-            portfolio_id, ticker, signal_type, quantity_to_trade,
-            updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp
-        )
+                if quantity_to_trade > 0:
+                    updated_cash = cash + (quantity_to_trade * exec_price)
+                    updated_quantity = positions - quantity_to_trade
+                    
+            if quantity_to_trade == 0:
+                self.logger.info(f"Calculated trade quantity for {ticker} is 0. No database update needed.")
+                return
+                
+            return self.update_database(
+                portfolio_id, ticker, signal_type, quantity_to_trade,
+                updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp
+            )
 
     def update_database(self, portfolio_id, ticker, signal_type, quantity_to_trade,
                      updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp):

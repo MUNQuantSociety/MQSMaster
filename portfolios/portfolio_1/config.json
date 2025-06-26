@@ -1,6 +1,6 @@
 {
   "PORTFOLIO_ID": "1",
-  "TICKERS": ["NVDA", "AAPL", "AMZN", "MSFT"],
+  "TICKERS": ["NVDA", "AAPL"],
   "INTERVAL": 900,
   "LOOKBACK_DAYS": 90,
   "EXCH": "NASDAQ",
