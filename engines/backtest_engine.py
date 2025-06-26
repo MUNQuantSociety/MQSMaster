@@ -60,8 +60,6 @@ class BacktestEngine:
         if not self.backtest_configs:
             self.logger.warning("No backtests set up. Call setup() first.")
             return
-        
-        self.logger.info(f"Starting backtest engine for {len(self.backtest_configs)} configurations.")
         for config in self.backtest_configs:
             portfolio = config['portfolio_instance']
             self.logger.info(f"Running backtest for portfolio {portfolio.portfolio_id} from {config['start_date']} to {config['end_date']}.")
