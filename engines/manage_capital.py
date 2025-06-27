@@ -23,6 +23,7 @@ CURRENCY = "USD"
 
 def get_current_cash(db_connector: MQSDBConnector, portfolio_id: str) -> float:
     """Fetches the most recent cash balance for a given portfolio."""
+    # This function correctly queries 'cash_equity_book' which uses 'notional' for its balance. No changes needed here.
     query = """
         SELECT notional FROM cash_equity_book
         WHERE portfolio_id = %s
@@ -72,6 +73,8 @@ def update_capital(db_connector: MQSDBConnector, amount: float, action: str):
             date_part = exec_timestamp.date()
 
             # 1. Insert into trade_execution_logs
+            # Only notional_local is touched. notional (CAD value) is set to NULL
+            # because no FX rate is implemented.
             trade_log_query = """
                 INSERT INTO trade_execution_logs (
                     portfolio_id, ticker, exec_timestamp, side, quantity,
@@ -80,13 +83,14 @@ def update_capital(db_connector: MQSDBConnector, amount: float, action: str):
             """
             trade_log_values = (
                 MASTER_PORTFOLIO_ID, CASH_TICKER, exec_timestamp, side, amount,
-                amount, amount, CURRENCY
+                None, amount, CURRENCY # Set notional to NULL, and notional_local to the transaction amount
             )
             cursor.execute(trade_log_query, trade_log_values)
             logger.info(f"Logged funding transaction: {side} {amount} {CASH_TICKER} for portfolio {MASTER_PORTFOLIO_ID}")
 
 
             # 2. Insert new balance into cash_equity_book
+            # This table correctly uses 'notional' for its balance as it has a currency column. No changes needed.
             cash_query = """
                 INSERT INTO cash_equity_book (timestamp, date, portfolio_id, currency, notional)
                 VALUES (%s, %s, %s, %s, %s);
