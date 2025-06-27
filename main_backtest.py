@@ -16,7 +16,7 @@ from data_infra.database.MQSDBConnector import MQSDBConnector
 
 # Import portfolio classes, not instances
 from portfolios.portfolio_1.strategy import SimpleMomentum
-from portfolios.portfolio_2.strategy import SimpleMeanReversion
+from portfolios.portfolio_2.strategy import MomentumThresholdStrategy
 
 from engines.backtest_engine import BacktestEngine
 
@@ -38,7 +38,7 @@ def main():
         backtest_engine = BacktestEngine(db_connector=dbconn, backtest_executor=None)
 
         backtest_engine.setup(
-            portfolio_classes=[SimpleMomentum],
+            portfolio_classes=[MomentumThresholdStrategy],
             start_date="2023-01-01",
             end_date="2024-01-01",
             initial_capital=1000000.0
