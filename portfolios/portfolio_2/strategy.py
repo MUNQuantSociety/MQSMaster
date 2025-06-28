@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from portfolios.portfolio_BASE.strategy import BasePortfolio
 from typing import Dict, Optional
 
-class SimpleMomentum(BasePortfolio):
+class MomentumThreshold(BasePortfolio):
     """
     A simple momentum strategy that buys assets with strong positive returns
     over a lookback period and sells assets with strong negative returns.
