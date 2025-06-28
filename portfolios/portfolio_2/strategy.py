@@ -1,135 +1,228 @@
-# portfolios/portfolio_2/strategy.py
-
 import os
 import json
 import logging
-import pandas as pd # Import pandas
+import pandas as pd
 from datetime import datetime, timedelta
 from portfolios.portfolio_BASE.strategy import BasePortfolio
-from typing import List, Dict, Optional, Union
+from typing import Dict, Optional
 
-
-class SimpleMeanReversion(BasePortfolio):
+class SimpleMomentum(BasePortfolio):
+    """
+    A simple momentum strategy that buys assets with strong positive returns
+    over a lookback period and sells assets with strong negative returns.
+    """
     def __init__(self, db_connector, executor, debug=False):
-        # 1->> Load local config.json into the portfolio!
+        """
+        Initializes the SimpleMomentum strategy.
+        """
         child_dir = os.path.dirname(__file__)
         config_path = os.path.join(child_dir, "config.json")
         if not os.path.exists(config_path):
-            raise FileNotFoundError(f"No config.json in {child_dir}")
+            raise FileNotFoundError(f"Config file not found for SimpleMomentum at {config_path}")
 
         try:
             with open(config_path, 'r') as f:
                 config_data = json.load(f)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Error decoding config.json: {e}") from e
         except Exception as e:
-            raise RuntimeError(f"Failed to load config.json: {e}") from e
+            raise RuntimeError(f"Failed to load or parse config.json: {e}") from e
 
-        # 2->> Pass config_data to the BasePortfolio constructor
         super().__init__(db_connector=db_connector,
                          executor=executor,
                          debug=debug,
                          config_dict=config_data)
 
-        # Strategy specific logger and params
         self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
-        self.strategy_lookback_minutes = 30
-        self.logger.info(f"SimpleMeanReversion portfolio '{self.portfolio_id}'.")
+
+        # --- Strategy-Specific Parameters ---
+        self.momentum_lookback_days = self.lookback_days
+        self.momentum_threshold = 0.02
+        self.interval_seconds = self.poll_interval
+        self.last_decision_time = {}
+
+        self.logger.info(f"SimpleMomentum portfolio '{self.portfolio_id}' initialized.")
+        self.logger.info(
+            f"Strategy Parameters: Lookback = {self.momentum_lookback_days} days, "
+            f"Threshold = {self.momentum_threshold:.2%}, "
+            f"Trade Interval = {self.interval_seconds} seconds"
+        )
 
 
-    # *** MODIFIED: Update signature and logic ***
     def generate_signals_and_trade(self,
-                                     market_data: Union[pd.DataFrame, List[Dict]],
-                                     current_time: Optional[datetime] = None):
+                                   dataframes_dict: Dict[str, pd.DataFrame],
+                                   current_time: Optional[datetime] = None):
         """
-        Calculates a 30-minute rolling mean and compares to the latest price.
-        Handles both DataFrame (backtest) and List[Dict] (live) input.
+        Main logic function called by the backtest runner at each time step.
         """
-        # --- Handle Input Type ---
-        if isinstance(market_data, pd.DataFrame):
-            df = market_data # Backtest path
-        elif isinstance(market_data, list):
-            # Live path: Convert list of dicts to DataFrame
-            if not market_data: return
-            try:
-                df = pd.DataFrame(market_data)
-                # Ensure required columns exist and have correct types
-                if not all(col in df.columns for col in ['timestamp', 'ticker', 'close_price']):
-                     self.logger.error("Live market data missing required columns.")
-                     return
-                df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-                df['close_price'] = pd.to_numeric(df['close_price'], errors='coerce')
-                df = df.dropna(subset=['timestamp', 'ticker', 'close_price'])
-                df.sort_values('timestamp', inplace=True) # Sort for consistent processing
-            except Exception as e:
-                 self.logger.error(f"Error processing live market data list: {e}")
-                 return
-        else:
-            self.logger.error(f"generate_signals_and_trade received unexpected data type: {type(market_data)}")
+        market_data = dataframes_dict.get('MARKET_DATA')
+        cash_available = dataframes_dict.get('CASH_EQUITY')
+        positions = dataframes_dict.get('POSITIONS')
+        port_notional = dataframes_dict.get('PORT_NOTIONAL')
+
+        if market_data is None or market_data.empty:
             return
 
-        if df.empty:
-            self.logger.debug("Strategy received empty or unusable market data.")
-            return
+        trade_ts = current_time or datetime.now().astimezone()
 
-        # Determine the reference time
-        # Use current_time if provided (from backtester), MUST be the correct time for backtest trades!
-        # If live mode (current_time is None), use the latest time from the data batch.
-        ref_time = current_time if current_time is not None else datetime.now()
-        if pd.isna(ref_time):
-             self.logger.warning("Could not determine reference time.")
-             return
-
-        window_start = ref_time - timedelta(minutes=self.strategy_lookback_minutes)
-        # Filter the dataframe (whether from backtest slice or converted live data)
-        df_window = df[df['timestamp'] >= window_start].copy()
-
-        if df_window.empty:
-            self.logger.debug(f"No data within the {self.strategy_lookback_minutes}-minute window ending {ref_time}")
-            return
-
-        # --- Process each ticker ---
         for ticker in self.tickers:
-            ticker_df = df_window[df_window['ticker'] == ticker]
-            if len(ticker_df) < 2:
-                self.logger.debug(f"Ticker {ticker}: Not enough data points ({len(ticker_df)}) in window.")
-                continue
-
             try:
-                mean_price = ticker_df['close_price'].mean()
+                last_decision = self.last_decision_time.get(ticker)
+                if last_decision and (trade_ts - last_decision) < timedelta(seconds=self.interval_seconds):
+                    continue
+
+                ticker_data = market_data[market_data['ticker'] == ticker]
+                if ticker_data.empty:
+                    continue
+
+                # --- START MOMENTUM CALCULATION ---
+
+                # To calculate momentum, we need at least a start and end point.
+                if len(ticker_data) < 2:
+                    self.logger.debug(f"[{ticker}] Not enough data points ({len(ticker_data)}) in the provided window to calculate momentum.")
+                    continue
+
+                # 1. Get the most recent price from the end of the provided data slice.
+                latest_price = ticker_data['close_price'].iloc[-1]
+
+                # 2. Get the price from the start of the provided data slice.
+                # This is simpler and more robust than calculating dates.
+                lookback_price = ticker_data['close_price'].iloc[0]
+
+                # 3. Calculate the momentum as a simple percentage return over the window.
+                if lookback_price == 0: # Avoid division by zero
+                    momentum_return = 0.0
+                else:
+                    momentum_return = (latest_price - lookback_price) / lookback_price
+                
+                
+                if momentum_return > self.momentum_threshold:
+                    signal = 'BUY'
+                elif momentum_return < -self.momentum_threshold:
+                    signal = 'SELL'
+                else:
+                    signal = 'HOLD'
+                
+                self.last_decision_time[ticker] = trade_ts
+                
+                if signal in ['BUY', 'SELL']:
+                    ticker_pos_series = positions[positions['ticker'] == ticker]['quantity'] if not positions.empty else pd.Series(dtype=float)
+                    current_quantity = ticker_pos_series.iloc[0] if not ticker_pos_series.empty else 0.0
+
+                    self.executor.execute_trade(
+                        portfolio_id=self.portfolio_id,
+                        ticker=ticker,
+                        signal_type=signal,
+                        confidence=1.0,
+                        arrival_price=latest_price,
+                        cash=cash_available.iloc[0]['notional'] if not cash_available.empty else 0.0,
+                        positions=current_quantity,
+                        port_notional=port_notional.iloc[0]['notional'] if not port_notional.empty else 0.0,
+                        ticker_weight=self.portfolio_weights.get(ticker, 1.0 / len(self.tickers)),
+                        timestamp=trade_ts
+                    )
+
             except Exception as e:
-                self.logger.error(f"Ticker {ticker}: Error calculating mean: {e}")
-                continue
+                self.logger.exception(f"[{ticker}] An error occurred during signal generation: {e}")
 
-            # Get the price closest to the reference time within the window
-            # For backtest, ref_time == current_time, so this should find the exact row
-            # For live, this finds the latest price in the fetched batch
-            latest_price_row = ticker_df[ticker_df['timestamp'] == ref_time]
-            if latest_price_row.empty:
-                # If exact match not found (can happen in live if data isn't perfectly aligned)
-                # Fallback: use the absolute latest price for that ticker in the window
-                latest_price_row = ticker_df.loc[[ticker_df['timestamp'].idxmax()]]
-                if latest_price_row.empty:
-                     self.logger.warning(f"Ticker {ticker}: Could not find any price in window ending {ref_time}.")
-                     continue # Skip if still no price found
 
-            latest_price = latest_price_row['close_price'].iloc[0]
-            latest_ts_used = latest_price_row['timestamp'].iloc[0] # Log which timestamp's price we actually used
 
-            if pd.isna(latest_price) or pd.isna(mean_price):
-                 self.logger.warning(f"Ticker {ticker}: NaN price encountered (Latest: {latest_price}, Mean: {mean_price}).")
-                 continue
 
-            # --- Generate Buy/Sell Signal & Execute ---
-            # Use the current_time passed from the backtester for accurate trade log timestamping
-            # If current_time is None (live mode), execute_trade will handle the fallback timestamp internally.
-            trade_ts = current_time # This IS the simulation time during backtest
+class MomentumThresholdStrategy(BasePortfolio):
+    """
+    A refined momentum strategy:
+    - Uses historical and current price to decide direction.
+    - Only acts if price moves more than a defined threshold.
+    - Uses larger timeframes to reduce noise.
+    """
 
-            if latest_price < mean_price:
-                self.logger.debug(f"Signal: BUY {ticker} (Price {latest_price:.4f} @ {latest_ts_used} < Mean {mean_price:.4f}) based on time {ref_time}")
-                self.execute_trade(ticker, 'BUY', confidence=1.0, timestamp=trade_ts) # Pass backtest time
-            elif latest_price > mean_price:
-                self.logger.debug(f"Signal: SELL {ticker} (Price {latest_price:.4f} @ {latest_ts_used} > Mean {mean_price:.4f}) based on time {ref_time}")
-                self.execute_trade(ticker, 'SELL', confidence=1.0, timestamp=trade_ts) # Pass backtest time
-            else:
-                 self.logger.debug(f"Signal: HOLD {ticker} (Price {latest_price:.4f} approx = Mean {mean_price:.4f}) based on time {ref_time}")
+    def __init__(self, db_connector, executor, debug=False):
+        """
+        Initializes the strategy from a config file.
+        """
+        config_path = os.path.join(os.path.dirname(__file__), "config.json")
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"Config file not found at {config_path}")
+
+        try:
+            with open(config_path, 'r') as f:
+                config_data = json.load(f)
+        except Exception as e:
+            raise RuntimeError(f"Error loading config.json: {e}") from e
+
+        super().__init__(db_connector=db_connector,
+                         executor=executor,
+                         debug=debug,
+                         config_dict=config_data)
+
+        self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
+        self.threshold = config_data.get("momentum_threshold", 0.005)  # Â±0.5% default
+        self.interval_seconds = self.poll_interval
+        self.last_decision_time = {}
+
+        self.logger.info(f"Strategy initialized: Threshold = {self.threshold:.2%}, Interval = {self.interval_seconds}s")
+
+
+    def generate_signals_and_trade(self,
+                                   dataframes_dict: Dict[str, pd.DataFrame],
+                                   current_time: Optional[datetime] = None):
+        """
+        Executes the strategy: compares current price to last price,
+        and trades if change > threshold.
+        """
+        market_data = dataframes_dict.get('MARKET_DATA')
+        cash_available = dataframes_dict.get('CASH_EQUITY')
+        positions = dataframes_dict.get('POSITIONS')
+        port_notional = dataframes_dict.get('PORT_NOTIONAL')
+
+        if market_data is None or market_data.empty:
+            return
+
+        trade_ts = current_time or datetime.now().astimezone()
+
+        for ticker in self.tickers:
+            try:
+                # Enforce polling interval
+                last_decision = self.last_decision_time.get(ticker)
+                if last_decision and (trade_ts - last_decision) < timedelta(seconds=self.interval_seconds):
+                    continue
+
+                ticker_data = market_data[market_data['ticker'] == ticker]
+                if len(ticker_data) < 2:
+                    continue
+
+                # Most recent two prices
+                latest_price = ticker_data['close_price'].iloc[-1]
+                previous_price = ticker_data['close_price'].iloc[-2]
+
+                if previous_price == 0:
+                    price_change = 0.0
+                else:
+                    price_change = (latest_price - previous_price) / previous_price
+
+                if price_change > self.threshold:
+                    signal = "BUY"
+                elif price_change < -self.threshold:
+                    signal = "SELL"
+                else:
+                    signal = "HOLD"
+
+                self.last_decision_time[ticker] = trade_ts
+
+                if signal in ["BUY", "SELL"]:
+                    ticker_pos_series = positions[positions['ticker'] == ticker]['quantity'] if not positions.empty else pd.Series(dtype=float)
+                    current_quantity = ticker_pos_series.iloc[0] if not ticker_pos_series.empty else 0.0
+
+                    self.executor.execute_trade(
+                        portfolio_id=self.portfolio_id,
+                        ticker=ticker,
+                        signal_type=signal,
+                        confidence=1.0,
+                        arrival_price=latest_price,
+                        cash=cash_available.iloc[0]['notional'] if not cash_available.empty else 0.0,
+                        positions=current_quantity,
+                        port_notional=port_notional.iloc[0]['notional'] if not port_notional.empty else 0.0,
+                        ticker_weight=self.portfolio_weights.get(ticker, 1.0 / len(self.tickers)),
+                        timestamp=trade_ts
+                    )
+
+            except Exception as e:
+                self.logger.exception(f"[{ticker}] Error during trading decision: {e}")

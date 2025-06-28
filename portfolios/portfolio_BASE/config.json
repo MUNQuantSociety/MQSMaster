@@ -1,6 +1,10 @@
 {
-    "PORTFOLIO_ID": "0",
-    "TICKERS": [],
-    "INTERVAL": 1,
-    "LOOKBACK_DAYS": 1
-  }
+  "PORTFOLIO_ID": "0",
+  "TICKERS": [],
+  "INTERVAL": 0,
+  "LOOKBACK_DAYS": 1,
+  "EXCH": "NASDAQ",
+  "WEIGHTS": {
+  },
+  "DATA_FEEDS": []
+}

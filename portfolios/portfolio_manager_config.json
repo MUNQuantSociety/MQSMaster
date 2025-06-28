@@ -1,0 +1,8 @@
+{
+  "master_portfolio_id": "0",
+  "currency": "USD",
+  "portfolio_weights": {
+    "1": 0.60,
+    "2": 0.40
+  }
+}
