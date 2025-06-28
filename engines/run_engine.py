@@ -1,10 +1,15 @@
 # engines/run_engine.py
+import os
+import sys
+REPO_ROOT = os.path.abspath(os.path.dirname(__file__) + "/..")
+sys.path.insert(0, REPO_ROOT)
 
 import time
 import logging
 import threading
 from typing import List
 from portfolios.portfolio_BASE.strategy import BasePortfolio
+import signal
 
 class RunEngine:
     """
@@ -33,6 +38,13 @@ class RunEngine:
         self.max_consecutive_failures = max_consecutive_failures
         self.failure_counts = {}
 
+        signal.signal(signal.SIGINT, self._shutdown)
+        signal.signal(signal.SIGTERM, self._shutdown)
+    
+    def _shutdown(self, signum, frame):
+        self.logger.info(f"Received signal {signum}. Shutting down RunEngine.")
+        self.running = False
+
     def load_portfolios(self, portfolio_classes: List[type[BasePortfolio]]):
         """
         Initializes portfolio objects from the provided classes and loads them.
@@ -60,6 +72,7 @@ class RunEngine:
         self.logger.info(f"Starting run loop for portfolio {portfolio_id} ({portfolio.__class__.__name__}).")
         
         while self.running:
+            self.logger.info(f"Running {portfolio_id} ({portfolio.__class__.__name__}).")
             try:
                 start_time = time.time()
                 

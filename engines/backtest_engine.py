@@ -3,6 +3,12 @@
 import logging
 from datetime import datetime
 from typing import Optional, Union, List
+
+import os
+import sys
+REPO_ROOT = os.path.abspath(os.path.dirname(__file__) + "/..")
+sys.path.insert(0, REPO_ROOT)
+
 #from data_infra.tradingOps.backtest.runner import BacktestRunner # Assuming this will be the backtest data provider
 from portfolios.portfolio_BASE.strategy import BasePortfolio
 from Backtest.runner import BacktestRunner  # Assuming this is the correct import path for the BacktestRunner

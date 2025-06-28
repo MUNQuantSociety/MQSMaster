@@ -32,6 +32,12 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 load_dotenv()
+
+import os
+import sys
+REPO_ROOT = os.path.abspath(os.path.dirname(__file__) + "/..")
+sys.path.insert(0, REPO_ROOT)
+
 from data_infra.authentication.apiAuth import APIAuth
 
 def get_historical_data(tickers, from_date, to_date, api_key):

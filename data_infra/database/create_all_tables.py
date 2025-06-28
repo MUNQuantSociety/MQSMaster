@@ -1,6 +1,11 @@
 # initialize_database.py
 # Only run this code when migrating or setting up the database schema.
 
+import os
+import sys
+REPO_ROOT = os.path.abspath(os.path.dirname(__file__) + "/..")
+sys.path.insert(0, REPO_ROOT)
+
 from data_infra.database.schemaDefinitions import SchemaDefinitions
 
 def main():

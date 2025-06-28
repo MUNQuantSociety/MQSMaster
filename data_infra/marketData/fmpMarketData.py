@@ -3,6 +3,12 @@ import requests
 import time
 import pandas as pd
 from datetime import datetime
+
+import os
+import sys
+REPO_ROOT = os.path.abspath(os.path.dirname(__file__) + "/..")
+sys.path.insert(0, REPO_ROOT)
+
 from data_infra.authentication.apiAuth import APIAuth
 import logging
 
