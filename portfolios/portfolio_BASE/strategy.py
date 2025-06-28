@@ -2,10 +2,13 @@
 
 import os
 import time
+import math
 import logging
 from abc import ABC, abstractmethod
+import pandas as pd
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Union, Any
+
 
 class BasePortfolio(ABC):
     def __init__(self, db_connector, executor, debug=False, config_dict=None):
@@ -33,84 +36,56 @@ class BasePortfolio(ABC):
             self.tickers = config_dict.get("TICKERS", [])
             self.poll_interval = config_dict.get("INTERVAL", 1)  # seconds
             self.lookback_days = config_dict.get("LOOKBACK_DAYS", 1)
+            self.exchange = config_dict.get("EXCH", "NASDAQ")
+            self.portfolio_weights = config_dict.get("WEIGHTS", None)  # Optional weights for tickers
+            self.data_feeds = config_dict.get("DATA_FEEDS", ["MARKET_DATA", "POSITIONS", "CASH_EQUITY", "PORT_NOTIONAL"])
         else:
-            # Fallback if no config provided
-            self.portfolio_id = "0"
-            self.tickers = []
-            self.poll_interval = 1
-            self.lookback_days = 1
+            raise ValueError("config_dict is unreadable for portfolio configuration.")
 
         # Logging
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
         self.logger.setLevel(logging.INFO)
         self.logger.info(f"Initialized portfolio {self.portfolio_id} with {len(self.tickers)} tickers.")
 
-        # Track last processed timestamp
+        # TODO: if self.portfolio_weights is None: self.portfolio_weights = get_portf_weights_from_db
+
         self.last_seen = {}
 
-    def run(self):
-        """Main polling loop."""
-        self.logger.info("Portfolio execution started.")
-        while self.running:
-            try:
-                market_data = self.get_latest_market_data()
-                if market_data:
-                    self.logger.info(f"Retrieved {len(market_data)} market data rows.")
-                    self.generate_signals_and_trade(market_data)
-                else:
-                    self.logger.info("No new market data.")
-
-                if self.debug:
-                    self.logger.info("Debug mode: exiting after one iteration.")
-                    break
-
-                time.sleep(self.poll_interval)
-
-            except KeyboardInterrupt:
-                self.logger.warning("Keyboard interrupt received. Exiting.")
-                self.running = False
-            except Exception as e:
-                self.logger.exception(f"Exception during portfolio loop: {e}")
-
-        self.logger.info("Portfolio execution stopped.")
-
-    def backtest(self,
-                 start_date: Optional[Union[str, datetime]] = None,
-                 end_date: Optional[Union[str, datetime]] = None,
-                 initial_capital_per_ticker: float = 100000.0): # Make capital configurable
-        from data_infra.tradingOps.backtest.runner import BacktestRunner
+    @abstractmethod
+    def generate_signals_and_trade(self, data: Dict[str, pd.DataFrame], current_time: Optional[datetime] = None):
         """
-        Performs a backtest using the BacktestRunner.
-
+        Subclasses implement this method for strategy-specific signal generation and trade logic.
+        Must call `self.executor.execute_trade(...)`.
+        
         Args:
-            start_date: Start date for the backtest.
-            end_date: End date for the backtest.
-            initial_capital_per_ticker: The starting capital for each ticker's sub-portfolio.
+            data: A dictionary containing dataframes for different feeds like 'MARKET_DATA'.
+            current_time: The timestamp for the current event, used primarily for backtesting.
+                          In live trading, this can be None.
         """
-        self.logger.info(f"Initiating backtest for portfolio '{self.portfolio_id}'...")
+        pass
 
-        # Ensure the portfolio has an executor assigned, even if None initially.
-        # The runner will replace it temporarily.
-        if not hasattr(self, 'executor'):
-             self.executor = None # Or assign a default dummy executor if needed outside backtest
+    def get_data(self, data_feeds: List[str]) -> Dict[str, pd.DataFrame]:
+        """
+        Fetches data from the specified data feeds.
+        :param data_feeds: List of data feed names to fetch.
+        :return: Dictionary with data feed names as keys and their data as values.
+        """
+        
+        data = {}
+        for feed in data_feeds:
+            if feed == "MARKET_DATA":
+                data[feed] = self.get_market_data()
+            elif feed == "POSITIONS":
+                data[feed] = self._get_current_positions(self.portfolio_id)
+            elif feed == "CASH_EQUITY":
+                data[feed] = self._get_cash_balance(self.portfolio_id)
+            elif feed == "PORT_NOTIONAL":
+                data[feed] = self._get_portfolio_notional(self.portfolio_id)
+        return data
+        
 
-        try:
-            # Instantiate the runner
-            runner = BacktestRunner(
-                portfolio=self,
-                start_date=start_date,
-                end_date=end_date,
-                initial_capital_per_ticker=initial_capital_per_ticker
-            )
-            # Execute the backtest
-            runner.run()
 
-        except Exception as e:
-             self.logger.exception(f"Backtest failed for portfolio '{self.portfolio_id}': {e}", exc_info=True)
-
-        self.logger.info(f"Backtest process completed for portfolio '{self.portfolio_id}'. Check logs and report files.")
-
-    def get_latest_market_data(self):
+    def get_market_data(self) -> pd.DataFrame:
         """
         Fetch recent market data for portfolio tickers within lookback window.
         Optionally filters out previously seen timestamps.
@@ -122,73 +97,148 @@ class BasePortfolio(ABC):
         sql = f"""
             SELECT *
             FROM market_data
-            WHERE timestamp BETWEEN %s AND %s
-              AND ticker IN ({placeholders})
-            ORDER BY ticker, timestamp DESC
+            WHERE ticker IN ({placeholders})
+              AND date BETWEEN %s AND %s
         """
-        params = [start_time, end_time] + self.tickers
+        # Note: The order of parameters must match the query
+        params = self.tickers + [start_time, end_time]
         result = self.db.execute_query(sql, params, fetch=True)
 
         if result['status'] != 'success':
             self.logger.error(f"DB read failed: {result['message']}")
-            return []
+            return pd.DataFrame()
+        
+        if not result['data']:
+            return pd.DataFrame()
 
-        # Optional: filter new timestamps (deduplication logic)
-        new_data = []
-        for row in result['data']:
-            ticker = row['ticker']
-            ts = row['timestamp']
-            if ticker not in self.last_seen or ts > self.last_seen[ticker]:
-                self.last_seen[ticker] = ts
-                new_data.append(row)
-
-        return new_data
-
-    def execute_trade(self,
-                      ticker: str,
-                      signal_type: str,
-                      confidence: float,
-                      timestamp: Optional[datetime] = None):
+        market_data = pd.DataFrame(result['data'])
+        market_data['timestamp'] = pd.to_datetime(market_data['timestamp'], errors='coerce')
+        market_data['close_price'] = pd.to_numeric(market_data['close_price'], errors='coerce')
+        market_data = market_data.dropna(subset=['timestamp', 'ticker', 'close_price'])
+        market_data.sort_values('timestamp', inplace=True)
+        return market_data
+    
+    def _get_cash_balance(self, portfolio_id: str) -> pd.DataFrame:
+        """Retrieve the latest cash balance (notional) for the portfolio."""
+        sql_cash = """
+            SELECT *
+            FROM cash_equity_book
+            WHERE portfolio_id = %s
+            ORDER BY timestamp DESC
+            LIMIT 1
         """
-        Route trade signal through the executor function.
-        Optionally accepts a timestamp for accurate logging during backtests.
-        Args:
-            ticker: Target ticker symbol.
-            signal_type: 'BUY' or 'SELL'.
-            confidence: Strategy confidence (0.0 to 1.0).
-            timestamp: The simulation time (used for backtest logging). Defaults to None.
+        cash_result = self.db.execute_query(sql_cash, values=(portfolio_id,), fetch=True)
+        if cash_result['status'] != 'success' or not cash_result['data']:
+            logging.error(f"Could not retrieve cash_equity_book for portfolio {portfolio_id}")
+            return pd.DataFrame()
+        return pd.DataFrame(cash_result['data'])
+    
+    def _get_portfolio_notional(self, portfolio_id: str) -> pd.DataFrame:
         """
-        if self.executor is None:
-            self.logger.error(f"Cannot execute trade for {ticker}: Executor is not set.")
-            return
-
-        signal_type = signal_type.upper()
-        if signal_type not in ('BUY', 'SELL'):
-            self.logger.error(f"Invalid signal type '{signal_type}' for {ticker}.")
-            return
-
-        # Clamp Confidence
-        confidence = max(0.0, min(1.0, confidence))
-
-        try:
-            # *** MODIFICATION: Pass timestamp keyword argument to executor call ***
-            # The executor callable (e.g., MultiTickerExecutor.__call__) MUST also accept **kwargs or `timestamp=None`
-            self.executor(self.portfolio_id, ticker, signal_type, confidence, timestamp=timestamp)
-            # *** END MODIFICATION ***
-        except TypeError as e:
-             # Catch TypeError specifically if the underlying executor doesn't accept timestamp yet
-             if 'timestamp' in str(e):
-                 self.logger.error(f"Executor {type(self.executor)} does not accept 'timestamp' keyword argument. Update executor definition.")
-             else:
-                  self.logger.exception(f"TypeError during executor call for {ticker} {signal_type}: {e}", exc_info=True)
-        except Exception as e:
-            self.logger.exception(f"Executor failed for {ticker} {signal_type}: {e}", exc_info=True)
-    # --- END: Corrected execute_trade Method ---
-
-    @abstractmethod
-    def generate_signals_and_trade(self, market_data: list[dict]):
+        Retrieve the latest portfolio notional value.
+        If no entry exists in pnl_book (first live run), fall back to cash_equity_book.
         """
-        Subclasses implement this method for strategy-specific signal generation and trade logic.
-        Must call `self.execute_trade(ticker, signal_type, confidence)`.
+        sql_pnl = """
+            SELECT *
+            FROM pnl_book
+            WHERE portfolio_id = %s
+            ORDER BY timestamp DESC
+            LIMIT 1
         """
-        pass
+        pnl_result = self.db.execute_query(sql_pnl, values=(portfolio_id,), fetch=True)
+
+        # If we got a successful row, return it directly
+        if pnl_result.get('status') == 'success' and pnl_result.get('data'):
+            return pd.DataFrame(pnl_result['data'])
+
+        # Otherwise—first run or error—fall back to cash_equity
+        logging.info(f"No pnl_book entry for portfolio {portfolio_id}; initializing notional from cash_equity_book.")
+        cash_df = self._get_cash_balance(portfolio_id)
+        if not cash_df.empty and 'notional' in cash_df.columns:
+            # Return only the notional column (with its timestamp, if present)
+            return cash_df[['timestamp', 'notional']].copy()
+        
+        # Last fallback: zero notional
+        logging.warning(f"cash_equity_book also empty for portfolio {portfolio_id}; returning zero notional.")
+        return pd.DataFrame([{
+            'timestamp': datetime.now(),
+            'notional': 0.0
+        }])
+    
+
+    def _get_current_positions(self, portfolio_id: str) -> pd.DataFrame:
+        """
+        Retrieve the latest position for each ticker in the portfolio.
+        If no rows exist in positions_book for this portfolio, initialize
+        quantity=0 for each ticker (letting defaults fill other columns) and
+        return those.
+        """
+        # 1) Try to read existing positions
+        sql_positions = """
+            SELECT DISTINCT ON (ticker)
+                position_id,
+                portfolio_id,
+                ticker,
+                quantity,
+                updated_at
+            FROM positions_book
+            WHERE portfolio_id = %s
+            ORDER BY ticker, updated_at DESC;
+        """
+        result = self.db.execute_query(sql_positions, values=(portfolio_id,), fetch=True)
+        if result['status'] != 'success':
+            self.logger.error(f"Positions read failed: {result['message']}")
+            return pd.DataFrame()
+
+        # 2) If truly empty *for this portfolio*, seed zero-quantity rows
+        if not result.get('data'):
+            self.logger.info(f"No positions for portfolio {portfolio_id}; inserting zero-quantity baseline.")
+            insert_sql = """
+                INSERT INTO positions_book
+                    (portfolio_id, ticker, quantity)
+                VALUES
+                    (%s, %s, %s)
+                RETURNING position_id, portfolio_id, ticker, quantity, updated_at;
+            """
+            seeded_rows = []
+            for t in self.tickers:
+                try:
+                    res = self.db.execute_query(insert_sql, values=(portfolio_id, t, 0), fetch=True)
+                    if res['status'] == 'success' and res.get('data'):
+                        # fetch=True on INSERT with RETURNING yields data list of one dict
+                        seeded_rows.append(res['data'][0])
+                    else:
+                        self.logger.error(f"Failed to seed position for {t}: {res.get('message')}")
+                except Exception as e:
+                    self.logger.exception(f"Exception while seeding zero position for {t}: {e}")
+            if not seeded_rows:
+                self.logger.error("Seeding zero-quantity positions failed for all tickers.")
+                return pd.DataFrame()
+            return pd.DataFrame(seeded_rows)
+
+        # 3) Otherwise, build DataFrame of what we fetched
+        df = pd.DataFrame(result['data'])
+
+        # 4) In the rare case some tickers are still missing, append them with zero
+        missing = set(self.tickers) - set(df['ticker'])
+        if missing:
+            self.logger.info(f"Missing positions for {missing}; inserting zero-quantity baseline for those.")
+            insert_sql = """
+                INSERT INTO positions_book
+                    (portfolio_id, ticker, quantity)
+                VALUES
+                    (%s, %s, %s)
+                RETURNING position_id, portfolio_id, ticker, quantity, updated_at;
+            """
+            for t in missing:
+                try:
+                    res = self.db.execute_query(insert_sql, values=(portfolio_id, t, 0), fetch=True)
+                    if res['status'] == 'success' and res.get('data'):
+                        df = pd.concat([df, pd.DataFrame(res['data'])], ignore_index=True)
+                    else:
+                        self.logger.error(f"Failed to seed missing ticker {t}: {res.get('message')}")
+                except Exception as e:
+                    self.logger.exception(f"Exception while seeding missing ticker {t}: {e}")
+
+        # 5) Finally, return only the columns our strategies expect
+        return df[['position_id', 'portfolio_id', 'ticker', 'quantity', 'updated_at']]

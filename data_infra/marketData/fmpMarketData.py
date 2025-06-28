@@ -4,12 +4,13 @@ import time
 import pandas as pd
 from datetime import datetime
 from data_infra.authentication.apiAuth import APIAuth
+import logging
 
 class FMPMarketData:
     """
     Thread-safe FMP market data client.
     Allows multiple threads/processes to call get_intraday_data / get_historical_data
-    simultaneously, without exceeding 299 requests per minute.
+    simultaneously, without exceeding 2999 requests per minute.
     Also handles internet outages, request retries, and timeouts.
     """
 
@@ -21,6 +22,7 @@ class FMPMarketData:
     def __init__(self):
         self.api_auth = APIAuth()
         self.fmp_api_key = self.api_auth.get_fmp_api_key()
+        self.logger = logging.getLogger(self.__class__.__name__)
 
         # Rate Limiting Config
         self.request_timestamps = []
@@ -28,7 +30,7 @@ class FMPMarketData:
         self.LOCK_WINDOW_SECONDS = 60
 
         # API Request Config
-        self.MAX_RETRIES = 3
+        self.MAX_RETRIES = 6
         self.TIMEOUT_SECONDS = 10  # Prevents script from freezing on a request
 
         # A lock to protect rate-limiter data (request_timestamps), etc.
@@ -198,3 +200,23 @@ class FMPMarketData:
 
         print(f"[FMP API] Failed to fetch or parse batch data for {exchange}.")
         return None
+    
+    def get_current_price(self, ticker):
+        """
+        Fetch real-time stock price for a single ticker using FMP API.
+        Returns float: Current price of the ticker, or 0.0 if not found or on error.
+        """
+        url = f"https://financialmodelingprep.com/stable/quote?symbol={ticker}"
+        params = {"apikey": self.fmp_api_key}
+
+        try:
+            data = self._make_request(url, params)
+            if isinstance(data, list) and data and 'price' in data[0] and data[0]['price'] is not None:
+                return float(data[0]['price'])
+
+            self.logger.warning(f"No valid price found for ticker {ticker} in API response. Response: {data}")
+            return 0.0
+
+        except Exception as e:
+            self.logger.error(f"Price fetch failed for {ticker}: {e}")
+            return 0.0

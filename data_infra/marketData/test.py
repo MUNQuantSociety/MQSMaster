@@ -29,6 +29,11 @@ import pandas as pd
 import requests
 from datetime import datetime
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
+from data_infra.authentication.apiAuth import APIAuth
+
 def get_historical_data(tickers, from_date, to_date, api_key):
     """
     Fetch historical stock data from Financial Modeling Prep API.
@@ -159,7 +164,8 @@ if __name__ == "__main__":
     from_date = "2025-03-06"
     to_date = "2025-03-07"
     interval = 5  # Interval in minutes (1, 5, 15, 30, 60)
-    api_key = "IPSiO49jnQdx4Y1XqyghXojVFzJnwtKb"  # Find this in data_infra/authentication/apiAuth.py
+    api= APIAuth()
+    api_key = api.get_fmp_api_key()  # Find this in data_infra/authentication/apiAuth.py
     """
     # Fetch historical data
     print("Fetching historical data...")

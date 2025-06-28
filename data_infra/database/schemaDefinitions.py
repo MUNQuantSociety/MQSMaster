@@ -2,7 +2,6 @@ from data_infra.database.MQSDBConnector import MQSDBConnector
 
 class SchemaDefinitions:
     """
-    DO NOT CALL drop_all_tables() PLEASE!
     Encapsulates methods to create or drop tables in the MQS PostgreSQL database.
     Adjust the CREATE TABLE statements to match your real schema needs.
     """
@@ -32,7 +31,7 @@ class SchemaDefinitions:
         CREATE TABLE IF NOT EXISTS market_data (
             id SERIAL PRIMARY KEY,
             ticker VARCHAR(10) NOT NULL,
-            timestamp TIMESTAMP NOT NULL,
+            timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
             date DATE NOT NULL,
             exchange VARCHAR(50) NOT NULL,
             open_price NUMERIC,
@@ -49,10 +48,12 @@ class SchemaDefinitions:
             trade_id SERIAL PRIMARY KEY,
             portfolio_id VARCHAR(50),
             ticker VARCHAR(10),
-            exec_timestamp TIMESTAMP NOT NULL,
+            exec_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
             side VARCHAR(4) NOT NULL,  -- e.g. 'BUY' or 'SELL'
             quantity NUMERIC NOT NULL,
-            price_last NUMERIC NOT NULL,
+            arrival_price NUMERIC NOT NULL, -- Price at the time of order arrival
+            exec_price NUMERIC NOT NULL, -- Average execution price for the order
+            slippage_bps NUMERIC, -- Slippage in basis points
             notional NUMERIC,
             notional_local NUMERIC,
             currency VARCHAR(10),
@@ -61,11 +62,13 @@ class SchemaDefinitions:
         );
         """
 
+        
+
         create_pnl_book_table = """
         CREATE TABLE IF NOT EXISTS pnl_book (
             pnl_id SERIAL PRIMARY KEY,
             portfolio_id VARCHAR(50),
-            timestamp TIMESTAMP NOT NULL,
+            timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
             date DATE NOT NULL,
             realized_pnl NUMERIC,
             unrealized_pnl NUMERIC,
@@ -81,6 +84,7 @@ class SchemaDefinitions:
             risk_id SERIAL PRIMARY KEY,
             portfolio_id VARCHAR(50),
             date DATE NOT NULL,
+            timestamp TIMESTAMP DEFAULT NOW()
             risk_metric VARCHAR(100),
             value NUMERIC,
             created_at TIMESTAMP DEFAULT NOW()
@@ -90,7 +94,7 @@ class SchemaDefinitions:
         create_cash_equity_book_table = """
         CREATE TABLE IF NOT EXISTS cash_equity_book (
             id SERIAL PRIMARY KEY,
-            timestamp TIMESTAMP NOT NULL,
+            timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
             date DATE NOT NULL,
             portfolio_id VARCHAR(50) NOT NULL,
             currency VARCHAR(10) NOT NULL,
@@ -99,7 +103,7 @@ class SchemaDefinitions:
         );
         """
         create_positions_table = """
-        CREATE TABLE IF NOT EXISTS positions (
+        CREATE TABLE IF NOT EXISTS positions_book (
             position_id SERIAL PRIMARY KEY,
             portfolio_id VARCHAR(50) NOT NULL,
             ticker VARCHAR(10) NOT NULL,
@@ -109,16 +113,16 @@ class SchemaDefinitions:
         );
         """
         create_port_weights_table = """
-        CREATE TABLE IF NOT EXISTS portfolio_weights (
-        weights_id SERIAL PRIMARY KEY,
-        portfolio_id VARCHAR(50) NOT NULL,
-        ticker VARCHAR(10) NOT NULL,
-        weight NUMERIC NOT NULL, 
-        model VARCHAR(50), -- version or name of the model used to calculate the weight
-        date DATE NOT NULL,
-        updated_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE (portfolio_id, ticker, date, model) -- Ensures one weight per asset, per portfolio, per day, per model
-        );
+            CREATE TABLE IF NOT EXISTS portfolio_weights (
+            weights_id SERIAL PRIMARY KEY,
+            portfolio_id VARCHAR(50) NOT NULL,
+            ticker VARCHAR(10) NOT NULL,
+            weight NUMERIC NOT NULL, 
+            model VARCHAR(50), -- version or name of the model used to calculate the weight
+            date DATE NOT NULL,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE (portfolio_id, ticker, date, model) -- Ensures one weight per asset, per portfolio, per day, per model
+            );
         """
 
         statements = [
@@ -137,27 +141,3 @@ class SchemaDefinitions:
             if result['status'] == 'error':
                 print("Error creating table:", result['message'])
         print("All tables created or confirmed to exist.")
-
-    def drop_all_tables(self):
-        """
-        If needed, drop all tables (Dangerous in production).
-        """
-        # Test connection similarly
-        res = self.db.execute_query("SELECT 1", fetch=True)
-        if res['status'] == 'error':
-            print("Error connecting to DB:", res['message'])
-            return
-
-        drop_statements = [
-            "DROP TABLE IF EXISTS market_data;",
-            "DROP TABLE IF EXISTS trade_execution_logs;",
-            "DROP TABLE IF EXISTS pnl_book;",
-            "DROP TABLE IF EXISTS risk_book;",
-            "DROP TABLE IF EXISTS cash_equity_book;"
-        ]
-
-        for stmt in drop_statements:
-            result = self.db.execute_query(stmt)
-            if result['status'] == 'error':
-                print("Error dropping table:", result['message'])
-        print("All tables dropped.")
