@@ -15,7 +15,6 @@ import pstats
 from data_infra.database.MQSDBConnector import MQSDBConnector
 
 # Import portfolio classes, not instances
-from portfolios.portfolio_1.strategy import SimpleMomentum
 from portfolios.portfolio_2.strategy import MomentumThresholdStrategy
 
 from engines.backtest_engine import BacktestEngine

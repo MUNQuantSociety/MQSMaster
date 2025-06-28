@@ -4,8 +4,8 @@ import time
 import logging
 from datetime import datetime
 from decimal import Decimal
+from collections import deque
 
-# Add the project root to the Python path if running as a standalone script
 import os
 import sys
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -16,27 +16,20 @@ from data_infra.database.MQSDBConnector import MQSDBConnector
 class PnLCalculator:
     """
     Calculates and updates Total, Unrealized, and Realized PnL for all portfolios.
-    This script runs in a continuous loop to provide real-time PnL updates by
-    tracking net capital flow and position cost basis.
+    This script uses a FIFO (First-In, First-Out) accounting method for industry-standard
+    accuracy in cost basis and PnL calculations.
     """
     def __init__(self, db_connector: MQSDBConnector, poll_interval: int = 60):
-        """
-        Initializes the PnLCalculator.
-
-        Args:
-            db_connector: An instance of MQSDBConnector.
-            poll_interval (int): The interval in seconds to wait between PnL calculations.
-        """
         self.logger = logging.getLogger(self.__class__.__name__)
         self.db_connector = db_connector
         self.poll_interval = poll_interval
         self.running = True
 
-    def _get_portfolio_data(self) -> dict:
+    def _get_latest_portfolio_state(self) -> dict:
         """
-        Fetches the latest cash, positions, and market prices for all portfolios.
+        Fetches the latest cash balances and current positions for all portfolios.
         """
-        # Get latest cash notional for each portfolio
+        # 1. Get latest cash notional for each portfolio
         cash_query = """
         WITH latest_cash AS (
             SELECT portfolio_id, notional, currency,
@@ -48,20 +41,31 @@ class PnLCalculator:
         cash_result = self.db_connector.execute_query(cash_query, fetch='all')
         portfolio_cash = {item['portfolio_id']: {'notional': Decimal(item['notional']), 'currency': item['currency']} for item in cash_result.get('data', [])}
 
-        # Get all current positions
-        positions_query = "SELECT portfolio_id, ticker, quantity FROM positions_book WHERE quantity > 0;"
+        # 2. Get the most recent position for each ticker across all portfolios.
+        positions_query = """
+            SELECT DISTINCT ON (portfolio_id, ticker)
+                portfolio_id,
+                ticker,
+                quantity
+            FROM
+                positions_book
+            ORDER BY
+                portfolio_id, ticker, updated_at DESC;
+        """
         positions_result = self.db_connector.execute_query(positions_query, fetch='all')
-        
+
         portfolio_positions = {}
         all_tickers = set()
         for pos in positions_result.get('data', []):
-            pid = pos['portfolio_id']
-            if pid not in portfolio_positions:
-                portfolio_positions[pid] = []
-            portfolio_positions[pid].append({'ticker': pos['ticker'], 'quantity': Decimal(pos['quantity'])})
-            all_tickers.add(pos['ticker'])
+            # We only care about currently held positions (quantity is not zero)
+            if pos['quantity'] != 0:
+                pid = pos['portfolio_id']
+                if pid not in portfolio_positions:
+                    portfolio_positions[pid] = []
+                portfolio_positions[pid].append({'ticker': pos['ticker'], 'quantity': Decimal(pos['quantity'])})
+                all_tickers.add(pos['ticker'])
 
-        # Get latest market price for all relevant tickers
+        # 3. Get latest market price for all relevant tickers
         market_prices = {}
         if all_tickers:
             placeholders = ', '.join(['%s'] * len(all_tickers))
@@ -78,119 +82,119 @@ class PnLCalculator:
 
         return {'cash': portfolio_cash, 'positions': portfolio_positions, 'prices': market_prices}
 
-    def _get_net_capital_injected(self) -> dict:
+    def _calculate_fifo_pnl_and_cost_basis(self, portfolio_id: str, ticker: str) -> dict:
         """
-        Calculates the net capital added or withdrawn for each portfolio.
-        Capital movements are identified by the 'USD_CASH' ticker.
+        Calculates realized PnL and the cost basis of current holdings for a single
+        ticker using the FIFO method.
         """
         query = """
-            SELECT
-                portfolio_id,
-                SUM(CASE WHEN side = 'BUY' THEN notional_local ELSE -notional_local END) as net_capital
+            SELECT exec_timestamp, side, quantity, exec_price
             FROM trade_execution_logs
-            WHERE ticker = 'USD_CASH'
-            GROUP BY portfolio_id;
+            WHERE portfolio_id = %s AND ticker = %s AND ticker != 'USD_CASH'
+            ORDER BY exec_timestamp ASC;
         """
-        result = self.db_connector.execute_query(query, fetch='all')
-        return {item['portfolio_id']: Decimal(item['net_capital']) for item in result.get('data', [])}
+        trades_result = self.db_connector.execute_query(query, (portfolio_id, ticker), fetch='all')
+        trades = trades_result.get('data', [])
 
-    def _get_positions_cost_basis(self) -> dict:
-        """
-        Calculates the average cost basis for each ticker in each portfolio.
-        This uses a weighted average of all BUY trades.
-        NOTE: This is a simplification. A FIFO or specific-lot method would be more accurate
-        but is significantly more complex to implement.
-        """
-        query = """
-            SELECT
-                portfolio_id,
-                ticker,
-                SUM(quantity * exec_price) / SUM(quantity) as avg_cost
-            FROM trade_execution_logs
-            WHERE side = 'BUY' AND ticker != 'USD_CASH'
-            GROUP BY portfolio_id, ticker;
-        """
-        result = self.db_connector.execute_query(query, fetch='all')
-        cost_basis = {}
-        for item in result.get('data', []):
-            pid = item['portfolio_id']
-            if pid not in cost_basis:
-                cost_basis[pid] = {}
-            cost_basis[pid][item['ticker']] = Decimal(item['avg_cost'])
-        return cost_basis
+        buy_lots = deque()
+        realized_pnl_for_ticker = Decimal('0.0')
+
+        for trade in trades:
+            side = trade['side']
+            quantity = Decimal(trade['quantity'])
+            price = Decimal(trade['exec_price'])
+
+            if side == 'BUY':
+                buy_lots.append({'quantity': quantity, 'price': price})
+            elif side == 'SELL':
+                quantity_to_sell = quantity
+                while quantity_to_sell > 0 and buy_lots:
+                    oldest_lot = buy_lots[0]
+                    
+                    if oldest_lot['quantity'] <= quantity_to_sell:
+                        # Sell the entire oldest lot
+                        realized_pnl_for_ticker += oldest_lot['quantity'] * (price - oldest_lot['price'])
+                        quantity_to_sell -= oldest_lot['quantity']
+                        buy_lots.popleft()
+                    else:
+                        # Sell a portion of the oldest lot
+                        realized_pnl_for_ticker += quantity_to_sell * (price - oldest_lot['price'])
+                        oldest_lot['quantity'] -= quantity_to_sell
+                        quantity_to_sell = 0
+        
+        # Calculate cost basis of remaining (unrealized) lots
+        current_cost_basis = Decimal('0.0')
+        total_quantity = Decimal('0.0')
+        for lot in buy_lots:
+            current_cost_basis += lot['quantity'] * lot['price']
+            total_quantity += lot['quantity']
+
+        return {
+            'realized_pnl': realized_pnl_for_ticker,
+            'cost_basis': current_cost_basis,
+            'quantity': total_quantity
+        }
 
     def _calculate_and_update_pnl(self):
         """
-        Calculates the PnL for each portfolio and updates the pnl_book table.
+        Calculates PnL for each portfolio and updates the pnl_book table.
         """
         self.logger.info("Starting PnL calculation cycle.")
         
-        # Fetch all required data in batch
-        portfolio_data = self._get_portfolio_data()
-        net_capital_data = self._get_net_capital_injected()
-        cost_basis_data = self._get_positions_cost_basis()
-
-        all_portfolio_ids = set(portfolio_data['cash'].keys()) | set(portfolio_data['positions'].keys())
+        state = self._get_latest_portfolio_state()
+        all_portfolio_ids = set(state['cash'].keys()) | set(state['positions'].keys())
         pnl_updates = []
 
         for portfolio_id in all_portfolio_ids:
-            # --- 1. Calculate Unrealized PnL ---
-            positions_market_value = Decimal('0.0')
-            positions_cost_basis = Decimal('0.0')
-            unrealized_pnl = Decimal('0.0')
-
-            if portfolio_id in portfolio_data['positions']:
-                for position in portfolio_data['positions'][portfolio_id]:
-                    ticker = position['ticker']
-                    quantity = position['quantity']
-                    
-                    current_price = portfolio_data['prices'].get(ticker)
-                    avg_cost = cost_basis_data.get(portfolio_id, {}).get(ticker)
-
-                    if current_price:
-                        positions_market_value += quantity * current_price
-                    else:
-                        self.logger.warning(f"No market price for {ticker} in portfolio {portfolio_id}.")
-
-                    if avg_cost:
-                        positions_cost_basis += quantity * avg_cost
-                    else:
-                        self.logger.warning(f"No cost basis for {ticker} in portfolio {portfolio_id}.")
+            total_realized_pnl = Decimal('0.0')
+            total_unrealized_pnl = Decimal('0.0')
+            total_market_value = Decimal('0.0')
             
-            unrealized_pnl = positions_market_value - positions_cost_basis
+            # 1. Calculate PnL from equity positions
+            if portfolio_id in state['positions']:
+                for position in state['positions'][portfolio_id]:
+                    ticker = position['ticker']
+                    
+                    # Skip cash-like instruments from trade-based PnL calc
+                    if ticker == 'USD_CASH':
+                        continue
 
-            # --- 2. Calculate Total PnL ---
-            cash_balance = portfolio_data['cash'].get(portfolio_id, {}).get('notional', Decimal('0.0'))
-            current_valuation = cash_balance + positions_market_value
-            net_capital = net_capital_data.get(portfolio_id, Decimal('0.0'))
-            total_pnl = current_valuation - net_capital
+                    fifo_results = self._calculate_fifo_pnl_and_cost_basis(portfolio_id, ticker)
+                    total_realized_pnl += fifo_results['realized_pnl']
 
-            # --- 3. Calculate Realized PnL ---
-            realized_pnl = total_pnl - unrealized_pnl
+                    current_price = state['prices'].get(ticker)
+                    if current_price:
+                        market_value = fifo_results['quantity'] * current_price
+                        total_market_value += market_value
+                        total_unrealized_pnl += market_value - fifo_results['cost_basis']
+                    else:
+                        self.logger.warning(f"No market price for {ticker} in portfolio {portfolio_id}. Cannot calculate unrealized PnL.")
+
+            # 2. Finalize portfolio-level numbers
+            cash_balance = state['cash'].get(portfolio_id, {}).get('notional', Decimal('0.0'))
+            current_valuation = cash_balance + total_market_value
             
             exec_timestamp = datetime.now()
             pnl_updates.append({
                 'portfolio_id': portfolio_id,
                 'timestamp': exec_timestamp,
                 'date': exec_timestamp.date(),
-                'realized_pnl': realized_pnl,
-                'unrealized_pnl': unrealized_pnl,
-                'fx_rate': Decimal('1.0'),
-                'currency': portfolio_data['cash'].get(portfolio_id, {}).get('currency', 'USD'),
-                'notional': current_valuation, # Total portfolio value
+                'realized_pnl': total_realized_pnl,
+                'unrealized_pnl': total_unrealized_pnl,
+                'fx_rate': Decimal('1.0'), # Assuming USD for now
+                'currency': state['cash'].get(portfolio_id, {}).get('currency', 'USD'),
+                'notional': current_valuation
             })
 
+        # 3. Perform bulk insert into the database
         if pnl_updates:
-            pnl_insert_query = """
-            INSERT INTO pnl_book (portfolio_id, timestamp, date, realized_pnl, unrealized_pnl, fx_rate, currency, notional)
-            VALUES (%(portfolio_id)s, %(timestamp)s, %(date)s, %(realized_pnl)s, %(unrealized_pnl)s, %(fx_rate)s, %(currency)s, %(notional)s);
-            """
-            try:
-                for update in pnl_updates:
-                    self.db_connector.execute_query(pnl_insert_query, update)
-                self.logger.info(f"Successfully updated PnL for {len(pnl_updates)} portfolios.")
-            except Exception as e:
-                self.logger.exception(f"Failed to update pnl_book: {e}")
+            self.logger.info(f"Updating PnL for {len(pnl_updates)} portfolios.")
+            result = self.db_connector.bulk_inject_to_db('pnl_book', pnl_updates)
+            if result['status'] == 'error':
+                 self.logger.error(f"Failed to bulk update pnl_book: {result['message']}")
+            else:
+                 self.logger.info(f"Successfully processed PnL updates: {result['message']}")
+
 
     def run(self):
         self.logger.info("Starting PnL Calculator...")
@@ -199,7 +203,7 @@ class PnLCalculator:
                 start_time = time.time()
                 self._calculate_and_update_pnl()
                 elapsed_time = time.time() - start_time
-                self.logger.info(f"PnL cycle finished in {elapsed_time:.2f}s. Sleeping for {self.poll_interval - elapsed_time:.2f}s.")
+                self.logger.info(f"PnL cycle finished in {elapsed_time:.2f}s. Sleeping for {max(0, self.poll_interval - elapsed_time):.2f}s.")
                 time.sleep(max(0, self.poll_interval - elapsed_time))
             except KeyboardInterrupt:
                 self.logger.info("PnL Calculator stopped by user.")
@@ -210,6 +214,6 @@ class PnLCalculator:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    db_connector = MQSDBConnector()
-    pnl_calculator = PnLCalculator(db_connector=db_connector, poll_interval=60)
+    db_conn = MQSDBConnector()
+    pnl_calculator = PnLCalculator(db_connector=db_conn, poll_interval=60)
     pnl_calculator.run()
