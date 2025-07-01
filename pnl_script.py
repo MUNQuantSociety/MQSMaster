@@ -188,6 +188,8 @@ class PnLCalculator:
         # 3. Perform bulk insert into the database
         if pnl_updates:
             self.logger.info(f"Updating PnL for {len(pnl_updates)} portfolios.")
+            # Call bulk_inject_to_db without the optional conflict_columns parameter
+            # as there is no conflict condition for pnl_book.
             result = self.db_connector.bulk_inject_to_db('pnl_book', pnl_updates)
             if result['status'] == 'error':
                  self.logger.error(f"Failed to bulk update pnl_book: {result['message']}")
