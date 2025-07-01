@@ -139,14 +139,10 @@ class tradeExecutor:
                 cash_values = (timestamp, date_part, portfolio_id, 'USD', updated_cash)
                 cursor.execute(cash_query, cash_values)
 
-                # Update positions_book (upsert)
+                # Update positions_book (simple insert)
                 position_query = """
                     INSERT INTO positions_book (portfolio_id, ticker, quantity, updated_at)
                     VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (portfolio_id, ticker)
-                    DO UPDATE SET
-                        quantity = EXCLUDED.quantity,
-                        updated_at = EXCLUDED.updated_at
                 """
                 position_values = (portfolio_id, ticker, updated_quantity, timestamp)
                 cursor.execute(position_query, position_values)
