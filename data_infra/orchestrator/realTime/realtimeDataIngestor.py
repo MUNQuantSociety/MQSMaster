@@ -35,7 +35,7 @@ def setup_logging():
 # state by reading the `volume` column, but that column stores the *interval* volume,
 # not the *cumulative* volume from the API. For this to work correctly after a crash,
 # the database schema would need a separate 'cumulative_volume' column to read from.
-# As per your request, this change is deferred.
+
 def initialize_volume_state(db: MQSDBConnector, tickers: set) -> dict:
     """
     Initializes the volume state from the DB for the current day to ensure
