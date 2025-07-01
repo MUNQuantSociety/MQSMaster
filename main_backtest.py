@@ -11,12 +11,13 @@
 import logging
 import cProfile
 import pstats
+import sys
+import os
 
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from data_infra.database.MQSDBConnector import MQSDBConnector
-
 # Import portfolio classes, not instances
 from portfolios.portfolio_2.strategy import MomentumThresholdStrategy
-
 from engines.backtest_engine import BacktestEngine
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

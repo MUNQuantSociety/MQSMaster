@@ -3,6 +3,9 @@ import json
 import logging
 import pandas as pd
 from datetime import datetime, timedelta
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from portfolios.portfolio_BASE.strategy import BasePortfolio
 from typing import Dict, Optional
 
