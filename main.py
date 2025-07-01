@@ -3,9 +3,13 @@
 # main.py is reserved for live trading purposes.
 
 import logging
+
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+
 from data_infra.database.MQSDBConnector import MQSDBConnector
 from data_infra.tradingOps.realtime.live import tradeExecutor # For live trading
-
 # Import portfolio classes, not instances
 from portfolios.portfolio_1.strategy import SimpleMomentum
 from portfolios.portfolio_2.strategy import MomentumThresholdStrategy
