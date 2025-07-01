@@ -70,7 +70,7 @@ cd "$SCRIPT_DIR" || exit
 # Array to hold the Process IDs (PIDs) of the background scripts.
 pids=()
 scripts_to_run=(
-  "main.py"
+  "./main.py"
   "data_infra/orchestrator/realTime/realtimeDataIngestor.py"
   "./pnl_script.py"
 )
