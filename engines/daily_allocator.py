@@ -1,5 +1,3 @@
-# engines/daily_allocator.py
-
 import json
 import logging
 from datetime import datetime
@@ -97,15 +95,19 @@ class DailyAllocator:
         
         # Log the 'SELL' from the source portfolio
         cursor.execute("""
-            INSERT INTO trade_execution_logs (portfolio_id, ticker, exec_timestamp, side, quantity, arrival_price, exec_price, notional, currency)
-            VALUES (%s, %s, %s, %s, %s, 1.0, 1.0, %s, %s)
-        """, (from_portfolio, f"{self.currency}_CASH", exec_timestamp, 'SELL', amount, amount, self.currency))
+            INSERT INTO trade_execution_logs (
+                portfolio_id, ticker, exec_timestamp, side, quantity, 
+                arrival_price, exec_price, notional_local, currency, notional
+            ) VALUES (%s, %s, %s, %s, %s, 1.0, 1.0, %s, %s, %s)
+        """, (from_portfolio, f"{self.currency}_CASH", exec_timestamp, 'SELL', amount, amount, self.currency, None))
 
         # Log the 'BUY' to the destination portfolio
         cursor.execute("""
-            INSERT INTO trade_execution_logs (portfolio_id, ticker, exec_timestamp, side, quantity, arrival_price, exec_price, notional, currency)
-            VALUES (%s, %s, %s, %s, %s, 1.0, 1.0, %s, %s)
-        """, (to_portfolio, f"{self.currency}_CASH", exec_timestamp, 'BUY', amount, amount, self.currency))
+            INSERT INTO trade_execution_logs (
+                portfolio_id, ticker, exec_timestamp, side, quantity, 
+                arrival_price, exec_price, notional_local, currency, notional
+            ) VALUES (%s, %s, %s, %s, %s, 1.0, 1.0, %s, %s, %s)
+        """, (to_portfolio, f"{self.currency}_CASH", exec_timestamp, 'BUY', amount, amount, self.currency, None))
 
         # Update cash book for both portfolios with the new, pre-calculated balances
         cash_update_query = "INSERT INTO cash_equity_book (timestamp, date, portfolio_id, currency, notional) VALUES (%s, %s, %s, %s, %s)"
@@ -137,9 +139,11 @@ class DailyAllocator:
                     logger.info(f"New portfolio detected: {portfolio_id}. Initializing with nominal funding.")
                     exec_timestamp = datetime.now()
                     cursor.execute("""
-                        INSERT INTO trade_execution_logs (portfolio_id, ticker, exec_timestamp, side, quantity, arrival_price, exec_price, notional, currency)
-                        VALUES (%s, %s, %s, %s, 1.0, 1.0, 1.0, 1.0, %s)
-                    """, (portfolio_id, f"{self.currency}_CASH", exec_timestamp, 'BUY', self.currency))
+                        INSERT INTO trade_execution_logs (
+                            portfolio_id, ticker, exec_timestamp, side, quantity, 
+                            arrival_price, exec_price, notional_local, currency, notional
+                        ) VALUES (%s, %s, %s, %s, 1.0, 1.0, 1.0, %s, %s, %s)
+                    """, (portfolio_id, f"{self.currency}_CASH", exec_timestamp, 'BUY', 1.0, self.currency, None))
                     
                     cursor.execute("""
                         INSERT INTO cash_equity_book (timestamp, date, portfolio_id, currency, notional)
