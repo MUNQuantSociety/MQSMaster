@@ -37,7 +37,7 @@ class MomentumThresholdStrategy(BasePortfolio):
                          config_dict=config_data)
 
         self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
-        self.threshold = config_data.get("momentum_threshold", 0.005)  # Â±0.5% default
+        self.threshold = config_data.get("momentum_threshold", 0.002)  # Â±0.2% default, assuming a 40c change on ~ $200 AAPL
         self.interval_seconds = self.poll_interval
         self.last_decision_time = {}
 
