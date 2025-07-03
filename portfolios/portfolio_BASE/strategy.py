@@ -112,8 +112,8 @@ class BasePortfolio(ABC):
             return pd.DataFrame()
 
         market_data = pd.DataFrame(result['data'])
-        market_data['timestamp'] = pd.to_datetime(market_data['timestamp'], errors='coerce')
-        market_data['close_price'] = pd.to_numeric(market_data['close_price'], errors='coerce')
+        market_data['timestamp'] = pd.to_datetime(market_data['timestamp'])
+        market_data['close_price'] = pd.to_numeric(market_data['close_price'])
         market_data = market_data.dropna(subset=['timestamp', 'ticker', 'close_price'])
         market_data.sort_values('timestamp', inplace=True)
         return market_data

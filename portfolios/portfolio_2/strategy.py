@@ -37,7 +37,6 @@ class MomentumThresholdStrategy(BasePortfolio):
                          config_dict=config_data)
 
         self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
-        self.threshold = config_data.get("momentum_threshold", 0.002)  # Â±0.2% default, assuming a 40c change on ~ $200 AAPL
         self.interval_seconds = self.poll_interval
         self.last_decision_time = {}
 
@@ -81,9 +80,9 @@ class MomentumThresholdStrategy(BasePortfolio):
                 else:
                     price_change = (latest_price - previous_price) / previous_price
 
-                if price_change > self.threshold:
+                if price_change > 0:
                     signal = "BUY"
-                elif price_change < -self.threshold:
+                elif price_change < 0:
                     signal = "SELL"
                 else:
                     signal = "HOLD"
@@ -109,3 +108,5 @@ class MomentumThresholdStrategy(BasePortfolio):
 
             except Exception as e:
                 self.logger.exception(f"[{ticker}] Error during trading decision: {e}")
+
+
