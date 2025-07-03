@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 import sys
 
@@ -13,6 +14,7 @@ class SimpleMomentum(BasePortfolio):
     """
     A simple momentum strategy that buys assets with strong positive returns
     over a lookback period and sells assets with strong negative returns.
+    The threshold for buying or selling is dynamically adjusted based on volatility.
     """
     def __init__(self, db_connector, executor, debug=False):
         """
@@ -38,14 +40,16 @@ class SimpleMomentum(BasePortfolio):
 
         # --- Strategy-Specific Parameters ---
         self.momentum_lookback_days = self.lookback_days
-        self.momentum_threshold = 0.02
+        self.volatility_lookback_days = 60 # Lookback period for volatility calculation
+        self.volatility_multiplier = 1.5 # Multiplier for setting the dynamic threshold
         self.interval_seconds = self.poll_interval
         self.last_decision_time = {}
 
         self.logger.info(f"SimpleMomentum portfolio '{self.portfolio_id}' initialized.")
         self.logger.info(
-            f"Strategy Parameters: Lookback = {self.momentum_lookback_days} days, "
-            f"Threshold = {self.momentum_threshold:.2%}, "
+            f"Strategy Parameters: Momentum Lookback = {self.momentum_lookback_days} days, "
+            f"Volatility Lookback = {self.volatility_lookback_days} days, "
+            f"Volatility Multiplier = {self.volatility_multiplier}, "
             f"Trade Interval = {self.interval_seconds} seconds"
         )
 
@@ -76,6 +80,29 @@ class SimpleMomentum(BasePortfolio):
                 if ticker_data.empty:
                     continue
 
+                # --- START DYNAMIC THRESHOLD CALCULATION ---
+
+                # 1. Calculate historical volatility
+                # We need at least two data points to calculate returns
+                if len(ticker_data) < 2:
+                    self.logger.debug(f"[{ticker}] Not enough data points ({len(ticker_data)}) to calculate volatility.")
+                    continue
+
+                # Use daily closing prices for volatility calculation
+                daily_prices = ticker_data.resample('D', on='timestamp')['close_price'].last()
+                returns = daily_prices.pct_change().dropna()
+
+                if len(returns) < 2:
+                    self.logger.debug(f"[{ticker}] Not enough daily returns to calculate volatility.")
+                    continue
+
+                # Calculate volatility as the standard deviation of returns
+                volatility = returns.std()
+
+                # Set the dynamic momentum threshold
+                dynamic_momentum_threshold = volatility * self.volatility_multiplier
+                self.logger.debug(f"[{ticker}] Volatility: {volatility:.4f}, Dynamic Threshold: {dynamic_momentum_threshold:.4f}")
+
                 # --- START MOMENTUM CALCULATION ---
 
                 # To calculate momentum, we need at least a start and end point.
@@ -87,7 +114,6 @@ class SimpleMomentum(BasePortfolio):
                 latest_price = ticker_data['close_price'].iloc[-1]
 
                 # 2. Get the price from the start of the provided data slice.
-                # This is simpler and more robust than calculating dates.
                 lookback_price = ticker_data['close_price'].iloc[0]
 
                 # 3. Calculate the momentum as a simple percentage return over the window.
@@ -95,17 +121,17 @@ class SimpleMomentum(BasePortfolio):
                     momentum_return = 0.0
                 else:
                     momentum_return = (latest_price - lookback_price) / lookback_price
-                
-                
-                if momentum_return > self.momentum_threshold:
+
+                # --- SIGNAL GENERATION WITH DYNAMIC THRESHOLD ---
+                if momentum_return > dynamic_momentum_threshold:
                     signal = 'BUY'
-                elif momentum_return < -self.momentum_threshold:
+                elif momentum_return < -dynamic_momentum_threshold:
                     signal = 'SELL'
                 else:
                     signal = 'HOLD'
-                
+
                 self.last_decision_time[ticker] = trade_ts
-                
+
                 if signal in ['BUY', 'SELL']:
                     ticker_pos_series = positions[positions['ticker'] == ticker]['quantity'] if not positions.empty else pd.Series(dtype=float)
                     current_quantity = ticker_pos_series.iloc[0] if not ticker_pos_series.empty else 0.0

@@ -26,45 +26,93 @@ class PnLCalculator:
 
     def _get_latest_portfolio_state(self) -> dict:
         """
-        Fetches the latest cash balances and current positions for all portfolios.
+        Fetches the latest portfolio state (cash and positions) for all portfolios
+        atomically to prevent race conditions.
         """
-        # 1. Get latest cash notional for each portfolio
-        cash_query = """
+        # This single, unified query fetches the latest cash balance and an aggregated
+        # list of current positions for every portfolio in one atomic operation.
+        # It uses a FULL OUTER JOIN to correctly handle portfolios that may only have
+        # cash or only have positions.
+        atomic_state_query = """
         WITH latest_cash AS (
-            SELECT portfolio_id, notional, currency,
-                   ROW_NUMBER() OVER(PARTITION BY portfolio_id ORDER BY timestamp DESC) as rn
-            FROM cash_equity_book
-        )
-        SELECT portfolio_id, notional, currency FROM latest_cash WHERE rn = 1;
-        """
-        cash_result = self.db_connector.execute_query(cash_query, fetch='all')
-        portfolio_cash = {item['portfolio_id']: {'notional': Decimal(item['notional']), 'currency': item['currency']} for item in cash_result.get('data', [])}
-
-        # 2. Get the most recent position for each ticker across all portfolios.
-        positions_query = """
-            SELECT DISTINCT ON (portfolio_id, ticker)
+            -- 1. Get the most recent cash balance for each portfolio.
+            --    The 'id' column is used as a tie-breaker for records with the same timestamp.
+            SELECT
                 portfolio_id,
-                ticker,
-                quantity
+                notional,
+                currency,
+                ROW_NUMBER() OVER(PARTITION BY portfolio_id ORDER BY "timestamp" DESC, id DESC) as rn
             FROM
-                positions_book
-            ORDER BY
-                portfolio_id, ticker, updated_at DESC;
+                cash_equity_book
+        ),
+        cash_snapshot AS (
+            -- Filter to get only the single latest entry for each portfolio
+            SELECT portfolio_id, notional, currency FROM latest_cash WHERE rn = 1
+        ),
+        positions_snapshot AS (
+            -- 2. Get all current (non-zero quantity) positions for each portfolio,
+            --    aggregated into a single JSON array.
+            SELECT
+                portfolio_id,
+                json_agg(json_build_object('ticker', ticker, 'quantity', quantity)) AS positions
+            FROM (
+                -- Subquery to get the most recent state of each position
+                SELECT DISTINCT ON (portfolio_id, ticker)
+                    portfolio_id,
+                    ticker,
+                    quantity
+                FROM
+                    positions_book
+                ORDER BY
+                    portfolio_id, ticker, updated_at DESC
+            ) AS latest_positions
+            WHERE
+                quantity != 0
+            GROUP BY
+                portfolio_id
+        )
+        -- 3. Combine cash and position snapshots atomically.
+        --    COALESCE is used to correctly retrieve the portfolio_id from either side of the join.
+        SELECT
+            COALESCE(cs.portfolio_id, ps.portfolio_id) AS portfolio_id,
+            cs.notional AS cash_notional,
+            cs.currency,
+            ps.positions
+        FROM
+            cash_snapshot cs
+        FULL OUTER JOIN
+            positions_snapshot ps ON cs.portfolio_id = ps.portfolio_id;
         """
-        positions_result = self.db_connector.execute_query(positions_query, fetch='all')
 
+        state_result = self.db_connector.execute_query(atomic_state_query, fetch='all')
+
+        portfolio_cash = {}
         portfolio_positions = {}
         all_tickers = set()
-        for pos in positions_result.get('data', []):
-            # We only care about currently held positions (quantity is not zero)
-            if pos['quantity'] != 0:
-                pid = pos['portfolio_id']
-                if pid not in portfolio_positions:
-                    portfolio_positions[pid] = []
-                portfolio_positions[pid].append({'ticker': pos['ticker'], 'quantity': Decimal(pos['quantity'])})
-                all_tickers.add(pos['ticker'])
 
-        # 3. Get latest market price for all relevant tickers
+        # 4. Parse the results of the unified query
+        for portfolio_state in state_result.get('data', []):
+            pid = portfolio_state['portfolio_id']
+
+            # Populate cash information if it exists
+            if portfolio_state.get('cash_notional') is not None:
+                portfolio_cash[pid] = {
+                    'notional': Decimal(portfolio_state['cash_notional']),
+                    'currency': portfolio_state['currency']
+                }
+
+            # Populate positions information if it exists, and collect tickers
+            if portfolio_state.get('positions') is not None:
+                positions_list = portfolio_state['positions']
+                portfolio_positions[pid] = []
+                for pos in positions_list:
+                    portfolio_positions[pid].append({
+                        'ticker': pos['ticker'],
+                        'quantity': Decimal(pos['quantity'])
+                    })
+                    all_tickers.add(pos['ticker'])
+
+        # 5. Get latest market prices for all relevant tickers (this can remain separate)
         market_prices = {}
         if all_tickers:
             placeholders = ', '.join(['%s'] * len(all_tickers))
