@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 import os
 import sys
+import pytz # Import the pytz library
 
 # Add the project root to the Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -20,10 +21,10 @@ logger = logging.getLogger(__name__)
 MASTER_PORTFOLIO_ID = "0"
 CASH_TICKER = "USD_CASH"
 CURRENCY = "USD"
+DB_TIMEZONE = pytz.timezone("America/New_York") # Define the target timezone
 
 def get_current_cash(db_connector: MQSDBConnector, portfolio_id: str) -> float:
     """Fetches the most recent cash balance for a given portfolio."""
-    # This function correctly queries 'cash_equity_book' which uses 'notional' for its balance. No changes needed here.
     query = """
         SELECT notional FROM cash_equity_book
         WHERE portfolio_id = %s
@@ -34,7 +35,7 @@ def get_current_cash(db_connector: MQSDBConnector, portfolio_id: str) -> float:
         result = db_connector.execute_query(query, (portfolio_id,), fetch='one')
         if result and result['data']:
             return float(result['data'][0]['notional'])
-        return 0.0  # No cash balance found, assume 0
+        return 0.0
     except Exception as e:
         logger.exception(f"Failed to fetch cash for portfolio {portfolio_id}: {e}")
         return 0.0
@@ -55,10 +56,8 @@ def update_capital(db_connector: MQSDBConnector, amount: float, action: str):
             return
 
         with conn.cursor() as cursor:
-            # Get current cash balance
             current_balance = get_current_cash(db_connector, MASTER_PORTFOLIO_ID)
 
-            # Determine trade side and calculate new balance
             if action == 'ADD':
                 side = 'BUY'
                 new_balance = current_balance + amount
@@ -69,12 +68,10 @@ def update_capital(db_connector: MQSDBConnector, amount: float, action: str):
                 side = 'SELL'
                 new_balance = current_balance - amount
 
-            exec_timestamp = datetime.now()
+            # Generate a timezone-aware timestamp
+            exec_timestamp = datetime.now(DB_TIMEZONE)
             date_part = exec_timestamp.date()
 
-            # 1. Insert into trade_execution_logs
-            # Only notional_local is touched. notional (CAD value) is set to NULL
-            # because no FX rate is implemented.
             trade_log_query = """
                 INSERT INTO trade_execution_logs (
                     portfolio_id, ticker, exec_timestamp, side, quantity,
@@ -83,14 +80,11 @@ def update_capital(db_connector: MQSDBConnector, amount: float, action: str):
             """
             trade_log_values = (
                 MASTER_PORTFOLIO_ID, CASH_TICKER, exec_timestamp, side, amount,
-                None, amount, CURRENCY # Set notional to NULL, and notional_local to the transaction amount
+                None, amount, CURRENCY
             )
             cursor.execute(trade_log_query, trade_log_values)
             logger.info(f"Logged funding transaction: {side} {amount} {CASH_TICKER} for portfolio {MASTER_PORTFOLIO_ID}")
 
-
-            # 2. Insert new balance into cash_equity_book
-            # This table correctly uses 'notional' for its balance as it has a currency column. No changes needed.
             cash_query = """
                 INSERT INTO cash_equity_book (timestamp, date, portfolio_id, currency, notional)
                 VALUES (%s, %s, %s, %s, %s);
@@ -112,6 +106,7 @@ def update_capital(db_connector: MQSDBConnector, amount: float, action: str):
 
 
 if __name__ == '__main__':
+    # (No changes to the main execution block)
     parser = argparse.ArgumentParser(description="Manage capital for the trading system.")
     parser.add_argument('--action', type=str, required=True, choices=['ADD', 'WITHDRAW'],
                         help="The action to perform: ADD or WITHDRAW capital.")
