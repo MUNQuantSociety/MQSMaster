@@ -118,10 +118,10 @@ class PnLCalculator:
             return result['data'][0]['max_id']
         return 0
 
-    def _calculate_fifo_pnl_and_cost_basis(self, portfolio_id: str, ticker: str) -> dict:
+    def _calculate_fifo_pnl_and_cost_basis(self, portfolio_id: str, ticker: str, final_quantity: Decimal) -> dict:
         """
-        Calculates realized PnL and the cost basis of current holdings for a single
-        ticker using the FIFO method.
+        Calculates realized PnL by replaying all trades and determines the cost basis
+        for the known final quantity of shares held.
         """
         query = """
             SELECT exec_timestamp, side, quantity, exec_price
@@ -155,16 +155,27 @@ class PnLCalculator:
                         oldest_lot['quantity'] -= quantity_to_sell
                         quantity_to_sell = 0
         
-        current_cost_basis = Decimal('0.0')
-        total_quantity = Decimal('0.0')
-        for lot in buy_lots:
-            current_cost_basis += lot['quantity'] * lot['price']
-            total_quantity += lot['quantity']
+        cost_basis = Decimal('0.0')
+        quantity_to_account_for = final_quantity
+        
+        # Iterate through remaining buy lots from most recent to oldest
+        for lot in reversed(buy_lots):
+            if quantity_to_account_for <= 0:
+                break
+            
+            qty_in_lot = lot['quantity']
+            price = lot['price']
+            
+            if qty_in_lot <= quantity_to_account_for:
+                cost_basis += qty_in_lot * price
+                quantity_to_account_for -= qty_in_lot
+            else:
+                cost_basis += quantity_to_account_for * price
+                quantity_to_account_for = 0
 
         return {
             'realized_pnl': realized_pnl_for_ticker,
-            'cost_basis': current_cost_basis,
-            'quantity': total_quantity
+            'cost_basis': cost_basis
         }
 
     def _calculate_and_update_pnl(self):
@@ -173,7 +184,6 @@ class PnLCalculator:
         """
         self.logger.info("Starting PnL calculation cycle.")
         
-        # --- Transactional Consistency Check ---
         trade_id_before = self._get_latest_trade_id()
         state = self._get_latest_portfolio_state()
         trade_id_after = self._get_latest_trade_id()
@@ -183,9 +193,8 @@ class PnLCalculator:
                 f"Concurrent trade detected during state retrieval (ID {trade_id_before} -> {trade_id_after}). "
                 "Skipping PnL cycle to ensure data consistency."
             )
-            return # Abort this cycle and wait for the next one.
+            return
         
-        # --- Proceed with calculation using the consistent state ---
         all_portfolio_ids = set(state['cash'].keys()) | set(state['positions'].keys())
         pnl_updates = []
 
@@ -200,12 +209,16 @@ class PnLCalculator:
                     if ticker == 'USD_CASH':
                         continue
 
-                    fifo_results = self._calculate_fifo_pnl_and_cost_basis(portfolio_id, ticker)
+                    current_quantity = Decimal(position['quantity'])
+                    if current_quantity <= 0:
+                        continue
+                    
+                    fifo_results = self._calculate_fifo_pnl_and_cost_basis(portfolio_id, ticker, current_quantity)
                     total_realized_pnl += fifo_results['realized_pnl']
 
                     current_price = state['prices'].get(ticker)
                     if current_price:
-                        market_value = fifo_results['quantity'] * current_price
+                        market_value = current_quantity * current_price
                         total_market_value += market_value
                         total_unrealized_pnl += market_value - fifo_results['cost_basis']
                     else:
