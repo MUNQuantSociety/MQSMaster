@@ -11,8 +11,8 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from data_infra.database.MQSDBConnector import MQSDBConnector
 from data_infra.tradingOps.realtime.live import tradeExecutor # For live trading
 # Import portfolio classes, not instances
-from portfolios.portfolio_1.strategy import SimpleMomentum
-from portfolios.portfolio_2.strategy import MomentumThresholdStrategy
+from portfolios.portfolio_1.strategy import VolMomentum
+from portfolios.portfolio_2.strategy import MomentumStrategy
 
 from engines.run_engine import RunEngine
 
@@ -29,8 +29,8 @@ def main():
     run_engine = RunEngine(db_connector=dbconn, executor=live_trade_executor, debug=False)
     # Pass a list of the portfolio classes you want to run
     run_engine.load_portfolios([
-        SimpleMomentum,
-        MomentumThresholdStrategy
+        VolMomentum,
+        MomentumStrategy
     ])
 
     

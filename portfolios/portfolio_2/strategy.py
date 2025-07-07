@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 from portfolios.portfolio_BASE.strategy import BasePortfolio
 from typing import Dict, Optional
 
-class MomentumThresholdStrategy(BasePortfolio):
+class MomentumStrategy(BasePortfolio):
     """
     A refined momentum strategy:
     - Uses historical and current price to decide direction.
@@ -40,16 +40,12 @@ class MomentumThresholdStrategy(BasePortfolio):
         self.interval_seconds = self.poll_interval
         self.last_decision_time = {}
 
-        self.logger.info(f"Strategy initialized: Threshold = {self.threshold:.2%}, Interval = {self.interval_seconds}s")
+        self.logger.info(f"Strategy initialized: No Threshold, Interval = {self.interval_seconds}s")
 
 
     def generate_signals_and_trade(self,
                                    dataframes_dict: Dict[str, pd.DataFrame],
                                    current_time: Optional[datetime] = None):
-        """
-        Executes the strategy: compares current price to last price,
-        and trades if change > threshold.
-        """
         market_data = dataframes_dict.get('MARKET_DATA')
         cash_available = dataframes_dict.get('CASH_EQUITY')
         positions = dataframes_dict.get('POSITIONS')
@@ -60,9 +56,10 @@ class MomentumThresholdStrategy(BasePortfolio):
 
         trade_ts = current_time or datetime.now().astimezone()
 
+        current_cash_in_loop = cash_available.iloc[0]['notional'] if not cash_available.empty else 0.0
+
         for ticker in self.tickers:
             try:
-                # Enforce polling interval
                 last_decision = self.last_decision_time.get(ticker)
                 if last_decision and (trade_ts - last_decision) < timedelta(seconds=self.interval_seconds):
                     continue
@@ -71,7 +68,6 @@ class MomentumThresholdStrategy(BasePortfolio):
                 if len(ticker_data) < 2:
                     continue
 
-                # Most recent two prices
                 latest_price = ticker_data['close_price'].iloc[-1]
                 previous_price = ticker_data['close_price'].iloc[-2]
 
@@ -93,20 +89,21 @@ class MomentumThresholdStrategy(BasePortfolio):
                     ticker_pos_series = positions[positions['ticker'] == ticker]['quantity'] if not positions.empty else pd.Series(dtype=float)
                     current_quantity = ticker_pos_series.iloc[0] if not ticker_pos_series.empty else 0.0
 
-                    self.executor.execute_trade(
+                    trade_result = self.executor.execute_trade(
                         portfolio_id=self.portfolio_id,
                         ticker=ticker,
                         signal_type=signal,
                         confidence=1.0,
                         arrival_price=latest_price,
-                        cash=cash_available.iloc[0]['notional'] if not cash_available.empty else 0.0,
+                        cash=current_cash_in_loop,
                         positions=current_quantity,
                         port_notional=port_notional.iloc[0]['notional'] if not port_notional.empty else 0.0,
                         ticker_weight=self.portfolio_weights.get(ticker, 1.0 / len(self.tickers)),
                         timestamp=trade_ts
                     )
 
+                    if trade_result and trade_result.get('status') == 'success':
+                        current_cash_in_loop = trade_result['updated_cash']
+
             except Exception as e:
                 self.logger.exception(f"[{ticker}] Error during trading decision: {e}")
-
-

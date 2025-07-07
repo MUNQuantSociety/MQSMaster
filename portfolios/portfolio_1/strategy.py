@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 from portfolios.portfolio_BASE.strategy import BasePortfolio
 from typing import Dict, Optional
 
-class SimpleMomentum(BasePortfolio):
+class VolMomentum(BasePortfolio):
     """
     A simple momentum strategy that buys assets with strong positive returns
     over a lookback period and sells assets with strong negative returns.
@@ -18,12 +18,12 @@ class SimpleMomentum(BasePortfolio):
     """
     def __init__(self, db_connector, executor, debug=False):
         """
-        Initializes the SimpleMomentum strategy.
+        Initializes the VolMomentum strategy.
         """
         child_dir = os.path.dirname(__file__)
         config_path = os.path.join(child_dir, "config.json")
         if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Config file not found for SimpleMomentum at {config_path}")
+            raise FileNotFoundError(f"Config file not found for VolMomentum at {config_path}")
 
         try:
             with open(config_path, 'r') as f:
@@ -45,7 +45,7 @@ class SimpleMomentum(BasePortfolio):
         self.interval_seconds = self.poll_interval
         self.last_decision_time = {}
 
-        self.logger.info(f"SimpleMomentum portfolio '{self.portfolio_id}' initialized.")
+        self.logger.info(f"VolMomentum portfolio '{self.portfolio_id}' initialized.")
         self.logger.info(
             f"Strategy Parameters: Momentum Lookback = {self.momentum_lookback_days} days, "
             f"Volatility Lookback = {self.volatility_lookback_days} days, "
@@ -53,13 +53,9 @@ class SimpleMomentum(BasePortfolio):
             f"Trade Interval = {self.interval_seconds} seconds"
         )
 
-
     def generate_signals_and_trade(self,
                                    dataframes_dict: Dict[str, pd.DataFrame],
                                    current_time: Optional[datetime] = None):
-        """
-        Main logic function called by the backtest runner at each time step.
-        """
         market_data = dataframes_dict.get('MARKET_DATA')
         cash_available = dataframes_dict.get('CASH_EQUITY')
         positions = dataframes_dict.get('POSITIONS')
@@ -69,6 +65,8 @@ class SimpleMomentum(BasePortfolio):
             return
 
         trade_ts = current_time or datetime.now().astimezone()
+
+        current_cash_in_loop = cash_available.iloc[0]['notional'] if not cash_available.empty else 0.0
 
         for ticker in self.tickers:
             try:
@@ -80,49 +78,29 @@ class SimpleMomentum(BasePortfolio):
                 if ticker_data.empty:
                     continue
 
-                # --- START DYNAMIC THRESHOLD CALCULATION ---
-
-                # 1. Calculate historical volatility
-                # We need at least two data points to calculate returns
                 if len(ticker_data) < 2:
-                    self.logger.debug(f"[{ticker}] Not enough data points ({len(ticker_data)}) to calculate volatility.")
                     continue
 
-                # Use daily closing prices for volatility calculation
                 daily_prices = ticker_data.resample('D', on='timestamp')['close_price'].last()
                 returns = daily_prices.pct_change().dropna()
 
                 if len(returns) < 2:
-                    self.logger.debug(f"[{ticker}] Not enough daily returns to calculate volatility.")
                     continue
 
-                # Calculate volatility as the standard deviation of returns
                 volatility = returns.std()
-
-                # Set the dynamic momentum threshold
                 dynamic_momentum_threshold = volatility * self.volatility_multiplier
-                self.logger.debug(f"[{ticker}] Volatility: {volatility:.4f}, Dynamic Threshold: {dynamic_momentum_threshold:.4f}")
 
-                # --- START MOMENTUM CALCULATION ---
-
-                # To calculate momentum, we need at least a start and end point.
                 if len(ticker_data) < 2:
-                    self.logger.debug(f"[{ticker}] Not enough data points ({len(ticker_data)}) in the provided window to calculate momentum.")
                     continue
 
-                # 1. Get the most recent price from the end of the provided data slice.
                 latest_price = ticker_data['close_price'].iloc[-1]
-
-                # 2. Get the price from the start of the provided data slice.
                 lookback_price = ticker_data['close_price'].iloc[0]
 
-                # 3. Calculate the momentum as a simple percentage return over the window.
-                if lookback_price == 0: # Avoid division by zero
+                if lookback_price == 0:
                     momentum_return = 0.0
                 else:
                     momentum_return = (latest_price - lookback_price) / lookback_price
 
-                # --- SIGNAL GENERATION WITH DYNAMIC THRESHOLD ---
                 if momentum_return > dynamic_momentum_threshold:
                     signal = 'BUY'
                 elif momentum_return < -dynamic_momentum_threshold:
@@ -136,18 +114,21 @@ class SimpleMomentum(BasePortfolio):
                     ticker_pos_series = positions[positions['ticker'] == ticker]['quantity'] if not positions.empty else pd.Series(dtype=float)
                     current_quantity = ticker_pos_series.iloc[0] if not ticker_pos_series.empty else 0.0
 
-                    self.executor.execute_trade(
+                    trade_result = self.executor.execute_trade(
                         portfolio_id=self.portfolio_id,
                         ticker=ticker,
                         signal_type=signal,
                         confidence=1.0,
                         arrival_price=latest_price,
-                        cash=cash_available.iloc[0]['notional'] if not cash_available.empty else 0.0,
+                        cash=current_cash_in_loop,
                         positions=current_quantity,
                         port_notional=port_notional.iloc[0]['notional'] if not port_notional.empty else 0.0,
                         ticker_weight=self.portfolio_weights.get(ticker, 1.0 / len(self.tickers)),
                         timestamp=trade_ts
                     )
+
+                    if trade_result and trade_result.get('status') == 'success':
+                        current_cash_in_loop = trade_result['updated_cash']
 
             except Exception as e:
                 self.logger.exception(f"[{ticker}] An error occurred during signal generation: {e}")
