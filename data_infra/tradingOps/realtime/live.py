@@ -114,7 +114,7 @@ class tradeExecutor:
                 updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp
             )
 
-    def update_database(self, portfolio_id, ticker, signal_type, quantity_to_trade,
+    def update_database(self, portfolio_id, ticker, signal_type, quantity_to_trade, 
                      updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp):
         """
         Update database tables after trade execution within a single transaction.
@@ -164,7 +164,7 @@ class tradeExecutor:
 
             conn.commit()
             self.logger.info(f"Database successfully updated for trade: {signal_type} {quantity_to_trade} {ticker} @ {exec_price:.2f}")
-            return {'status': 'success', 'quantity': quantity_to_trade}
+            return {'status': 'success', 'quantity': quantity_to_trade, 'updated_cash': updated_cash}
 
         except Exception as e:
             self.logger.exception("Database update transaction failed. Rolling back all changes.")
