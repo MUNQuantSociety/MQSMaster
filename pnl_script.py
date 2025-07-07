@@ -1,4 +1,4 @@
-# pnl/pnl_calculator.py
+# pnl/pnl_script.py
 
 import time
 import logging
@@ -29,14 +29,8 @@ class PnLCalculator:
         Fetches the latest portfolio state (cash and positions) for all portfolios
         atomically to prevent race conditions.
         """
-        # This single, unified query fetches the latest cash balance and an aggregated
-        # list of current positions for every portfolio in one atomic operation.
-        # It uses a FULL OUTER JOIN to correctly handle portfolios that may only have
-        # cash or only have positions.
         atomic_state_query = """
         WITH latest_cash AS (
-            -- 1. Get the most recent cash balance for each portfolio.
-            --    The 'id' column is used as a tie-breaker for records with the same timestamp.
             SELECT
                 portfolio_id,
                 notional,
@@ -46,17 +40,13 @@ class PnLCalculator:
                 cash_equity_book
         ),
         cash_snapshot AS (
-            -- Filter to get only the single latest entry for each portfolio
             SELECT portfolio_id, notional, currency FROM latest_cash WHERE rn = 1
         ),
         positions_snapshot AS (
-            -- 2. Get all current (non-zero quantity) positions for each portfolio,
-            --    aggregated into a single JSON array.
             SELECT
                 portfolio_id,
                 json_agg(json_build_object('ticker', ticker, 'quantity', quantity)) AS positions
             FROM (
-                -- Subquery to get the most recent state of each position
                 SELECT DISTINCT ON (portfolio_id, ticker)
                     portfolio_id,
                     ticker,
@@ -71,8 +61,6 @@ class PnLCalculator:
             GROUP BY
                 portfolio_id
         )
-        -- 3. Combine cash and position snapshots atomically.
-        --    COALESCE is used to correctly retrieve the portfolio_id from either side of the join.
         SELECT
             COALESCE(cs.portfolio_id, ps.portfolio_id) AS portfolio_id,
             cs.notional AS cash_notional,
@@ -83,25 +71,19 @@ class PnLCalculator:
         FULL OUTER JOIN
             positions_snapshot ps ON cs.portfolio_id = ps.portfolio_id;
         """
-
         state_result = self.db_connector.execute_query(atomic_state_query, fetch='all')
 
         portfolio_cash = {}
         portfolio_positions = {}
         all_tickers = set()
 
-        # 4. Parse the results of the unified query
         for portfolio_state in state_result.get('data', []):
             pid = portfolio_state['portfolio_id']
-
-            # Populate cash information if it exists
             if portfolio_state.get('cash_notional') is not None:
                 portfolio_cash[pid] = {
                     'notional': Decimal(portfolio_state['cash_notional']),
                     'currency': portfolio_state['currency']
                 }
-
-            # Populate positions information if it exists, and collect tickers
             if portfolio_state.get('positions') is not None:
                 positions_list = portfolio_state['positions']
                 portfolio_positions[pid] = []
@@ -112,7 +94,6 @@ class PnLCalculator:
                     })
                     all_tickers.add(pos['ticker'])
 
-        # 5. Get latest market prices for all relevant tickers (this can remain separate)
         market_prices = {}
         if all_tickers:
             placeholders = ', '.join(['%s'] * len(all_tickers))
@@ -128,6 +109,14 @@ class PnLCalculator:
             market_prices = {item['ticker']: Decimal(item['close_price']) for item in market_data_result.get('data', [])}
 
         return {'cash': portfolio_cash, 'positions': portfolio_positions, 'prices': market_prices}
+
+    def _get_latest_trade_id(self) -> int:
+        """Fetches the maximum trade_id from the execution logs for the consistency check."""
+        query = "SELECT MAX(trade_id) as max_id FROM trade_execution_logs;"
+        result = self.db_connector.execute_query(query, fetch='one')
+        if result.get('data') and result['data'][0].get('max_id') is not None:
+            return result['data'][0]['max_id']
+        return 0
 
     def _calculate_fifo_pnl_and_cost_basis(self, portfolio_id: str, ticker: str) -> dict:
         """
@@ -157,19 +146,15 @@ class PnLCalculator:
                 quantity_to_sell = quantity
                 while quantity_to_sell > 0 and buy_lots:
                     oldest_lot = buy_lots[0]
-                    
                     if oldest_lot['quantity'] <= quantity_to_sell:
-                        # Sell the entire oldest lot
                         realized_pnl_for_ticker += oldest_lot['quantity'] * (price - oldest_lot['price'])
                         quantity_to_sell -= oldest_lot['quantity']
                         buy_lots.popleft()
                     else:
-                        # Sell a portion of the oldest lot
                         realized_pnl_for_ticker += quantity_to_sell * (price - oldest_lot['price'])
                         oldest_lot['quantity'] -= quantity_to_sell
                         quantity_to_sell = 0
         
-        # Calculate cost basis of remaining (unrealized) lots
         current_cost_basis = Decimal('0.0')
         total_quantity = Decimal('0.0')
         for lot in buy_lots:
@@ -188,7 +173,19 @@ class PnLCalculator:
         """
         self.logger.info("Starting PnL calculation cycle.")
         
+        # --- Transactional Consistency Check ---
+        trade_id_before = self._get_latest_trade_id()
         state = self._get_latest_portfolio_state()
+        trade_id_after = self._get_latest_trade_id()
+
+        if trade_id_before != trade_id_after:
+            self.logger.warning(
+                f"Concurrent trade detected during state retrieval (ID {trade_id_before} -> {trade_id_after}). "
+                "Skipping PnL cycle to ensure data consistency."
+            )
+            return # Abort this cycle and wait for the next one.
+        
+        # --- Proceed with calculation using the consistent state ---
         all_portfolio_ids = set(state['cash'].keys()) | set(state['positions'].keys())
         pnl_updates = []
 
@@ -197,12 +194,9 @@ class PnLCalculator:
             total_unrealized_pnl = Decimal('0.0')
             total_market_value = Decimal('0.0')
             
-            # 1. Calculate PnL from equity positions
             if portfolio_id in state['positions']:
                 for position in state['positions'][portfolio_id]:
                     ticker = position['ticker']
-                    
-                    # Skip cash-like instruments from trade-based PnL calc
                     if ticker == 'USD_CASH':
                         continue
 
@@ -217,7 +211,6 @@ class PnLCalculator:
                     else:
                         self.logger.warning(f"No market price for {ticker} in portfolio {portfolio_id}. Cannot calculate unrealized PnL.")
 
-            # 2. Finalize portfolio-level numbers
             cash_balance = state['cash'].get(portfolio_id, {}).get('notional', Decimal('0.0'))
             current_valuation = cash_balance + total_market_value
             
@@ -228,25 +221,18 @@ class PnLCalculator:
                 'date': exec_timestamp.date(),
                 'realized_pnl': total_realized_pnl,
                 'unrealized_pnl': total_unrealized_pnl,
-                'fx_rate': Decimal('1.0'), # Assuming USD for now
+                'fx_rate': Decimal('1.0'), 
                 'currency': state['cash'].get(portfolio_id, {}).get('currency', 'USD'),
                 'notional': current_valuation
             })
 
-        # 3. Perform bulk insert into the database
         if pnl_updates:
             self.logger.info(f"Updating PnL for {len(pnl_updates)} portfolios.")
-            # **FIXED**: Removed ON CONFLICT logic as requested.
-            # This will perform a simple bulk insert.
-            result = self.db_connector.bulk_inject_to_db(
-                'pnl_book', 
-                pnl_updates
-            )
+            result = self.db_connector.bulk_inject_to_db('pnl_book', pnl_updates)
             if result['status'] == 'error':
                  self.logger.error(f"Failed to bulk update pnl_book: {result['message']}")
             else:
                  self.logger.info(f"Successfully processed PnL updates: {result['message']}")
-
 
     def run(self):
         self.logger.info("Starting PnL Calculator...")
