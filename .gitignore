@@ -6,4 +6,4 @@ __pycache__/
 *.py[cod]
 data_infra/data/
 MQS/
-finbert-finetuned/
+finbert-finetuned-final/
