@@ -1,9 +1,11 @@
 # fetch_articles.py
 
-import sys, os
+import sys
+import os
 import time
 import requests
 import pandas as pd
+import argparse
 from datetime import datetime, timedelta
 
 # insert project root into your path
@@ -14,15 +16,32 @@ if proj_root not in sys.path:
 from data_infra.authentication.apiAuth import APIAuth
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
-api = APIAuth()
-API_KEY = api.get_fmp_api_key()   # ← CALL the method!
-TICKERS  = ["AAPL", "MSFT", "GOOGL"]
+api       = APIAuth()
+API_KEY   = api.get_fmp_api_key()    # ← CALL the method!
+DEFAULT_TICKERS = ["AAPL", "MSFT", "GOOGL"]
 DAYS_BACK = 3130
 MAX_PAGES = 50
 RATE_LIMIT = 0.2
 
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(BASE_DIR, "articles")
+
+
+# ─── ARGPARSE TO PICK UP COMMAND‐LINE TICKERS ─────────────────────────────────
+def parse_args():
+    p = argparse.ArgumentParser(
+        description="Fetch and update stock‐news CSVs for one or more tickers."
+    )
+    p.add_argument(
+        "tickers",
+        nargs="*",
+        help=(
+            "Ticker symbols to fetch (e.g. AAPL MSFT), "
+            "or comma‐separated (e.g. AAPL,MSFT). "
+            "If none given, uses default list."
+        )
+    )
+    return p.parse_args()
 
 
 # ─── FUNCTIONS ────────────────────────────────────────────────────────────────
@@ -106,8 +125,18 @@ def update_ticker_csv(symbol):
 
 
 def main():
-    
-    for sym in TICKERS:
+    args = parse_args()
+
+    # build ticker list from args or fallback
+    if args.tickers:
+        # allow both space‑ and comma‑separated
+        tickers = []
+        for tok in args.tickers:
+            tickers += [t.strip().upper() for t in tok.split(",") if t.strip()]
+    else:
+        tickers = DEFAULT_TICKERS
+
+    for sym in tickers:
         update_ticker_csv(sym)
 
 
