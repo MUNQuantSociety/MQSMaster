@@ -84,11 +84,12 @@ def fetch_news(symbol, start_date, end_date, start_page=0):
                 break
 
             if art_date <= end_date:
+                # ⬇️ FIX APPLIED HERE ⬇️
                 all_articles.append({
                     "publishedDate": art_date,
-                    "title": art.get("title", "").strip(),
-                    "content": art.get("text", art.get("content", "")).strip(),
-                    "site": art.get("site", "").strip(),
+                    "title": (art.get("title") or "").strip(),
+                    "content": (art.get("text") or art.get("content") or "").strip(),
+                    "site": (art.get("site") or "").strip(),
                 })
 
         if reached_start_date:
@@ -107,8 +108,6 @@ def fetch_news(symbol, start_date, end_date, start_page=0):
         print(f"[{symbol}] Finished fetching available pages. Total pages: {page - start_page}")
 
     return all_articles, hit_max_pages, next_start_page
-
-
 def save_fetch_state(ticker, next_start_page, start_date, end_date):
     """Save fetch state to JSON file"""
     os.makedirs(STATE_DIR, exist_ok=True)
