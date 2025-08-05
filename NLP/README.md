@@ -4,13 +4,13 @@
 
 1. Open a terminal and run:
 
-python NLP/articles.py <TICKER> <START_DATE> <END_DATE>
+python NLP/fetch_articles.py <TICKER> <START_DATE> <END_DATE>
 
 - Replace `<TICKER>` with the stock symbol (e.g., `AAPL`).
 - Replace `<START_DATE>` and `<END_DATE>` with the desired date range in `YYYY-MM-DD` format.
 
 **Example:**
-python NLP/articles.py AAPL 2023-01-01 2024-01-01
+python NLP/fetch_articles.py AAPL 2023-01-01 2024-01-01
 
 
 ## Adding Models
