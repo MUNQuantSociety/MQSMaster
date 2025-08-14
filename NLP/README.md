@@ -16,7 +16,7 @@ python NLP/fetch_articles.py AAPL 2023-01-01 2024-01-01
 ## Adding Models
 
 1. Download the required model `.zip` file from [this link]( https://drive.google.com/drive/u/4/folders/1v7NjSuyFq4CTIctrw1bSv13JzkkMg1l8).
-2. Extract the contents into the `NLP` folder.
+2. Extract the contents into the `NLP/models` folder.
 
 > Contact one of the DataInfra Members if you are unnable to access the link.
 
