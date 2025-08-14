@@ -13,17 +13,11 @@ import cProfile
 import pstats
 
 from data_infra.database.MQSDBConnector import MQSDBConnector
-# <<<<<<< Updated upstream
 
 # Import portfolio classes, not instances
 from portfolios.portfolio_1.strategy import SimpleMomentum
 from portfolios.portfolio_2.strategy import MomentumThresholdStrategy
 
-
-# Import portfolio classes, not instances 
-from portfolios.portfolio_1.strategy import VolMomentum
-from portfolios.portfolio_2.strategy import MomentumStrategy
-# >>>>>>> Stashed changes
 from engines.backtest_engine import BacktestEngine
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -44,15 +38,9 @@ def main():
         backtest_engine = BacktestEngine(db_connector=dbconn, backtest_executor=None)
 
         backtest_engine.setup(
-# <<<<<< Updated upstream
             portfolio_classes=[MomentumThresholdStrategy],
             start_date="2023-01-01",
             end_date="2024-01-01",
-
-            portfolio_classes=[MomentumStrategy,VolMomentum],
-            start_date="2024-01-01",
-            end_date="2025-01-01",
-# >>>>>>> Stashed changes
             initial_capital=1000000.0
         )
         

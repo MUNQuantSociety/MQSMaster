@@ -8,4 +8,3 @@ data_infra/data/
 MQS/
 finbert-finetuned-final/
 finber_eval_results/
-venv/
