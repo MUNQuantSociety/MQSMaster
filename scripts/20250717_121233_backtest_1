@@ -1,0 +1,23 @@
+import os
+import pandas as pd
+
+# Path to your backtest data folder
+folder_path = 'data_infra/data/20250717_121233_backtest_1'
+
+# List to store individual DataFrames
+dataframes = []
+
+# Read each CSV file in the folder
+for filename in os.listdir(folder_path):
+    if filename.endswith('.csv'):
+        file_path = os.path.join(folder_path, filename)
+        df = pd.read_csv(file_path)
+        df['ticker'] = filename.replace('.csv', '')  # Add a ticker column from the file name
+        dataframes.append(df)
+
+# Combine all into a single DataFrame
+combined_df = pd.concat(dataframes, ignore_index=True)
+
+# Preview the combined data
+print(combined_df.head())
+print(combined_df.columns)
