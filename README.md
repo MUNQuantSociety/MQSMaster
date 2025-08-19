@@ -65,7 +65,8 @@ In the folder you want to create the repo:
 ### Set up a Virtual Environment:
 
 `python3 -m venv venv`
-`source venv/bin/activate` # On Windows: venv\Scripts\activate
+`source venv/bin/activate` # 
+On Windows: venv\Scripts\activate
 
 Install the Requirements:
 Use the following command (which ensures a clean installation using only binary wheels):

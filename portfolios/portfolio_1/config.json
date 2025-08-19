@@ -1,8 +1,8 @@
 {
   "PORTFOLIO_ID": "1",
   "TICKERS": ["NVDA", "AAPL"],
-  "INTERVAL": 900,
-  "LOOKBACK_DAYS": 90,
+  "INTERVAL": 9000,
+  "LOOKBACK_DAYS": 2,
   "EXCH": "NASDAQ",
   "WEIGHTS": {
     "NVDA": 0.5,
