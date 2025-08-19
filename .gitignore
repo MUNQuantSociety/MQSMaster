@@ -8,3 +8,5 @@ data_infra/data/
 MQS/
 finbert-finetuned-final/
 finber_eval_results/
+local-gpt2-model/
+visualise_gpt2.ipynb
