@@ -8,3 +8,8 @@ plotly==5.24.1
 nbformat>=5.10.0
 ipykernel>=6.29.0
 tqdm==4.67.1
+datasets==2.21.0
+scikit-learn>=1.5.2,<1.6
+torch>=2.6.0,<2.9
+matplotlib==3.10.5
+seaborn==0.13.1
