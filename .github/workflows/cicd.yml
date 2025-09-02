@@ -56,4 +56,4 @@ jobs:
           password: ${{ secrets.DB_PASSWORD }}
           sslmode: 'require' # Or pull from secrets if it varies
         run: |
-          pytest
+          pytest -vv
