@@ -46,5 +46,14 @@ jobs:
       # Step 5: Run tests with pytest.
       # This command will discover and run all tests in your "tests/" directory.
       - name: Test with pytest
+        # This 'env' block makes GitHub Secrets available as environment variables
+        # for the 'run' command that follows.
+        env:
+          host: ${{ secrets.DB_HOST }}
+          port: ${{ secrets.DB_PORT }}
+          database: ${{ secrets.DB_NAME }}
+          db_user: ${{ secrets.DB_USER }}
+          password: ${{ secrets.DB_PASSWORD }}
+          sslmode: 'require' # Or pull from secrets if it varies
         run: |
           pytest
