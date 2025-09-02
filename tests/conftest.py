@@ -1,8 +1,13 @@
 # tests/conftest.py
 
 import pytest
-# No more sys or os imports needed for path manipulation!
+import sys
+import os
 
+# This path manipulation allows the import below to work.
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+# Use the correct, full import path for your connector.
 from data_infra.database.MQSDBConnector import MQSDBConnector
 
 @pytest.fixture(scope="module")

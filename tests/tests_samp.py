@@ -14,6 +14,3 @@ def test_connection(db_connection):
     assert response['status'] == 'success', f"Query failed with message: {response.get('message')}"
     assert response['data'], "Query returned no data."
     assert 'now' in response['data'][0], "The 'now' key was not in the query result."
-
-def test_dummy():
-    assert True
