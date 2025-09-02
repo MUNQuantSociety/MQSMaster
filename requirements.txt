@@ -1,4 +1,4 @@
-requests==2.31.0
+requests>=2.31.0
 python-dotenv==1.0.0
 pandas==2.2.3
 psycopg2-binary==2.9.10
@@ -13,3 +13,4 @@ scikit-learn>=1.5.2,<1.6
 torch>=2.6.0,<2.9
 matplotlib==3.10.5
 seaborn==0.13.1
+transformers
