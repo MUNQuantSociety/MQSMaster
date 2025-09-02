@@ -31,7 +31,7 @@ class MQSDBConnector:
         try:
             self.pool = psycopg2.pool.ThreadedConnectionPool(
                 minconn=1,
-                maxconn=9,  # Adjust pool size as needed.
+                maxconn=6,  # Adjust pool size as needed.
                 host=self.db_host,
                 port=self.db_port,
                 dbname=self.db_name,
@@ -116,11 +116,10 @@ class MQSDBConnector:
         sql = f"INSERT INTO {schema_str}{table} ({columns}) VALUES ({placeholders})"
         return self.execute_query(sql, tuple(data.values()))
 
-    def bulk_inject_to_db(self, table, data: list[dict], schema=None):
+    def bulk_inject_to_db(self, table, data: list[dict], conflict_columns: list[str] = None, schema=None):
         """
         Efficiently inserts multiple rows into a table using execute_values.
-        Leverages 'ON CONFLICT DO NOTHING' to prevent errors from duplicate keys.
-        Assumes a UNIQUE constraint exists on (ticker, timestamp).
+        Leverages 'ON CONFLICT DO NOTHING' if conflict_columns are provided.
         """
         if not data:
             return {'status': 'success', 'message': 'No data to insert.'}
@@ -134,13 +133,11 @@ class MQSDBConnector:
                 columns = data[0].keys()
                 schema_str = f"{schema}." if schema else ""
                 
-                # Assumes the unique constraint is named 'unique_ticker_timestamp'
-                # Or more generically, you define it on the columns (ticker, timestamp)
-                sql = f"""
-                    INSERT INTO {schema_str}{table} ({', '.join(columns)})
-                    VALUES %s
-                    ON CONFLICT (ticker, timestamp) DO NOTHING
-                """
+                sql = f"INSERT INTO {schema_str}{table} ({', '.join(columns)}) VALUES %s"
+
+                # Dynamically add the ON CONFLICT clause if conflict_columns are specified
+                if conflict_columns:
+                    sql += f" ON CONFLICT ({', '.join(conflict_columns)}) DO NOTHING"
                 
                 # Prepare data for execute_values
                 values = [[row[col] for col in columns] for row in data]

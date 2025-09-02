@@ -81,15 +81,11 @@ class BacktestExecutor:
                       signal_type: str,
                       confidence: float,
                       arrival_price: float,
-                      cash: float, # This parameter is ignored, we use internal state
-                      positions: float, # This parameter is ignored, we use internal state
+                      cash: float,
+                      positions: float,
                       port_notional: float,
                       ticker_weight: float,
                       timestamp: Optional[datetime] = None):
-        """
-        Calculates and executes a trade using a "Direct Fractional Order" model,
-        perfectly mirroring the live tradeExecutor.
-        """
         signal_type = signal_type.upper()
         if signal_type not in ('BUY', 'SELL', 'HOLD'):
             return
@@ -102,25 +98,18 @@ class BacktestExecutor:
         if exec_price <= 0:
             return
 
-        # --- Direct Fractional Order Sizing Logic ---
         current_quantity = self.positions.get(ticker, 0.0)
         current_notional_value = current_quantity * exec_price
         max_target_notional = port_notional * ticker_weight
         
-        # 1. Calculate the direct notional value of the trade order based on confidence.
         direct_order_notional = max_target_notional * confidence
 
         quantity_to_trade = 0
 
         if signal_type == 'BUY':
-            # 2. For a BUY, apply all constraints.
-            # Constraint 1: Available Cash
             final_trade_notional = min(direct_order_notional, self.cash)
-            
-            # Constraint 2: Maximum weight cap.
             room_before_cap = max(0, max_target_notional - current_notional_value)
             final_trade_notional = min(final_trade_notional, room_before_cap)
-
             quantity_to_trade = math.floor(final_trade_notional / exec_price)
             
             if quantity_to_trade > 0:
@@ -128,16 +117,13 @@ class BacktestExecutor:
                 self.positions[ticker] += quantity_to_trade
 
         elif signal_type == 'SELL':
-            # 2. For a SELL, the only constraint is what you currently hold.
             final_trade_notional = min(direct_order_notional, current_notional_value)
-
             quantity_to_trade = math.floor(final_trade_notional / exec_price)
 
             if quantity_to_trade > 0:
                 self.cash += (quantity_to_trade * exec_price)
                 self.positions[ticker] -= quantity_to_trade
         
-        # --- LOGGING (Format matches the old system) ---
         if quantity_to_trade > 0:
             self.trade_log.append({
                 "timestamp": timestamp,
@@ -149,3 +135,4 @@ class BacktestExecutor:
                 "fill_price": exec_price,
                 "cash_after": self.cash
             })
+            return {'status': 'success', 'quantity': quantity_to_trade, 'updated_cash': self.cash}

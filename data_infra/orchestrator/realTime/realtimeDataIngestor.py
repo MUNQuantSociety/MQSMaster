@@ -35,7 +35,7 @@ def setup_logging():
 # state by reading the `volume` column, but that column stores the *interval* volume,
 # not the *cumulative* volume from the API. For this to work correctly after a crash,
 # the database schema would need a separate 'cumulative_volume' column to read from.
-# As per your request, this change is deferred.
+
 def initialize_volume_state(db: MQSDBConnector, tickers: set) -> dict:
     """
     Initializes the volume state from the DB for the current day to ensure
@@ -140,7 +140,7 @@ def run_ingestion_cycle(fmp: FMPMarketData, db: MQSDBConnector, tickers_to_track
         logging.info("No new data to insert after processing.")
         return
 
-    result = db.bulk_inject_to_db(DB_TABLE_NAME, rows_to_insert)
+    result = db.bulk_inject_to_db(DB_TABLE_NAME, rows_to_insert, conflict_columns=['ticker', 'timestamp'])
     if result["status"] == "success":
         logging.info(f"Database injection result: {result['message']}")
     else:

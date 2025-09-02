@@ -114,7 +114,7 @@ class tradeExecutor:
                 updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp
             )
 
-    def update_database(self, portfolio_id, ticker, signal_type, quantity_to_trade,
+    def update_database(self, portfolio_id, ticker, signal_type, quantity_to_trade, 
                      updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp):
         """
         Update database tables after trade execution within a single transaction.
@@ -139,14 +139,10 @@ class tradeExecutor:
                 cash_values = (timestamp, date_part, portfolio_id, 'USD', updated_cash)
                 cursor.execute(cash_query, cash_values)
 
-                # Update positions_book (upsert)
+                # Update positions_book (simple insert)
                 position_query = """
                     INSERT INTO positions_book (portfolio_id, ticker, quantity, updated_at)
                     VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (portfolio_id, ticker)
-                    DO UPDATE SET
-                        quantity = EXCLUDED.quantity,
-                        updated_at = EXCLUDED.updated_at
                 """
                 position_values = (portfolio_id, ticker, updated_quantity, timestamp)
                 cursor.execute(position_query, position_values)
@@ -168,7 +164,7 @@ class tradeExecutor:
 
             conn.commit()
             self.logger.info(f"Database successfully updated for trade: {signal_type} {quantity_to_trade} {ticker} @ {exec_price:.2f}")
-            return {'status': 'success', 'quantity': quantity_to_trade}
+            return {'status': 'success', 'quantity': quantity_to_trade, 'updated_cash': updated_cash}
 
         except Exception as e:
             self.logger.exception("Database update transaction failed. Rolling back all changes.")
