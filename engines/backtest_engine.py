@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from typing import Optional, Union, List
 from portfolios.portfolio_BASE.strategy import BasePortfolio
-from backtest.runner import BacktestRunner  # Assuming this is the correct import path for the BacktestRunner
+from Backtest.runner import BacktestRunner  # Assuming this is the correct import path for the BacktestRunner
 
 
 
