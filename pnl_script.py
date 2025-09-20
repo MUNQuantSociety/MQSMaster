@@ -15,8 +15,8 @@ from data_infra.database.MQSDBConnector import MQSDBConnector
 class PnLCalculator:
     """
     Calculates and updates Total, Unrealized, and Realized PnL for all portfolios.
-    This script uses a FIFO (First-In, First-Out) accounting method for industry-standard
-    accuracy in cost basis and PnL calculations.
+    This script uses a FIFO accounting method for both long and short positions
+    to ensure industry-standard accuracy.
     """
     def __init__(self, db_connector: MQSDBConnector, poll_interval: int = 60):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -29,6 +29,8 @@ class PnLCalculator:
         Fetches the latest portfolio state (cash and positions) for all portfolios
         atomically to prevent race conditions.
         """
+        # This function remains unchanged as it correctly fetches both positive (long)
+        # and negative (short) quantities.
         atomic_state_query = """
         WITH latest_cash AS (
             SELECT
@@ -112,6 +114,7 @@ class PnLCalculator:
 
     def _get_latest_trade_id(self) -> int:
         """Fetches the maximum trade_id from the execution logs for the consistency check."""
+        # This function remains unchanged.
         query = "SELECT MAX(trade_id) as max_id FROM trade_execution_logs;"
         result = self.db_connector.execute_query(query, fetch='one')
         if result.get('data') and result['data'][0].get('max_id') is not None:
@@ -120,8 +123,9 @@ class PnLCalculator:
 
     def _calculate_fifo_pnl_and_cost_basis(self, portfolio_id: str, ticker: str, final_quantity: Decimal) -> dict:
         """
-        Calculates realized PnL by replaying all trades and determines the cost basis
-        for the known final quantity of shares held.
+        Calculates realized PnL by replaying all trades for a specific ticker,
+        and determines the cost basis for the final position (long or short).
+        This function now robustly handles both long and short positions.
         """
         query = """
             SELECT exec_timestamp, side, quantity, exec_price
@@ -132,8 +136,9 @@ class PnLCalculator:
         trades_result = self.db_connector.execute_query(query, (portfolio_id, ticker), fetch='all')
         trades = trades_result.get('data', [])
 
-        buy_lots = deque()
-        realized_pnl_for_ticker = Decimal('0.0')
+        long_lots = deque()
+        short_lots = deque()
+        realized_pnl = Decimal('0.0')
 
         for trade in trades:
             side = trade['side']
@@ -141,46 +146,65 @@ class PnLCalculator:
             price = Decimal(trade['exec_price'])
 
             if side == 'BUY':
-                buy_lots.append({'quantity': quantity, 'price': price})
+                qty_to_match = quantity
+                # Use buys to cover any open short positions first
+                while qty_to_match > 0 and short_lots:
+                    oldest_short = short_lots[0]
+                    match_qty = min(qty_to_match, oldest_short['quantity'])
+                    
+                    # PnL from shorting is (sell_price - buy_price) * quantity
+                    realized_pnl += match_qty * (oldest_short['price'] - price)
+                    
+                    oldest_short['quantity'] -= match_qty
+                    qty_to_match -= match_qty
+                    
+                    if oldest_short['quantity'] == 0:
+                        short_lots.popleft()
+                
+                # Any remaining quantity opens a new long position
+                if qty_to_match > 0:
+                    long_lots.append({'quantity': qty_to_match, 'price': price})
+
             elif side == 'SELL':
-                quantity_to_sell = quantity
-                while quantity_to_sell > 0 and buy_lots:
-                    oldest_lot = buy_lots[0]
-                    if oldest_lot['quantity'] <= quantity_to_sell:
-                        realized_pnl_for_ticker += oldest_lot['quantity'] * (price - oldest_lot['price'])
-                        quantity_to_sell -= oldest_lot['quantity']
-                        buy_lots.popleft()
-                    else:
-                        realized_pnl_for_ticker += quantity_to_sell * (price - oldest_lot['price'])
-                        oldest_lot['quantity'] -= quantity_to_sell
-                        quantity_to_sell = 0
+                qty_to_match = quantity
+                # Use sells to close any open long positions first
+                while qty_to_match > 0 and long_lots:
+                    oldest_long = long_lots[0]
+                    match_qty = min(qty_to_match, oldest_long['quantity'])
+                    
+                    # PnL from long is (sell_price - buy_price) * quantity
+                    realized_pnl += match_qty * (price - oldest_long['price'])
+
+                    oldest_long['quantity'] -= match_qty
+                    qty_to_match -= match_qty
+
+                    if oldest_long['quantity'] == 0:
+                        long_lots.popleft()
+                
+                # Any remaining quantity opens a new short position
+                if qty_to_match > 0:
+                    short_lots.append({'quantity': qty_to_match, 'price': price})
         
         cost_basis = Decimal('0.0')
-        quantity_to_account_for = final_quantity
-        
-        # Iterate through remaining buy lots from most recent to oldest
-        for lot in reversed(buy_lots):
-            if quantity_to_account_for <= 0:
-                break
-            
-            qty_in_lot = lot['quantity']
-            price = lot['price']
-            
-            if qty_in_lot <= quantity_to_account_for:
-                cost_basis += qty_in_lot * price
-                quantity_to_account_for -= qty_in_lot
-            else:
-                cost_basis += quantity_to_account_for * price
-                quantity_to_account_for = 0
+        # The final position can be either long or short (or flat)
+        if final_quantity > 0: # Position is long
+            # Calculate cost basis for the remaining long lots
+            for lot in long_lots:
+                cost_basis += lot['quantity'] * lot['price']
+        elif final_quantity < 0: # Position is short
+            # Calculate cost basis (proceeds from sale) for the remaining short lots
+            for lot in short_lots:
+                cost_basis += lot['quantity'] * lot['price']
 
         return {
-            'realized_pnl': realized_pnl_for_ticker,
+            'realized_pnl': realized_pnl,
             'cost_basis': cost_basis
         }
 
     def _calculate_and_update_pnl(self):
         """
         Calculates PnL for each portfolio and updates the pnl_book table.
+        Now correctly handles both long and short positions.
         """
         self.logger.info("Starting PnL calculation cycle.")
         
@@ -190,8 +214,8 @@ class PnLCalculator:
 
         if trade_id_before != trade_id_after:
             self.logger.warning(
-                f"Concurrent trade detected during state retrieval (ID {trade_id_before} -> {trade_id_after}). "
-                "Skipping PnL cycle to ensure data consistency."
+                f"Concurrent trade detected (ID {trade_id_before} -> {trade_id_after}). "
+                "Skipping PnL cycle for data consistency."
             )
             return
         
@@ -201,7 +225,8 @@ class PnLCalculator:
         for portfolio_id in all_portfolio_ids:
             total_realized_pnl = Decimal('0.0')
             total_unrealized_pnl = Decimal('0.0')
-            total_market_value = Decimal('0.0')
+            total_market_value_of_longs = Decimal('0.0')
+            total_market_value_of_shorts = Decimal('0.0')
             
             if portfolio_id in state['positions']:
                 for position in state['positions'][portfolio_id]:
@@ -210,22 +235,29 @@ class PnLCalculator:
                         continue
 
                     current_quantity = Decimal(position['quantity'])
-                    if current_quantity <= 0:
-                        continue
                     
                     fifo_results = self._calculate_fifo_pnl_and_cost_basis(portfolio_id, ticker, current_quantity)
                     total_realized_pnl += fifo_results['realized_pnl']
 
                     current_price = state['prices'].get(ticker)
                     if current_price:
-                        market_value = current_quantity * current_price
-                        total_market_value += market_value
-                        total_unrealized_pnl += market_value - fifo_results['cost_basis']
+                        if current_quantity > 0: # Long position
+                            market_value = current_quantity * current_price
+                            total_market_value_of_longs += market_value
+                            total_unrealized_pnl += market_value - fifo_results['cost_basis']
+                        elif current_quantity < 0: # Short position
+                            market_value = current_quantity * current_price # This will be negative
+                            total_market_value_of_shorts += market_value
+                            # Unrealized PnL for a short = Proceeds - Current Market Value
+                            # The cost_basis here represents the proceeds from the short sale.
+                            total_unrealized_pnl += fifo_results['cost_basis'] + market_value
+
                     else:
-                        self.logger.warning(f"No market price for {ticker} in portfolio {portfolio_id}. Cannot calculate unrealized PnL.")
+                        self.logger.warning(f"No market price for {ticker}. Cannot calculate its unrealized PnL.")
 
             cash_balance = state['cash'].get(portfolio_id, {}).get('notional', Decimal('0.0'))
-            current_valuation = cash_balance + total_market_value
+            # Current valuation (equity) is cash + longs + shorts (which are negative)
+            current_valuation = cash_balance + total_market_value_of_longs + total_market_value_of_shorts
             
             exec_timestamp = datetime.now()
             pnl_updates.append({
@@ -248,6 +280,7 @@ class PnLCalculator:
                  self.logger.info(f"Successfully processed PnL updates: {result['message']}")
 
     def run(self):
+        # This function remains unchanged
         self.logger.info("Starting PnL Calculator...")
         while self.running:
             try:

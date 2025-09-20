@@ -23,7 +23,7 @@ class MQSDBConnector:
         self.db_host = os.getenv('host')
         self.db_port = int(os.getenv('port'))
         self.db_name = os.getenv('database')
-        self.db_user = os.getenv('db_user')
+        self.db_user = os.getenv('username')
         self.db_password = os.getenv('password')
         self.sslmode = os.getenv('sslmode', 'require')
 
