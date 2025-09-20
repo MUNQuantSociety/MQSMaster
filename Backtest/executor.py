@@ -8,7 +8,7 @@ from collections import defaultdict
 class BacktestExecutor:
     """
     A backtest executor that manages a single, unified portfolio,
-    supporting long/short positions with a realistic margin model.
+    supporting long/short positions with a realistic margin model that mirrors live trading constraints.
     """
 
     def __init__(self, initial_capital: float, tickers: List[str], leverage: float = 2.0):
@@ -34,7 +34,6 @@ class BacktestExecutor:
 
     def get_port_notional(self) -> float:
         """Calculates the total current equity of the portfolio."""
-        # The value of positions can be negative if shorting
         positions_value = sum(
             self.positions[ticker] * self.latest_prices.get(ticker, 0.0)
             for ticker in self.tickers
@@ -75,7 +74,7 @@ class BacktestExecutor:
             for ticker in self.tickers
         )
         buying_power = (portfolio_equity * self.leverage) - gross_position_value
-        return max(0, buying_power) # Buying power cannot be negative
+        return max(0, buying_power)
 
     def execute_trade(self,
                       portfolio_id: str,
@@ -83,13 +82,14 @@ class BacktestExecutor:
                       signal_type: str,
                       confidence: float,
                       arrival_price: float,
-                      cash: float, # Note: This is passed in but we use the internal state for accuracy
-                      positions: float, # Note: This is passed in but we use the internal state for accuracy
+                      cash: float,
+                      positions: float,
                       port_notional: float,
                       ticker_weight: float,
                       timestamp: Optional[datetime] = None):
         signal_type = signal_type.upper()
         if signal_type not in ('BUY', 'SELL', 'HOLD'):
+            self.logger.warning(f"Invalid signal type '{signal_type}' for {ticker}. Must be BUY, SELL, or HOLD.")
             return
 
         confidence = max(0.0, min(1.0, confidence))
@@ -98,45 +98,57 @@ class BacktestExecutor:
             
         exec_price = self.latest_prices.get(ticker, 0.0)
         if exec_price <= 0:
+            self.logger.warning(f"Cannot execute trade for {ticker}: Invalid execution price of {exec_price}.")
             return
 
-        # --- Unified Sizing & Margin Logic ---
+        # --- Unified Sizing & Margin Logic (Reconciled with Live Executor) ---
         current_quantity = self.positions.get(ticker, 0.0)
         current_notional_value = current_quantity * exec_price
         
         target_notional = port_notional * ticker_weight
+        # A SELL signal targets a negative (short) position
         if signal_type == 'SELL':
-            # A SELL signal targets a short position of the specified weight
             target_notional *= -1
 
         adjustment_notional = target_notional - current_notional_value
         desired_trade_notional = adjustment_notional * confidence
 
-        quantity_to_trade = 0
+        # Ignore trades smaller than $1.00 notional
+        if abs(desired_trade_notional) < 1.0:
+            return
 
-        if desired_trade_notional > 0: # This is a BUY operation
-            buying_power = self._calculate_buying_power(port_notional)
-            # Constrain by available cash AND buying power
-            final_trade_notional = min(desired_trade_notional, self.cash, buying_power)
-            quantity_to_trade = math.floor(final_trade_notional / exec_price)
-            
-            if quantity_to_trade > 0:
-                self.cash -= (quantity_to_trade * exec_price)
-                self.positions[ticker] += quantity_to_trade
-
-        elif desired_trade_notional < 0: # This is a SELL operation
-            # No buying power constraint on selling/shorting in this model
-            final_trade_notional = abs(desired_trade_notional)
-            quantity_to_trade = math.floor(final_trade_notional / exec_price)
-
-            if quantity_to_trade > 0:
-                self.cash += (quantity_to_trade * exec_price)
-                self.positions[ticker] -= quantity_to_trade
+        # --- Constraint Application (Mirrors Live Logic) ---
+        # Buying power constrains BOTH new buys and new shorts.
+        buying_power = self._calculate_buying_power(port_notional)
         
-        if quantity_to_trade > 0:
-            self.trade_log.append({
-                "timestamp": timestamp, "portfolio_id": portfolio_id, "ticker": ticker,
-                "signal_type": signal_type, "confidence": confidence, "shares": quantity_to_trade,
-                "fill_price": exec_price, "cash_after": self.cash
-            })
-            return {'status': 'success', 'quantity': quantity_to_trade, 'updated_cash': self.cash}
+        # For buys, we are also constrained by the actual cash available.
+        if desired_trade_notional > 0: # This is a BUY operation
+            tradable_notional = min(abs(desired_trade_notional), buying_power, self.cash)
+        else: # This is a SELL/SHORT operation
+            tradable_notional = min(abs(desired_trade_notional), buying_power)
+
+        if tradable_notional < 1.0:
+            return
+
+        quantity_to_trade = math.floor(tradable_notional / exec_price)
+        
+        if quantity_to_trade <= 0:
+            return
+
+        # --- Execute the Trade ---
+        trade_value = quantity_to_trade * exec_price
+        
+        if desired_trade_notional > 0: # Finalizing a BUY
+            self.cash -= trade_value
+            self.positions[ticker] += quantity_to_trade
+        else: # Finalizing a SELL
+            self.cash += trade_value
+            self.positions[ticker] -= quantity_to_trade
+        
+        self.trade_log.append({
+            "timestamp": timestamp, "portfolio_id": portfolio_id, "ticker": ticker,
+            "signal_type": signal_type, "confidence": confidence, "shares": quantity_to_trade,
+            "fill_price": exec_price, "cash_after": self.cash
+        })
+        
+        return {'status': 'success', 'quantity': quantity_to_trade, 'updated_cash': self.cash}
