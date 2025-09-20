@@ -11,10 +11,11 @@ class BacktestExecutor:
     supporting long/short positions with a realistic margin model that mirrors live trading constraints.
     """
 
-    def __init__(self, initial_capital: float, tickers: List[str], leverage: float = 2.0):
+    def __init__(self, initial_capital: float, tickers: List[str], leverage: float = 2.0, slippage: float = 0.0):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.tickers = tickers
         self.leverage = leverage
+        self.slippage = slippage
         
         # --- Unified Portfolio State ---
         self.cash = initial_capital
@@ -24,8 +25,20 @@ class BacktestExecutor:
         
         self.logger.info(
             f"BacktestExecutor initialized with {initial_capital:.2f} capital, "
-            f"leverage={leverage}, for tickers: {tickers}"
+            f"leverage={leverage}, slippage={slippage}, for tickers: {tickers}"
         )
+
+    def _apply_slippage(self, price: float, signal_type: str) -> float:
+        """
+        Applies slippage to the execution price based on the trade direction.
+        - For BUY orders, the price is increased.
+        - For SELL orders, the price is decreased.
+        """
+        if signal_type == 'BUY':
+            return price * (1 + self.slippage)
+        elif signal_type == 'SELL':
+            return price * (1 - self.slippage)
+        return price
 
     def update_price(self, ticker: str, price: float):
         """Updates the latest known price for a ticker."""
@@ -96,9 +109,9 @@ class BacktestExecutor:
         if signal_type == 'HOLD' or confidence == 0.0:
             return
             
-        exec_price = self.latest_prices.get(ticker, 0.0)
+        exec_price = self._apply_slippage(arrival_price, signal_type)
         if exec_price <= 0:
-            self.logger.warning(f"Cannot execute trade for {ticker}: Invalid execution price of {exec_price}.")
+            self.logger.warning(f"Cannot execute trade for {ticker}: Invalid execution price of {exec_price} after slippage.")
             return
 
         # --- Unified Sizing & Margin Logic (Reconciled with Live Executor) ---

@@ -1,79 +1,71 @@
-# engines/backtest_engine.py
+# In engines/backtest_engine.py
 
+from typing import List
 import logging
-from datetime import datetime
-from typing import Optional, Union, List
-from portfolios.portfolio_BASE.strategy import BasePortfolio
-from Backtest.runner import BacktestRunner  # Assuming this is the correct import path for the BacktestRunner
 
+from data_infra.database.MQSDBConnector import MQSDBConnector
+from Backtest.runner import BacktestRunner
+from portfolios.portfolio_BASE.strategy import BasePortfolio
 
 
 class BacktestEngine:
     """
-    Manages and runs backtests for multiple strategies.
+    The BacktestEngine is responsible for orchestrating backtesting runs for
+    one or more portfolios.
     """
-    def __init__(self, db_connector, backtest_executor):
-        """
-        Initializes the BacktestEngine.
-        
-        Args:
-            db_connector: An instance of MQSDBConnector.
-            backtest_executor: An executor designed for backtesting (simulates trades).
-        """
-        self.logger = logging.getLogger(self.__class__.__name__)
+
+    def __init__(self, db_connector: 'MQSDBConnector', backtest_executor=None):
         self.db_connector = db_connector
         self.backtest_executor = backtest_executor
-        self.backtest_configs = []
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.portfolio_classes: List['BasePortfolio'] = []
+        self.start_date: str = ""
+        self.end_date: str = ""
+        self.initial_capital: float = 0.0
+        self.slippage: float = 0.0
 
-    def setup(self, 
-              portfolio_classes: List[type[BasePortfolio]], 
-              start_date: Union[str, datetime], 
-              end_date: Union[str, datetime], 
-              initial_capital: float = 100_000.0):
+    def setup(self,
+              portfolio_classes: List[type],
+              start_date: str,
+              end_date: str,
+              initial_capital: float,
+              slippage: float = 0.0):
         """
-        Prepares portfolios for a backtest run.
+        Configures the backtest with the necessary parameters.
         """
-        for portfolio_cls in portfolio_classes:
-            try:
-                # In a backtest, the portfolio still needs to be instantiated.
-                # It will be passed to a BacktestRunner later.
-                portfolio_instance = portfolio_cls(
-                    db_connector=self.db_connector,
-                    executor=self.backtest_executor
-                )
-                config = {
-                    "portfolio_instance": portfolio_instance,
-                    "start_date": start_date,
-                    "end_date": end_date,
-                    "initial_capital": initial_capital
-                }
-                self.backtest_configs.append(config)
-                self.logger.info(f"Successfully set up backtest for {portfolio_cls.__name__}.")
-            except Exception as e:
-                self.logger.exception(f"Failed to set up backtest for {portfolio_cls.__name__}: {e}")
+        self.portfolio_classes = portfolio_classes
+        self.start_date = start_date
+        self.end_date = end_date
+        self.initial_capital = initial_capital
+        self.slippage = slippage
+        self.logger.info("Backtest engine setup complete.")
 
     def run(self):
         """
-        Executes the configured backtests.
+        Initializes and runs the backtest for each portfolio.
         """
-        if not self.backtest_configs:
-            self.logger.warning("No backtests set up. Call setup() first.")
+        if not self.portfolio_classes:
+            self.logger.error("No portfolio classes provided to run backtests.")
             return
-        for config in self.backtest_configs:
-            portfolio = config['portfolio_instance']
-            self.logger.info(f"Running backtest for portfolio {portfolio.portfolio_id} from {config['start_date']} to {config['end_date']}.")
+
+        for portfolio_class in self.portfolio_classes:
             try:
-                # The BacktestRunner takes the instantiated portfolio and runs the simulation
-                runner = BacktestRunner(
-                    portfolio=portfolio,
-                    start_date=config['start_date'],
-                    end_date=config['end_date'],
-                    initial_capital=config['initial_capital']
-                )
+                # Instantiate the portfolio, which now has a db connection
+                # The executor will be set by the BacktestRunner
+                portfolio_instance = portfolio_class(db_connector=self.db_connector, executor=None)
                 
+                self.logger.info(f"--- Running backtest for portfolio: {portfolio_instance.portfolio_id} ---")
+
+                runner = BacktestRunner(
+                    portfolio=portfolio_instance,
+                    start_date=self.start_date,
+                    end_date=self.end_date,
+                    initial_capital=self.initial_capital,
+                    slippage=self.slippage
+                )
                 runner.run()
-                self.logger.info(f"Backtest for portfolio {portfolio.portfolio_id} completed.")
+                
+                self.logger.info(f"--- Backtest for portfolio: {portfolio_instance.portfolio_id} finished ---")
+
             except Exception as e:
-                self.logger.exception(f"Backtest failed for portfolio {portfolio.portfolio_id}: {e}")
-        
-        self.logger.info("All backtests completed.")
+                self.logger.exception(f"Error running backtest for {portfolio_class.__name__}: {e}", exc_info=True)
