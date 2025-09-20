@@ -8,7 +8,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Use the correct, full import path for your connector.
-from data_infra.database.MQSDBConnector import MQSDBConnector
+from common.database.MQSDBConnector import MQSDBConnector
 
 @pytest.fixture(scope="module")
 def db_connection():
