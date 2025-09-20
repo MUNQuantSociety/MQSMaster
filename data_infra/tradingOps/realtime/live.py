@@ -61,7 +61,7 @@ class tradeExecutor:
                       timestamp):
         """
         Calculates and executes a trade using a margin model that
-        supports both long and short positions.
+        supports both long and short positions, with buying power constraints on all trades.
         """
         try:
             cash_val = float(cash)
@@ -81,21 +81,18 @@ class tradeExecutor:
         if signal_type == 'HOLD' or confidence_val == 0.0:
             return
 
-        # --- Sizing & Margin Logic ---
-        # 1. Calculate buying power BEFORE fetching the final exec_price
-        #    This uses arrival_price for an efficient and accurate calculation.
-        # --- THIS FUNCTION CALL IS NOW CORRECT ---
+        # 1. Calculate buying power before fetching the final exec_price
         buying_power = self._calculate_buying_power(port_notional_val, positions, ticker, arrival_price_val)
 
-        # 2. Get the final execution price for the trade and slippage calculation
+        # 2. Get the final execution price
         exec_price = self.get_current_price(ticker)
         if exec_price <= 0:
             self.logger.error(f"Could not fetch valid execution price for {ticker}. Aborting.")
             return
         
-
         slippage_bps = ((exec_price / arrival_price_val) - 1) * 10000 if arrival_price_val > 0 else 0
 
+        # 3. Determine target notional
         current_pos_row = positions[positions['ticker'] == ticker]
         current_quantity = current_pos_row['quantity'].iloc[0] if not current_pos_row.empty else 0.0
         current_notional_value = current_quantity * exec_price
@@ -107,30 +104,37 @@ class tradeExecutor:
         adjustment_notional = target_notional - current_notional_value
         desired_trade_notional = adjustment_notional * confidence_val
 
-        quantity_to_trade = 0
-        updated_cash = cash_val
-        updated_quantity = current_quantity
-
+        # --- CORRECTED: Unified Constraint & Sizing Logic ---
+        if abs(desired_trade_notional) < 1.0: # Ignore trades smaller than $1.00
+            return
+        
+        final_trade_notional = 0.0
         if desired_trade_notional > 0: # This is a BUY operation
-            # Constrain by available cash AND the pre-calculated buying power
+            # Constrain by cash AND buying power
             final_trade_notional = min(desired_trade_notional, cash_val, buying_power)
-            quantity_to_trade = math.floor(final_trade_notional / exec_price)
-            
-            if quantity_to_trade > 0:
-                updated_cash = cash_val - (quantity_to_trade * exec_price)
-                updated_quantity = current_quantity + quantity_to_trade
+        else: # This is a SELL/SHORT operation
+            # Constrain by buying power
+            final_trade_notional = min(abs(desired_trade_notional), buying_power)
 
-        elif desired_trade_notional < 0: # This is a SELL operation
-            final_trade_notional = abs(desired_trade_notional)
-            quantity_to_trade = math.floor(final_trade_notional / exec_price)
+        if final_trade_notional < 1.0:
+            return
 
-            if quantity_to_trade > 0:
-                updated_cash = cash_val + (quantity_to_trade * exec_price)
-                updated_quantity = current_quantity - quantity_to_trade
-                
+        quantity_to_trade = math.floor(final_trade_notional / exec_price)
         if quantity_to_trade == 0:
             return
             
+        # --- 4. Execute and Update Database ---
+        updated_cash = cash_val
+        updated_quantity = current_quantity
+        trade_value = quantity_to_trade * exec_price
+
+        if desired_trade_notional > 0: # Finalizing a BUY
+            updated_cash = cash_val - trade_value
+            updated_quantity = current_quantity + quantity_to_trade
+        elif desired_trade_notional < 0: # Finalizing a SELL
+            updated_cash = cash_val + trade_value
+            updated_quantity = current_quantity - quantity_to_trade
+                
         return self.update_database(
             portfolio_id, ticker, signal_type, quantity_to_trade,
             updated_cash, updated_quantity, arrival_price_val, exec_price, slippage_bps, timestamp
