@@ -1,188 +1,74 @@
-# MQS Master Trading Bot Codebase
+# MQSMaster Trading Bot Codebase
 
-This repository provides the foundation for a multi-portfolio trading bot and its supporting data infrastructure. The code is split into two major components:
-
-1. **Data & Infrastructure** – Manages market data ingestion (using the Financial Modeling Prep API), database connectivity (to be implemented in the future), authentication, and broker API interactions.
-2. **Portfolios** – Contains the actual trading strategies, configuration, and portfolio management logic.
-
-The codebase is organized to allow future extensibility (e.g., backtesting, live data updates, risk management) while also supporting concurrent and memory-efficient data backfilling.
+This repository provides the foundation for a multi-portfolio trading bot and a backtesting framework.
 
 ---
 
 ## Table of Contents
 
 - [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-  - [Data & Infrastructure](#data--infrastructure)
-  - [Backfilling Data](#backfilling-data)
-  - [Concurrent Backfill](#concurrent-backfill)
-  - [Portfolios](#portfolios)
-- [Extending the Codebase](#extending-the-codebase)
-- [Notes and Best Practices](#notes-and-best-practices)
-- [Important Environment Files Setup](#important-environment-files-setup)
 
 ---
 
-### Directory Descriptions
+# Installation
 
-- **data_infra/**: Contains modules related to data ingestion, storage, API communication, and orchestration.
-  - **authentication/**: Contains modules for user and API authentication.
-    - `apiAuth.py`: Loads API keys (e.g., the Financial Modeling Prep API key) from environment files.
-    - `memberAuth.py`: Manages member authentication (controls access to the system).
-  - **brokerAPI/**: Contains modules for broker API interactions (e.g., placing trades).
-    - `brokerClient.py`: Connects to and interacts with broker APIs.
-  - **data/**: Contains folders for storing local caches and temporary data.
-    - `backfill_cache/`: Directory where temporary CSV files for backfilled market data are stored.
-  - **database/**: Contains modules for connecting to and managing your database.
-    - `MQSDBConnector.py`: Manages PostgreSQL (or another DB) connections (to be implemented fully later).
-    - `backupManager.py`: Manages data backups.
-    - `schemaDefinitions.py`: Defines and creates required database schemas.
-  - **fmp.env**: An environment file containing the Financial Modeling Prep API key (only on the server).
-  - **marketData/**: Contains modules to interact with market data providers.
-    - `fmpMarketData.py`: Provides a thread-safe client to fetch market data from Financial Modeling Prep, with built-in rate limiting, retry logic, and error handling.
-  - **orchestrator/**: Contains modules that orchestrate the data flow.
-    - `backfill.py`: Implements the backfilling logic for downloading intraday data in batches and writing incrementally to disk.
-    - `concurrent_backfill.py`: Provides a multi-threaded approach to backfill multiple tickers concurrently.
-    - `realtimeDataIngestor.py`: (Placeholder) For live data ingestion.
-    - `specific_backfill.py`: Example script to run backfilling sequentially.
-- **portfolios/**: Contains trading strategy code.
-  - `portfolioManager.py`: Coordinates multiple portfolio strategies.
-  - `portfolio_1/`: Example portfolio with configuration (`config.txt`) and strategy logic (`strategy.py`).
-- **requirements.txt**: Lists all required packages and their versions.
+This guide provides step-by-step instructions to clone, install, and run MQSMaster.
 
----
+### Prerequisites
 
-## Installation
+Before you begin, ensure you have the following software installed on your system:
 
-### Clone the repository:
+1. Git: For cloning the repository.
+2. Python 3.12+: To run the application.
+3. PgAdmin4 (Not mandatory, will work fine without).
 
-In the folder you want to create the repo:
+## Installation Steps
 
-`git clone https://github.com/joshuakatt/MQSMaster/tree/main`
-`cd MQSMaster`
+Follow these steps precisely to set up your environment.
 
-### Set up a Virtual Environment:
+#### Step 1: Clone the Repository
 
-`python3 -m venv venv`
-`source venv/bin/activate` # On Windows: venv\Scripts\activate
+Open your terminal/cmd prompt, navigate to the directory where you want to store the project, and run the following commands one after the other:
 
-Install the Requirements:
-Use the following command (which ensures a clean installation using only binary wheels):
+1. `git clone https://github.com/MUNQuantSociety/MQSMaster/tree/main`
+2. `cd MQSMaster`
+
+#### Step 2: Create and Activate the Virtual Environment
+
+We will create a virtual environment named MQS to keep the project's dependencies isolated. Run this:
+
+`python3 -m venv MQS`
+
+then run:
+
+`source MQS/bin/activate` # (On Windows, use this command instead: MQS\Scripts\activate)
+
+You will know the environment is active when you see (MQS) at the beginning of your terminal prompt. You must ALWAYS have your environment active whenever running any code in here.
+
+#### Step 3: Set Up Environment Variables
+
+The bot requires API keys and database credentials. We manage these using a .env file.
+Ask the exec for the Data & Infra team for this file.
+
+add the .env file to the root directory.
+
+#### Step 4: Install Project and Dependencies
+
+This project uses a pyproject.toml file for setup. The following commands will install the bot as a local package and then install all required third-party libraries.
+
+Install the project in "editable" mode
+
+`pip install -e .`
 
 `pip install --no-cache-dir --only-binary :all: -r requirements.txt`
 
-The requirements.txt might include packages such as:
-requests==2.31.0
-python-dotenv==1.0.0
-pandas==1.5.3
-psycopg2-binary==2.9.6
+#### Step 5: Test your credentials
 
-## Configuration
+Run the following commands:
 
-(Not Set Up Yet, Upcoming Functionality)
-Important Environment Files Setup
-Root .env File:
-Create a .env file in the repository root (this is used for general configuration such as DB credentials and member authentication tokens).
+`python -m src.common.database.test`
 
-For example:
+If you see something like the following lines, congratulations, you have successfuly received a response from our database.
 
-# Example .env (for local development)
-
-DB_HOST=your_postgres_host
-DB_PORT=5432
-DB_NAME=market_db
-DB_USER=postgres
-DB_PASSWORD=your_db_password
-
-MEMBER_AUTH_TOKEN=your_member_token # Each user should set their own unique token
-
-FMP API Key:
-Create a file named fmp.env in the data_infra folder with your Financial Modeling Prep API key. For example:
-
-# data_infra/fmp.env
-
-FMP_API_KEY=FMP_API_KEY
-Note: The fmp.env file should only reside on the server, you don't have to specify this to your device.
-
-Configuration
-Important Environment Files Setup
-Root .env File:
-Create a .env file in the repository root (this is used for general configuration such as DB credentials and member authentication tokens). For example:
-
-# Usage
-
-## Data & Infrastructure
-
-### Market Data Retrieval:
-
-The class FMPMarketData (in data_infra/marketData/fmpMarketData.py) handles fetching historical and intraday market data from Financial Modeling Prep. It includes thread-safe rate limiting, retry logic, and error handling for internet outages.
-
-Backfilling Data
-Single-threaded Backfill:
-Run specific_backfill.py (located in data_infra/orchestrator) to sequentially backfill data for a given set of tickers.
-
-Concurrent (Multi-threaded) Backfill:
-Run concurrent_backfill.py (located in data_infra/orchestrator) to backfill multiple tickers concurrently.
-
-Each ticker's data will be written to its own CSV file (e.g., 2y_mkt_data_AAPL.csv).
-An optional merging section at the end will combine these CSV files into a single file (all_tickers_combined.csv) in a memory-efficient, chunked manner.
-
-To run the concurrent backfill:
-python data_infra/orchestrator/concurrent_backfill.py
-
-## Portfolios
-
-### Trading Strategies:
-
-Your trading strategies reside in the portfolios/ folder (for example, portfolios/portfolio_1/strategy.py).
-The portfolio configuration is stored in portfolios/portfolio_1/config.txt.
-portfolioManager.py coordinates multiple portfolios.
-These modules can be extended as you develop your trading logic.
-Extending the Codebase
-
-Real-time Data Ingestion:
-The file realtimeDataIngestor.py (in data_infra/orchestrator) is a placeholder. You can extend it to ingest live data and update your database or CSV files.
-
-Database Integration:
-Currently, backfilling writes data incrementally to CSV to avoid RAM overload. Once our database (PostgreSQL, SQLite, or DuckDB) is set up, you can modify the code in data_infra/database and update backfill.py to insert data directly into the database.
-
-Concurrency Improvements:
-The FMPMarketData class now supports multi-threading with thread locks to ensure rate limits are not exceeded. You can extend this to process multiple tickers concurrently using the provided concurrent_backfill.py script.
-
-## Notes and Best Practices
-
-API Limits:
-Financial Modeling Prep may enforce limits based on your plan. If you receive 429 errors ("Too Many Requests"), consider reducing the number of concurrent threads (MAX_WORKERS), adding additional sleeps, or upgrading your plan.
-
-Memory Management:
-For very large datasets (up to 10GB), the backfilling process writes data incrementally to CSV files. If merging is needed, use chunked processing to avoid loading all data into memory.
-
-Directory Paths:
-The code uses relative paths (e.g., for storing CSV files in data_infra/data/backfill_cache/), ensuring portability across systems.
-
-Error Handling:
-The API client in FMPMarketData includes robust error handling for timeouts, connection errors, and rate limits. Concurrency is managed with thread locks to prevent overlapping requests.
-
-Environment Files:
-Ensure that you create the necessary .env files (both root .env and data_infra/fmp.env) before running the scripts.
-
-# Running the Code
-
-Install Dependencies:
-
-pip install --no-cache-dir --only-binary :all: -r requirements.txt
-Set Up Environment Files:
-
-Create a .env file in the repository root for general configuration.
-Create a data_infra/fmp.env file with your FMP API key.
-Run a Concurrent Backfill Example:
-
-python data_infra/orchestrator/concurrent_backfill.py
-This will backfill data for the tickers defined in the script over the specified date range, with each ticker’s data saved to its own CSV file in data_infra/data/backfill_cache/. Optionally, the script will merge these CSV files into a single file named all_tickers_combined.csv.
-
-Run Portfolio Strategies:
-
-Navigate to a portfolio folder (e.g., portfolios/portfolio_1/) and run the strategy script.
-Ensure your portfolio’s configuration is set correctly in config.txt.
-Conclusion
+2025-09-20 16:54:37,793 INFO: Database connection pool created successfully.
+✅ PostgreSQL connection successful! Current DB Time: 2025-09-20 15:24:37.975847-04:00
