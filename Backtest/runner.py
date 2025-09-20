@@ -24,7 +24,8 @@ class BacktestRunner:
                  portfolio: 'BasePortfolio',
                  start_date: Optional[Union[str, datetime, pd.Timestamp]] = None,
                  end_date: Optional[Union[str, datetime, pd.Timestamp]] = None,
-                 initial_capital: float = 100000.0):
+                 initial_capital: float = 100000.0,
+                 slippage: float = 0.0):
         """
         Initializes the BacktestRunner.
         """
@@ -33,6 +34,7 @@ class BacktestRunner:
         self.total_start_capital = initial_capital
         self.start_date = self._ensure_datetime(start_date)
         self.end_date = self._ensure_datetime(end_date, default_is_yesterday=True)
+        self.slippage = slippage
 
         lookback_days = getattr(self.portfolio, 'lookback_days', 365)
         self.strategy_lookback_window = pd.Timedelta(days=lookback_days)
@@ -102,7 +104,8 @@ class BacktestRunner:
         """Sets up the new unified BacktestExecutor."""
         self.executor = BacktestExecutor(
             initial_capital=self.total_start_capital,
-            tickers=self.portfolio.tickers
+            tickers=self.portfolio.tickers,
+            slippage=self.slippage
         )
         self.portfolio._original_executor = getattr(self.portfolio, 'executor', None)
         self.portfolio.executor = self.executor

@@ -9,8 +9,6 @@
 # 4. Call the `run` method to execute the backtest.
 
 import logging
-import cProfile
-import pstats
 import sys
 import os
 
@@ -26,9 +24,6 @@ def main():
     """
     Main entry point for the MQS Trading System.
     """
-    # 1. Set up the profiler to analyse the performance of the backtest
-    profiler = cProfile.Profile()
-    profiler.enable()
 
     # --- Original main logic starts here ---
     try:
@@ -41,19 +36,16 @@ def main():
             portfolio_classes=[MomentumStrategy],
             start_date="2024-01-01",
             end_date="2025-01-01",
-            initial_capital=1000000.0
+            initial_capital=1000000.0,
+            slippage=0.00001  # Example: 0.1 basis points
         )
         
         # Run the backtests (this is the part we are profiling)
         backtest_engine.run()
 
     finally:
-        # 2. Stop the profiler and print the results, even if errors occur
-        profiler.disable()
-        logging.info("===== PROFILING RESULTS =====")
-        # Sort stats by cumulative time and print the top 20 results
-        stats = pstats.Stats(profiler).sort_stats('cumtime')
-        stats.print_stats(6)
+
+        logging.info("===== DONE =====")
 
 
 if __name__ == '__main__':
