@@ -7,8 +7,8 @@ import pytz
 from datetime import datetime, time as dtime
 
 from common.database.MQSDBConnector import MQSDBConnector
-from data_management.marketData.fmpMarketData import FMPMarketData
-from utils import load_tickers
+from orchestrator.marketData.fmpMarketData import FMPMarketData
+from orchestrator.realTime.utils import load_tickers
 
 # --- Configuration ---
 LOG_FILE = '/var/log/market_data_ingestor.log'

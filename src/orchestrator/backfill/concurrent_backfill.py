@@ -18,7 +18,7 @@ import json
 
 # Ensure we can import backfill.py
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
-from data_infra.orchestrator.backfill.backfill import backfill_data
+from src.orchestrator.backfill.backfill import backfill_data
 from common.database.MQSDBConnector import MQSDBConnector
 
 # Number of threads to use. NEEDS TO BE LESS THAN MQSDBCONNECTOR MAX CONN VALUE!

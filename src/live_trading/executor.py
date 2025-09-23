@@ -4,7 +4,7 @@ import math
 import pandas as pd
 from common.database.schemaDefinitions import MQSDBConnector
 from common.auth.apiAuth import APIAuth
-from data_management.marketData.fmpMarketData import FMPMarketData
+from orchestrator.marketData.fmpMarketData import FMPMarketData
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
@@ -91,6 +91,7 @@ class tradeExecutor:
             return
         
         slippage_bps = ((exec_price / arrival_price_val) - 1) * 10000 if arrival_price_val > 0 else 0
+
 
         # 3. Determine target notional
         current_pos_row = positions[positions['ticker'] == ticker]

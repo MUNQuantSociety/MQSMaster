@@ -11,7 +11,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
 from common.database.MQSDBConnector import MQSDBConnector
-from data_management.marketData.fmpMarketData import FMPMarketData
+from orchestrator.marketData.fmpMarketData import FMPMarketData
 
 # --- Configure Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

@@ -53,9 +53,11 @@ class VolMomentum(BasePortfolio):
             f"Trade Interval = {self.interval_seconds} seconds"
         )
 
+
     def generate_signals_and_trade(self,
                                    dataframes_dict: Dict[str, pd.DataFrame],
                                    current_time: Optional[datetime] = None):
+
         market_data = dataframes_dict.get('MARKET_DATA')
         cash_available = dataframes_dict.get('CASH_EQUITY')
         positions = dataframes_dict.get('POSITIONS')
