@@ -14,7 +14,7 @@ import json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
 from common.database.MQSDBConnector import MQSDBConnector
-from data_infra.orchestrator.backfill.backfill import backfill_data
+from orchestrator.backfill.backfill import backfill_data
 
 def parse_date_arg(date_str):
     """Parses date string in DDMMYY format and returns a datetime.date object."""
