@@ -30,7 +30,7 @@ def main():
             start_date="2024-01-01",
             end_date="2025-01-01",
             initial_capital=1000000.0,
-            slippage=0.00001
+            slippage=0.000001
         )
         
         backtest_engine.run()

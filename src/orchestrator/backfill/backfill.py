@@ -10,7 +10,7 @@ import os
 import time
 import pandas as pd
 from datetime import datetime, timedelta
-from ...data_management.marketData.fmpMarketData import FMPMarketData
+from ...orchestrator.marketData.fmpMarketData import FMPMarketData
 
 # Batch size: number of days per API call (e.g., 2 means requesting 2 days at once)
 BATCH_DAYS = 3

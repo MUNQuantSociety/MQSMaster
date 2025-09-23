@@ -19,10 +19,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
                                             "../../..")))
 
 from common.database.MQSDBConnector import MQSDBConnector
-from data_infra.orchestrator.backfill.backfill import backfill_data
+from orchestrator.backfill.backfill import backfill_data
 
 # how many days per API batch
-from data_infra.orchestrator.backfill.backfill import BATCH_DAYS
+from orchestrator.backfill.backfill import BATCH_DAYS
 
 def parse_date_arg(arg):
     return datetime.strptime(arg, "%Y-%m-%d").date()
