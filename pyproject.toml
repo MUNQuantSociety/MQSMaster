@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mqs_bot"
+version = "0.1.0"
+authors = [
+  { name="MQS", email="munquantsociety@gmail.com" },
+]
+description = "A quantitative trading bot."
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]
