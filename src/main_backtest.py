@@ -1,5 +1,5 @@
 # This is where backtests are setup.
-# Simply add you portfolio class to the list of portfolio classes in the `setup` method.
+# Simply add you portfolio class to the list of portfolio classes in the `setup` method, line 28.
 
 # High level overview of how to set up a backtest:
 
@@ -30,7 +30,7 @@ def main():
             start_date="2024-01-01",
             end_date="2025-01-01",
             initial_capital=1000000.0,
-            slippage=0.000001
+            slippage=0.000001 # 0.1 basis point
         )
         
         backtest_engine.run()
