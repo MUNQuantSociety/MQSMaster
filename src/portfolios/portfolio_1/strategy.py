@@ -57,7 +57,9 @@ class VolMomentum(BasePortfolio):
     def generate_signals_and_trade(self,
                                    dataframes_dict: Dict[str, pd.DataFrame],
                                    current_time: Optional[datetime] = None):
+        """Generates BUY AND SELL signals based on momentum and volatility, and updates Cash available for trade."""
 
+        #Get DataFrames if none or empty exit function
         market_data = dataframes_dict.get('MARKET_DATA')
         cash_available = dataframes_dict.get('CASH_EQUITY')
         positions = dataframes_dict.get('POSITIONS')
