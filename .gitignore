@@ -14,6 +14,8 @@ visualise_gpt2.ipynb
 *.egg-info/
 venv/
 .env
+*.lock
+.vscode/
 # Build artifacts
 build/
 dist/
