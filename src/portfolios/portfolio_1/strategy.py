@@ -119,7 +119,7 @@ class VolMomentum(BasePortfolio):
                     signal = 'SELL'
                 else:
                     signal = 'HOLD'
-                # update the generated signal
+                # Update the last decision time for this ticker
                 self.last_decision_time[ticker] = trade_ts
                 #?if signal is BUY or SELL update position DF
                 if signal in ['BUY', 'SELL']:
