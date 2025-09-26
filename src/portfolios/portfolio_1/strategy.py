@@ -121,7 +121,7 @@ class VolMomentum(BasePortfolio):
                     signal = 'HOLD'
                 # Update the last decision time for this ticker
                 self.last_decision_time[ticker] = trade_ts
-                #?if signal is BUY or SELL update position DF
+                #? if signal is BUY or SELL update position DF
                 if signal in ['BUY', 'SELL']:
                     ticker_pos_series = positions[positions['ticker'] == ticker]['quantity'] if not positions.empty else pd.Series(dtype=float)
                     current_quantity = ticker_pos_series.iloc[0] if not ticker_pos_series.empty else 0.0
