@@ -57,9 +57,9 @@ class VolMomentum(BasePortfolio):
     def generate_signals_and_trade(self,
                                    dataframes_dict: Dict[str, pd.DataFrame],
                                    current_time: Optional[datetime] = None):
-        """Generates BUY, SELL, and HOLD signals based on momentum and volatility, and updates Cash available for trade, then calls the ."""
+        """Generates BUY, SELL, and HOLD signals based on momentum and volatility, and updates Cash available for trade, then calls the Executor to submit trades."""
 
-        #* Get DataFrames if none or empty exit strategy
+        #? Get DataFrames if none or empty exit strategy
         market_data = dataframes_dict.get('MARKET_DATA')
         cash_available = dataframes_dict.get('CASH_EQUITY')
         positions = dataframes_dict.get('POSITIONS')
@@ -68,10 +68,10 @@ class VolMomentum(BasePortfolio):
         if market_data is None or market_data.empty:
             return
 
-        #* Stamp current time of trade
+        #? Stamp current time of trade
         trade_ts = current_time or datetime.now().astimezone()
 
-        #* Get current cash available
+        #? Get current cash available
         current_cash_in_loop = cash_available.iloc[0]['notional'] if not cash_available.empty else 0.0
 
         #? A loop to iterate through each ticker and generate signals based on momentum and volatility.
@@ -113,13 +113,14 @@ class VolMomentum(BasePortfolio):
                 #* Generate signals based on momentum and dynamic threshold
                 #? If momentum return is greater than dynamic threshold, volatility is positively increasing, signal is BUY
                 #? If momentum return is less than negative dynamic threshold, volatility is decreasing, signal is SELL
+                #? update the generated signal
                 if momentum_return > dynamic_momentum_threshold:
                     signal = 'BUY'
                 elif momentum_return < -dynamic_momentum_threshold:
                     signal = 'SELL'
                 else:
                     signal = 'HOLD'
-                # update the generated signal
+                #? Update last decision time to current trade timestamp
                 self.last_decision_time[ticker] = trade_ts
                 #?if signal is BUY or SELL update position DF
                 if signal in ['BUY', 'SELL']:
