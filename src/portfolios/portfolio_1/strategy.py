@@ -82,7 +82,7 @@ class VolMomentum(BasePortfolio):
                 last_decision = self.last_decision_time.get(ticker)
                 if last_decision and (trade_ts - last_decision) < timedelta(seconds=self.interval_seconds):
                     continue
-                #? Filter market data for the current ticker(what is in this DF?)
+                # Filtered market data for the current ticker; contains rows with columns such as 'timestamp', 'close_price', etc. for this ticker.
                 ticker_data = market_data[market_data['ticker'] == ticker]
                 if ticker_data.empty:
                     continue
