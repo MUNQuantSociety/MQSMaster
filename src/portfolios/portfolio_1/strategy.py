@@ -57,7 +57,7 @@ class VolMomentum(BasePortfolio):
     def generate_signals_and_trade(self,
                                    dataframes_dict: Dict[str, pd.DataFrame],
                                    current_time: Optional[datetime] = None):
-        """Generates BUY, SELL, and HOLD signals based on momentum and volatility, and updates Cash available for trade, then calls the Executor to submit trades."""
+        """Generates BUY, SELL, and HOLD signals based on momentum and volatility, updates cash available for trade, and then calls the trade execution logic for each signal."""
 
         #? Get DataFrames if none or empty exit strategy
         market_data = dataframes_dict.get('MARKET_DATA')
@@ -82,7 +82,7 @@ class VolMomentum(BasePortfolio):
                 last_decision = self.last_decision_time.get(ticker)
                 if last_decision and (trade_ts - last_decision) < timedelta(seconds=self.interval_seconds):
                     continue
-                #? Filter market data for the current ticker(what is in this DF?)
+                # Filtered market data for the current ticker; contains rows with columns such as 'timestamp', 'close_price', etc. for this ticker.
                 ticker_data = market_data[market_data['ticker'] == ticker]
                 if ticker_data.empty:
                     continue
@@ -122,7 +122,7 @@ class VolMomentum(BasePortfolio):
                     signal = 'HOLD'
                 #? Update last decision time to current trade timestamp
                 self.last_decision_time[ticker] = trade_ts
-                #?if signal is BUY or SELL update position DF
+                #? if signal is BUY or SELL update position DF
                 if signal in ['BUY', 'SELL']:
                     ticker_pos_series = positions[positions['ticker'] == ticker]['quantity'] if not positions.empty else pd.Series(dtype=float)
                     current_quantity = ticker_pos_series.iloc[0] if not ticker_pos_series.empty else 0.0
