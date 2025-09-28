@@ -14,3 +14,4 @@ torch>=2.6.0,<2.9
 matplotlib==3.10.5
 seaborn==0.13.1
 transformers
+scipy>=1.13.0
