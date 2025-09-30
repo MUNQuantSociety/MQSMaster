@@ -155,16 +155,16 @@ class RelativeMomentumIndex(Indicator):
 
 if __name__ == "__main__":  # simple smoke demo
     rmi = RelativeMomentumIndex(ticker="AAPL", period=3, momentum_period=10)
-    prices = [random.uniform(150, 250) for _ in range(1000)]
+    prices = [random.uniform(150, 250) for _ in range(10000)]
     return_val = 0
 
     for i, price in enumerate(prices, start=1):
         val = rmi.Update(datetime.now(timezone.utc), price)
         if val is not None:
             #print(f"Update {i:02d}: price={price:0.2f} rmi={val:0.2f} ready={rmi.IsReady}")
-            if val < 20:
+            if val < 30:
                 return_val += 2
-            if val > 80:
+            if val > 70:
                 return_val -= 1
         else:
             print(f"Update {i:02d}: price={price:0.2f} rmi={val} ready={rmi.IsReady}")
