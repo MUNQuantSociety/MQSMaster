@@ -72,7 +72,8 @@ class tradeExecutor:
         except (ValueError, TypeError) as e:
             self.logger.error(f"Numeric conversion failed: {e}")
             return
-
+        
+        #ignore invalid signals
         signal_type = signal_type.upper()
         if signal_type not in ('BUY', 'SELL', 'HOLD'):
             return
@@ -116,10 +117,11 @@ class tradeExecutor:
         else: # This is a SELL/SHORT operation
             # Constrain by buying power
             final_trade_notional = min(abs(desired_trade_notional), buying_power)
-
+        # skip execution if final notional is still below $1
         if final_trade_notional < 1.0:
             return
-
+        
+        # Convert notional to whole share quantity 
         quantity_to_trade = math.floor(final_trade_notional / exec_price)
         if quantity_to_trade == 0:
             return
@@ -129,6 +131,7 @@ class tradeExecutor:
         updated_quantity = current_quantity
         trade_value = quantity_to_trade * exec_price
 
+        # Update cash and position based on trade direction
         if desired_trade_notional > 0: # Finalizing a BUY
             updated_cash = cash_val - trade_value
             updated_quantity = current_quantity + quantity_to_trade
