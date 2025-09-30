@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Dict
 
@@ -12,28 +13,41 @@ class MomentumStrategy(BasePortfolio):
         self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
 
         indicator_definitions = { # Format: "indicator_variable_name": ("IndicatorName", {params})
-            "sma_fast": ("SimpleMovingAverage", {"period": 10}),
-            "sma_slow": ("SimpleMovingAverage", {"period": 30})
+            "sma_fast": ("SimpleMovingAverage", {"period": 7}),
+            "sma_slow": ("SimpleMovingAverage", {"period": 14}),
+            "rmi": ("RelativeMomentumIndex", {"period": 3, "momentum_period": 7}),
         }
-        
+
         self.RegisterIndicatorSet(indicator_definitions)
         
     def OnData(self, context: StrategyContext):
         for ticker in self.tickers:
-            fast_sma = self.sma_fast[ticker]
-            slow_sma = self.sma_slow[ticker]
+            fast = self.sma_fast[ticker]
+            slow = self.sma_slow[ticker]
+            rmi = self.rmi[ticker]
 
-            if not slow_sma.IsReady:
-                self.logger.debug(f"Indicators for {ticker} are not ready yet.")
+            if not (fast.IsReady and slow.IsReady and rmi.IsReady):
                 continue
 
-            fast_value = fast_sma.Current
-            slow_value = slow_sma.Current
-            
-            current_position = context.Portfolio.positions.get(ticker, 0)
-            
-            if fast_value > slow_value and current_position == 0:
-                context.buy(ticker, confidence=1.0)
+            fast_v = fast.Current
+            slow_v = slow.Current
+            rmi_v = rmi.Current
+            position = context.Portfolio.positions.get(ticker, 0)
 
-            elif fast_value < slow_value and current_position > 0:
-                context.sell(ticker, confidence=1.0)
+            bullish = fast_v > slow_v
+            bearish = fast_v < slow_v
+            oversold = rmi_v is not None and rmi_v < 20
+            overbought = rmi_v is not None and rmi_v > 80
+
+            # Entry logic
+            if position < 50:
+                if bullish and oversold:
+                    context.buy(ticker, confidence=2.0)
+                elif bullish and rmi_v is not None and rmi_v > 50:
+            # momentum confirmation
+                    context.buy(ticker, confidence=0.8)
+
+            # Exit logic
+            elif position > 0:
+                if bearish or overbought:
+                    context.sell(ticker, confidence=1.0)
