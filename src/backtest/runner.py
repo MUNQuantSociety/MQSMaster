@@ -81,6 +81,13 @@ class BacktestRunner:
         if not self.start_date or not self.end_date:
                 self.logger.error("Invalid start or end date for data preparation.")
                 return False
+        
+        lookback_days = getattr(self.portfolio, "lookback_days", None)
+        if lookback_days:
+            adjusted_start = self.end_date - pd.Timedelta(days = lookback_days)
+            if self.start_date < adjusted_start:
+                self.start_date = adjusted_start
+                self.logger.info(f"Adjusted Start Date to {self.start_date} based on lookback_days={lookback_days}")
 
         df = fetch_historical_data(self.portfolio, self.start_date, self.end_date)
         if df.empty:
