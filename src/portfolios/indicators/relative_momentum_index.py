@@ -1,11 +1,7 @@
 # src/portfolios/indicators/relative_momentum_index.py
 
-from __future__ import annotations
-
 from datetime import datetime, timezone
 import random
-from typing import Optional
-import numpy as np
 import pandas as pd
 from src.portfolios.indicators.base import Indicator
 
@@ -31,7 +27,7 @@ class RelativeMomentumIndex(Indicator):
         super().__init__(ticker=ticker, **kwargs)
         self.period: int = int(kwargs.get("period", 14))
         self.price_col: str = kwargs.get("price_col", "close_price")
-        self.momentum_period: int = int(kwargs.get("momentum_period", 5))
+        self.momentum_period: int = int(kwargs.get("momentum_period", 3))
 
         if self.period <= 0:
             raise ValueError("'period' must be positive")
@@ -40,14 +36,14 @@ class RelativeMomentumIndex(Indicator):
 
         # Internal state
         self._prices: list[float] = []
-        self._avg_gain: Optional[float] = None
-        self._avg_loss: Optional[float] = None
-        self._last_updated: Optional[datetime] = None
+        self._avg_gain: float | None = None
+        self._avg_loss: float | None = None
+        self._last_updated: datetime | None = None
 
     def _compute_momentum(self) -> float:
         return self._prices[-1] - self._prices[-1 - self.momentum_period]
 
-    def Update(self, timestamp: datetime, data_point: float) -> Optional[float]:  # type: ignore[override]
+    def Update(self, timestamp: datetime, data_point: float) -> float | None:
         """Update the indicator with a new price.
 
         Returns the current RMI value if ready, else None.
@@ -76,29 +72,28 @@ class RelativeMomentumIndex(Indicator):
                 self._avg_loss = pd.Series(self._seed_losses).ewm(span=self.period, adjust=False).mean().iloc[-1]
                 del self._seed_gains, self._seed_losses
             else:
-                # Not enough momentum observations yet
-                self._avg_gain = 0.0
-                self._avg_loss = 0.0
+                # Should not happen (defensive) but treat same as not ready
                 self._current_value = None
                 self._is_ready = False
                 return None
+
         elif self._avg_gain is not None and self._avg_loss is not None:
-            # Wilder smoothing (both avg values are always initialized together)
+            # Update averages using Wilder's smoothing method (EMA with alpha=1/period)
             self._avg_gain = (self._avg_gain * (self.period - 1) + gain) / self.period
             self._avg_loss = (self._avg_loss * (self.period - 1) + loss) / self.period
-
+        # --- Compute RMI ---
         if self._avg_loss == 0:
-            rmi_value = 100.0 if self._avg_gain is not None and self._avg_gain > 0 else 0.0
-        elif self._avg_gain is not None and self._avg_loss is not None:
-            rs = self._avg_gain / self._avg_loss
-            rmi_value = 100 - (100 / (1 + rs))
+            rmi_value = 100.0 if (self._avg_gain and self._avg_gain > 0) else 0.0
         else:
-            rmi_value = 0.0
+            if self._avg_gain is not None and self._avg_loss is not None and self._avg_loss != 0:
+                rm = self._avg_gain / self._avg_loss
+            else:
+                rm = 0.0
+            rmi_value = 100 - (100 / (1 + rm))
 
-        # Readiness after we have seeded averages => first computable RMI
         self._current_value = rmi_value
-        self._is_ready = self._avg_gain is not None and self._avg_loss is not None
-        return self._current_value if self._is_ready else 0.0
+        self._is_ready = True
+        return self._current_value
 
     def Reset(self) -> None:
         """Reset internal state to initial (not ready) condition."""
@@ -108,41 +103,18 @@ class RelativeMomentumIndex(Indicator):
         self._current_value = None
         self._is_ready = False
         self._last_updated = None
+        self._seed_gains = None
+        self._seed_losses = None
 
     # --- Properties / metadata ---
 
     @property
-    def CurrentValue(self) -> Optional[float]:
-        """Alias for latest RMI value (may be None if not ready)."""
-        return self._current_value
-
-    @property
-    def IsReady(self) -> bool:  # type: ignore[override]
-        return self._is_ready
-
-    @property
-    def LastUpdated(self) -> Optional[datetime]:
+    def LastUpdated(self) -> datetime | None:
         return self._last_updated
 
     @property
     def Name(self) -> str:
         return f"RMI_{self.ticker}_{self.period}_{self.momentum_period}"
-
-    @property
-    def Ticker(self) -> str:
-        return self.ticker
-
-    @property
-    def PriceCol(self) -> str:
-        return self.price_col
-
-    @property
-    def Period(self) -> int:
-        return self.period
-
-    @property
-    def MomentumPeriod(self) -> int:
-        return self.momentum_period
 
     def __str__(self) -> str:  # pragma: no cover - repr convenience
         return (
@@ -153,7 +125,7 @@ class RelativeMomentumIndex(Indicator):
     def __repr__(self) -> str:  # pragma: no cover
         return self.__str__()
 
-if __name__ == "__main__":  # simple smoke demo
+if __name__ == "__main__":  # simple demo
     rmi = RelativeMomentumIndex(ticker="AAPL", period=3, momentum_period=10)
     prices = [random.uniform(150, 250) for _ in range(10000)]
     return_val = 0
@@ -171,4 +143,3 @@ if __name__ == "__main__":  # simple smoke demo
     print(f"Return value: {return_val}")
     rmi.Reset()
     print("After reset:", rmi)
-        
