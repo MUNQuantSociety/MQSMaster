@@ -1,8 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 # --- CONFIG ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON_VENV="/home/master/MQSMaster/MQS/bin/python"
+PYTHON_VENV="/home/master/MQSMaster/MQS/bin/python3"
 
 # Load environment variables
 if [ -f "${SCRIPT_DIR}/.env" ]; then
@@ -16,6 +17,7 @@ fi
 TICKER="${TICKER:-AAPL}"
 START_DATE="${START_DATE:-2023-01-01}"
 END_DATE="${END_DATE:-$(date +%Y-%m-%d)}"
+export TICKER START_DATE END_DATE
 
 # --- SCRIPTS TO RUN ---
 pids=()
@@ -27,7 +29,7 @@ scripts_to_run=(
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Launching article ingestion processes..."
 
 for script in "${scripts_to_run[@]}"; do
-  $PYTHON_VENV $SCRIPT_DIR/$script &
+  $PYTHON_VENV "$SCRIPT_DIR/$script" &
   pid=$!
   sleep 1
   if ps -p $pid > /dev/null; then
