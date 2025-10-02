@@ -5,11 +5,11 @@ Handles large-scale intraday data backfilling from FMP.
 Uses caching (temporary CSV storage) to avoid RAM overflow.
 """
 
-import sys
 import os
 import time
 import pandas as pd
-from datetime import datetime, timedelta
+from typing import List
+from datetime import datetime
 from ...orchestrator.marketData.fmpMarketData import FMPMarketData
 
 # Batch size: number of days per API call (e.g., 2 means requesting 2 days at once)
@@ -66,12 +66,12 @@ def prepare_data(df_chunk, ticker):
 
 
 def backfill_data(
-    tickers,
+    tickers: List[str],
     start_date,
     end_date,
-    interval,
-    exchange=None,
-    output_filename="backfilled_data.csv",
+    interval: int,
+    exchange: str | None = None,
+    output_filename: str | None = "backfilled_data.csv",
 ):
     """
     Pulls intraday data from FMP for each ticker from start_date to end_date,
@@ -170,7 +170,7 @@ def backfill_data(
     if output_path:
         print(f"[Backfill] Completed. Data saved to {output_path}")
     else:
-        print(f"[Backfill] Completed. No CSV file generated (output_filename=None).")
+        print("[Backfill] Completed. No CSV file generated (output_filename=None).")
 
     # 9) If output_filename=None, return the combined in-memory DataFrame
     if output_filename is None:
