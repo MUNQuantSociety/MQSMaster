@@ -135,6 +135,7 @@ def process_file(csv_file, db):
             logging.info(f"Finished processing file: {csv_file} for ticker: {ticker}")
         finally:
             db.release_connection(conn)
+            return True
     except Exception as general_exception:
         logging.error(f"Unexpected error processing {csv_file}: {general_exception}")
 
