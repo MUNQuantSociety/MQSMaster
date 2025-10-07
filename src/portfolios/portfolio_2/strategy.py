@@ -119,10 +119,10 @@ class MomentumStrategy(BasePortfolio):
             ]
             #?Entry logic
             if position < 10:
-                if bullish and oversold:
+                if bullish or oversold:
                     context.buy(ticker, confidence=1.0)
                 elif bullish:
-                    context.buy(ticker, confidence=0.8)
+                    context.buy(ticker, confidence=0.5)
 
             #? Exit logic
             elif position > 0:
