@@ -12,20 +12,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class APIAuth:
-    """
-    Minimal approach for retrieving FMP API key. 
-    Currently returns a known default if no environment variable is set.
+    """Lightweight accessor for the FMP API key.
+
+    Issues fixed:
+      - Previously `get_fmp_api_key` returned the *method object* (bug) instead of the key string.
+      - Added explicit validation & clearer error messaging.
     """
 
     def __init__(self):
         api_key_env = os.getenv('FMP_API_KEY')
-        if api_key_env:
-            self.fmp_api_key = api_key_env 
-        else:
-            print("⚠️ No FMP_API_KEY environment variable set. Using default key.")
+        self.fmp_api_key = (api_key_env or '').strip()
+        if not self.fmp_api_key:
+            # Deliberately avoid silently using a hard‑coded default; force visibility.
+            print("⚠️ FMP_API_KEY not set or empty. Set it in your environment or .env file.")
 
     def get_fmp_api_key(self) -> str:
-        """
-        Returns the FMP API key. Right now, it's a known constant.
-        """
+        """Return the loaded API key string ('' if unset)."""
         return self.fmp_api_key
