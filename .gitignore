@@ -16,7 +16,7 @@ venv/
 .env
 *.lock
 .vscode/
-*/backtests/data/
+src/backtest/data
 # Build artifacts
 build/
 dist/
