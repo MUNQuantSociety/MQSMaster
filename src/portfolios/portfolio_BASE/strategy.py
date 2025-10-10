@@ -34,7 +34,7 @@ class BasePortfolio(ABC):
         self.running = True
         self.debug = debug
         self.backtest_start_date = backtest_start_date
-
+        self._last_processed_timestamp: Optional[datetime] = None
         if config_dict is None:
             raise ValueError("config_dict is required for portfolio configuration.")
 
@@ -82,15 +82,11 @@ class BasePortfolio(ABC):
             indicator_class = getattr(module, indicator_class_name)
         except (ImportError, AttributeError) as e:
             self.logger.error(f"Could not dynamically load indicator '{indicator_class_name}'. "
-                              f"Ensure the file 'src/portfolios/indicators/{_camel_to_snake(indicator_class_name)}.py' "
-                              f"and class '{indicator_class_name}' exist. Details: {e}")
+                              f"Details: {e}")
             raise
 
-        # Instantiate the indicator
         indicator = indicator_class(ticker=ticker, **kwargs)
-
-        # Warm-up logic
-        # Fetch more data than the period to ensure enough data points, accounting for non-trading days.
+        
         warmup_days = int(kwargs.get('period', 20) * 1.7) 
         end_time = self.backtest_start_date or datetime.now()
         start_time = end_time - timedelta(days=warmup_days)
@@ -102,11 +98,17 @@ class BasePortfolio(ABC):
         price_col = kwargs.get('price_col', 'close_price')
         if result['status'] == 'success' and result.get('data'):
             df = pd.DataFrame(result['data'])
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+            # --- Correctly handle timezone-aware data from the database ---
+            # 1. Convert to UTC to create a standard, timezone-aware index.
+            # 2. Convert back to 'America/New_York' to preserve the desired timezone info.
+            df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True).dt.tz_convert('America/New_York')
+            
             df[price_col] = pd.to_numeric(df[price_col], errors='coerce').dropna()
             df.sort_values('timestamp', inplace=True)
             
             for row in df.itertuples():
+                # The timestamp passed to Update() is now a proper, localized timestamp
                 indicator.Update(row.timestamp, getattr(row, price_col))
         
         self._indicators.append(indicator)
@@ -144,20 +146,31 @@ class BasePortfolio(ABC):
     def generate_signals_and_trade(self, data: Dict[str, pd.DataFrame], current_time: Optional[datetime] = None):
         """
         (Framework-Internal Method)
-        Updates indicators, constructs the context, and calls the user's OnData method.
+        Updates indicators with ALL new data points, constructs the context,
+        and calls the user's OnData method.
         """
         market_data_df = data.get('MARKET_DATA')
         if market_data_df is not None and not market_data_df.empty:
-            # Get the single latest row for each ticker in the current data slice
-            latest_data_points = market_data_df.sort_values('timestamp').groupby('ticker').last()
-            for indicator in self._indicators:
-                if indicator.ticker in latest_data_points.index:
-                    latest_row = latest_data_points.loc[indicator.ticker]
-                    price_col = getattr(indicator, 'price_col', 'close_price')
-                    if price_col in latest_row and pd.notna(latest_row[price_col]):
-                        timestamp = latest_row['timestamp']
-                        value = latest_row[price_col]
-                        indicator.Update(timestamp, value)
+            
+            # --- Find ALL new bars since the last update ---
+            if self._last_processed_timestamp:
+                new_data = market_data_df[market_data_df['timestamp'] > self._last_processed_timestamp]
+            else:
+                # On the first run, process only the single latest point to set a baseline
+                new_data = market_data_df.sort_values('timestamp').groupby('ticker').last().reset_index()
+
+            # Process each new bar in chronological order for each ticker
+            if not new_data.empty:
+                for timestamp, group in new_data.sort_values('timestamp').groupby('timestamp'):
+                    for row in group.itertuples():
+                        for indicator in self._indicators:
+                            if indicator.ticker == row.ticker:
+                                price_col = getattr(indicator, 'price_col', 'close_price')
+                                if hasattr(row, price_col) and pd.notna(getattr(row, price_col)):
+                                    indicator.Update(row.timestamp, getattr(row, price_col))
+
+        # Update the last processed time to the current time of the data slice
+        self._last_processed_timestamp = current_time
 
         context = StrategyContext(
             market_data_df=market_data_df,
@@ -170,6 +183,7 @@ class BasePortfolio(ABC):
         )
 
         self.OnData(context)
+
 
     @abstractmethod
     def OnData(self, context: StrategyContext):
