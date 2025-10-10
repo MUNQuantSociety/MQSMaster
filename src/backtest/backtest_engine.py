@@ -1,24 +1,29 @@
 # src/backtest/backtest_engine.py
 
-from typing import List
+import inspect
+import json
 import logging
-from .runner import BacktestRunner
-from portfolios.portfolio_BASE.strategy import BasePortfolio
+import os
+import pandas as pd
+from typing import List
 
-from common.database.MQSDBConnector import MQSDBConnector
+from src.common.database.MQSDBConnector import MQSDBConnector
+from src.portfolios.portfolio_BASE.strategy import BasePortfolio
+
+from .runner import BacktestRunner
 
 
 class BacktestEngine:
     """
-    The BacktestEngine is responsible for orchestrating backtesting runs for
-    one or more portfolios.
+    The BacktestEngine orchestrates backtesting runs.
+    It is updated to load portfolio configurations dynamically.
     """
 
     def __init__(self, db_connector: 'MQSDBConnector', backtest_executor=None):
         self.db_connector = db_connector
         self.backtest_executor = backtest_executor
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.portfolio_classes: List['BasePortfolio'] = []
+        self.portfolio_classes: List[type[BasePortfolio]] = []
         self.start_date: str = ""
         self.end_date: str = ""
         self.initial_capital: float = 0.0
@@ -50,9 +55,26 @@ class BacktestEngine:
 
         for portfolio_class in self.portfolio_classes:
             try:
-                # Instantiate the portfolio, which now has a db connection
-                # The executor will be set by the BacktestRunner
-                portfolio_instance = portfolio_class(db_connector=self.db_connector, executor=None)
+                # --- Dynamically load the config for the portfolio ---
+                # Get the file path of the portfolio's strategy class
+                class_file_path = inspect.getfile(portfolio_class)
+                portfolio_dir = os.path.dirname(class_file_path)
+                config_path = os.path.join(portfolio_dir, 'config.json')
+
+                if not os.path.exists(config_path):
+                    self.logger.error(f"Configuration file not found for {portfolio_class.__name__} at {config_path}")
+                    continue
+
+                with open(config_path, 'r') as f:
+                    config_data = json.load(f)
+                
+                # --- Instantiate with the loaded config_dict ---
+                portfolio_instance = portfolio_class(
+                    db_connector=self.db_connector,
+                    executor=None,  # The runner will set the executor later
+                    config_dict=config_data,
+                    backtest_start_date=pd.to_datetime(self.start_date)
+                )
                 
                 self.logger.info(f"--- Running backtest for portfolio: {portfolio_instance.portfolio_id} ---")
 

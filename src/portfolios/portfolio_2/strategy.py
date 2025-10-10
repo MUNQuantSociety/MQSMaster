@@ -1,109 +1,132 @@
-import os
-import json
 import logging
-import pandas as pd
-from datetime import datetime, timedelta
-import sys
+from src.portfolios.indicators.base import Indicator
+from src.portfolios.portfolio_BASE.strategy import BasePortfolio
+from src.portfolios.strategy_api import StrategyContext
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from portfolios.portfolio_BASE.strategy import BasePortfolio
-from typing import Dict, Optional
 
 class MomentumStrategy(BasePortfolio):
-    """
-    A refined momentum strategy:
-    - Uses historical and current price to decide direction.
-    - Only acts if price moves more than a defined threshold.
-    - Uses larger timeframes to reduce noise.
-    """
-
-    def __init__(self, db_connector, executor, debug=False):
-        """
-        Initializes the strategy from a config file.
-        """
-        config_path = os.path.join(os.path.dirname(__file__), "config.json")
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Config file not found at {config_path}")
-
-        try:
-            with open(config_path, 'r') as f:
-                config_data = json.load(f)
-        except Exception as e:
-            raise RuntimeError(f"Error loading config.json: {e}") from e
-
-        super().__init__(db_connector=db_connector,
-                         executor=executor,
-                         debug=debug,
-                         config_dict=config_data)
-
+    def __init__(self, db_connector, executor, debug=False, config_dict=None, backtest_start_date=None):
+        super().__init__(db_connector, executor, debug, config_dict, backtest_start_date)
         self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
-        self.interval_seconds = self.poll_interval
-        self.last_decision_time = {}
 
-        self.logger.info(f"Strategy initialized: No Threshold, Interval = {self.interval_seconds}s")
+        indicator_definitions = { # Format: "indicator_variable_name": ("IndicatorName", {params})
+            "sma_fast": ("SimpleMovingAverage", {"period": 14}),
+            "sma_slow": ("SimpleMovingAverage", {"period": 28}),
+            "rmi": ("RelativeMomentumIndex", {"period": 14, "momentum_period": 14}),
+            "rsi": ("RelativeStrengthIndex", {"period": 14}),
+            "dma": ("DisplacedMovingAverage", {"period": 14, "displacement": 7}),
+            #"stochastic": ("StochasticOscillator", {"k_period": 14, "d_period": 3}),
+            #"macd": ("MACD", {"fast_period": 12, "slow_period": 26, "signal_period": 9}),
+        }
 
-
-    def generate_signals_and_trade(self,
-                                   dataframes_dict: Dict[str, pd.DataFrame],
-                                   current_time: Optional[datetime] = None):
-        market_data = dataframes_dict.get('MARKET_DATA')
-        cash_available = dataframes_dict.get('CASH_EQUITY')
-        positions = dataframes_dict.get('POSITIONS')
-        port_notional = dataframes_dict.get('PORT_NOTIONAL')
-
-        if market_data is None or market_data.empty:
-            return
-
-        trade_ts = current_time or datetime.now().astimezone()
-
-        current_cash_in_loop = cash_available.iloc[0]['notional'] if not cash_available.empty else 0.0
-
+        self.RegisterIndicatorSet(indicator_definitions)
+        
+    def OnData(self, context: StrategyContext):
+        # Loop over each ticker and apply strategy logic
+        #? Indicator references: add more as needed
         for ticker in self.tickers:
-            try:
-                last_decision = self.last_decision_time.get(ticker)
-                if last_decision and (trade_ts - last_decision) < timedelta(seconds=self.interval_seconds):
-                    continue
+            fast = self.sma_fast[ticker]
+            slow = self.sma_slow[ticker]
+            rmi = self.rmi[ticker]
+            rsi = self.rsi[ticker]
+            dma = self.dma[ticker]
+            #stochastic = self.stochastic[ticker]
+            #macd = self.macd[ticker]
 
-                ticker_data = market_data[market_data['ticker'] == ticker]
-                if len(ticker_data) < 2:
-                    continue
+            if not (fast.IsReady and slow.IsReady and rmi.IsReady and rsi.IsReady and rsi.IsReady and dma.IsReady):
+                continue
 
-                latest_price = ticker_data['close_price'].iloc[-1]
-                previous_price = ticker_data['close_price'].iloc[-2]
+            #* ---- Additional indicators can be enabled here ----
+            fast_v = fast.Current
+            slow_v = slow.Current
+            rmi_v = rmi.Current
+            rsi_v = rsi.Current
+            dma_v = dma.Current
+            #stochastic_v = stochastic.Current
+            #macd_v = macd.Current
 
-                if previous_price == 0:
-                    price_change = 0.0
-                else:
-                    price_change = (latest_price - previous_price) / previous_price
+            position = context.Portfolio.positions.get(ticker, 0)
+            if any(v is None for v in 
+            #? add additional indicators here after enabling them above
+                   [
+                    position,
+                    fast_v,
+                    slow_v,
+                    rmi_v,
+                    rsi_v,
+                    dma_v,
+                    #stochastic_v, macd_v
+                    ]
+                   ):
+                self.logger.warning(
+                    f"Skipping {ticker} due to None indicator values: fast={fast_v}, slow={slow_v}, rmi={rmi_v}, rsi={rsi_v}"
+                )
+                continue
+#*---------------------------------------------------
+#* add indicator logic here in the appropriate section
+#*---------------------------------------------------
 
-                if price_change > 0:
-                    signal = "BUY"
-                elif price_change < 0:
-                    signal = "SELL"
-                else:
-                    signal = "HOLD"
+#? Moving Average strategy logic
+            sma_bullish = fast_v > slow_v
+            sma_bearish = fast_v < slow_v
+            dma_bullish = dma_v > slow_v
+            dma_bearish = dma_v < slow_v
 
-                self.last_decision_time[ticker] = trade_ts
+#? Momentum/Oscillator logic
+            rsi_oversold = 10 < rsi_v < 30
+            rsi_overbought = 90 > rsi_v > 70
+            rmi_oversold = 10 < rmi_v < 30
+            rmi_overbought = 90 > rmi_v > 70
+            #stochastic_oversold = stochastic_v < 20
+            #stochastic_overbought = stochastic_v > 80
+            #macd_bullish = macd_v > 0
+            #macd_bearish = macd_v < 0
+#*---------------------------------------------------
+            #* Combine signals for entries and exits
+            #* computes the and of both sets of indicator conditions
+#*---------------------------------------------------
+#? momentum/oscillator indicators
+            oversold = [
+                x for x in [
+                    rsi_oversold,
+                    rmi_oversold
+                    #stochastic_oversold, macd_bearish
+                    ]
+                if x
+            ]
+            overbought = [
+                x for x in [
+                    rsi_overbought,
+                    rmi_overbought
+                    #stochastic_overbought, macd_bullish
+                    ]
+                if x
+            ]
+#? Moving Average indicators
+            bullish = [
+                x for x in [
+                    sma_bullish,
+                    dma_bullish
+                    ]
+                if x
+            ]
+            bearish = [
+                x for x in [
+                    sma_bearish,
+                    dma_bearish
+                    ]
+                if x
+            ]
+            #?Entry logic
+            if position < 10:
+                if bullish or oversold:
+                    context.buy(ticker, confidence=1.0)
+                elif bullish:
+                    context.buy(ticker, confidence=0.5)
 
-                if signal in ["BUY", "SELL"]:
-                    ticker_pos_series = positions[positions['ticker'] == ticker]['quantity'] if not positions.empty else pd.Series(dtype=float)
-                    current_quantity = ticker_pos_series.iloc[0] if not ticker_pos_series.empty else 0.0
-
-                    trade_result = self.executor.execute_trade(
-                        portfolio_id=self.portfolio_id,
-                        ticker=ticker,
-                        signal_type=signal,
-                        confidence=1.0,
-                        arrival_price=latest_price,
-                        cash=current_cash_in_loop,
-                        positions=current_quantity,
-                        port_notional=port_notional.iloc[0]['notional'] if not port_notional.empty else 0.0,
-                        ticker_weight=self.portfolio_weights.get(ticker, 1.0 / len(self.tickers)),
-                        timestamp=trade_ts
-                    )
-
-                    if trade_result and trade_result.get('status') == 'success':
-                        current_cash_in_loop = trade_result['updated_cash']
-
-            except Exception as e:
-                self.logger.exception(f"[{ticker}] Error during trading decision: {e}")
+            #? Exit logic
+            elif position > 0:
+                if bearish or overbought:
+                    context.sell(ticker, confidence=1.0)
+                elif bearish:
+                    context.sell(ticker, confidence=0.5)

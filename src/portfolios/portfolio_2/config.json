@@ -1,13 +1,15 @@
 {
   "PORTFOLIO_ID": "2",
-  "TICKERS": ["AAPL", "TSLA", "AMZN"],
-  "INTERVAL": 600,
-  "LOOKBACK_DAYS": 1,
+  "TICKERS": ["AAPL", "TSLA", "AMZN", "MSFT", "NVDA"],
+  "INTERVAL": 23400,
+  "LOOKBACK_DAYS": 90,
   "EXCH": "NASDAQ",
   "WEIGHTS": {
-    "AAPL": 0.33,
-    "TSLA": 0.33,
-    "AMZN": 0.33
+    "AAPL": 0.20,
+    "TSLA": 0.20,
+    "AMZN": 0.20,
+    "MSFT": 0.20,
+    "NVDA": 0.20
   },
   "DATA_FEEDS": ["MARKET_DATA", "POSITIONS", "CASH_EQUITY", "PORT_NOTIONAL"]
 }

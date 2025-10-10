@@ -5,12 +5,14 @@ Handles large-scale intraday data backfilling from FMP.
 Uses caching (temporary CSV storage) to avoid RAM overflow.
 """
 
-import sys
 import os
 import time
 import pandas as pd
-from datetime import datetime, timedelta
-from ...orchestrator.marketData.fmpMarketData import FMPMarketData
+from typing import List
+from datetime import datetime
+from src.orchestrator.marketData.fmpMarketData import FMPMarketData
+import logging
+logger = logging.getLogger(__name__)
 
 # Batch size: number of days per API call (e.g., 2 means requesting 2 days at once)
 BATCH_DAYS = 3
@@ -66,12 +68,12 @@ def prepare_data(df_chunk, ticker):
 
 
 def backfill_data(
-    tickers,
+    tickers: List[str],
     start_date,
     end_date,
-    interval,
-    exchange=None,
-    output_filename="backfilled_data.csv",
+    interval: int,
+    exchange: str | None = None,
+    output_filename: str | None = "backfilled_data.csv",
 ):
     """
     Pulls intraday data from FMP for each ticker from start_date to end_date,
@@ -100,7 +102,7 @@ def backfill_data(
     # 3) Generate a list of business days (excludes weekends & holidays)
     all_dates = pd.bdate_range(start=start_date, end=end_date).date
     if len(all_dates) == 0:
-        print("[Backfill] No valid trading days in the specified range.")
+        logger.warning("[Backfill] No valid trading days in the specified range.")
         return pd.DataFrame() if output_filename is None else None
 
     # 4) Group business days into batches
@@ -121,12 +123,12 @@ def backfill_data(
 
     # 7) Loop over tickers and date batches
     for ticker in tickers:
-        print(f"[Backfill] Processing {ticker}...")
+        logger.info(f"[Backfill] Processing {ticker}...")
         for date_group in grouped_dates:
             from_date_str = date_group[0].strftime("%Y-%m-%d")
             to_date_str = date_group[-1].strftime("%Y-%m-%d")
 
-            print(f"  Fetching {ticker} from {from_date_str} to {to_date_str}...")
+            logger.info(f"[Backfill] Fetching {ticker} from {from_date_str} to {to_date_str}...")
             # Attempt up to 2 tries per batch
             attempt = 0
             success = False
@@ -157,26 +159,28 @@ def backfill_data(
                                     header=(not os.path.exists(output_path)),
                                 )
                         else:
-                            print(f"  [Backfill] No data returned for {ticker} "
+                            logger.warning(f"  [Backfill] No data returned for {ticker} "
                                   f"from {from_date_str} to {to_date_str}.")
                     success = True
 
                 except Exception as ex:
-                    print(f"[Backfill:ERROR] Attempt {attempt} error fetching {ticker} "
+                    logger.error(f"[Backfill:ERROR] Attempt {attempt} error fetching {ticker} "
                           f"from {from_date_str} to {to_date_str}: {ex}")
                     time.sleep(1)  # small wait before retry
 
     # 8) Print completion message
     if output_path:
-        print(f"[Backfill] Completed. Data saved to {output_path}")
+        logger.info(f"[Backfill] Completed. Data saved to {output_path}")
     else:
-        print(f"[Backfill] Completed. No CSV file generated (output_filename=None).")
+        logger.info("[Backfill] Completed. No CSV file generated (output_filename=None).")
 
     # 9) If output_filename=None, return the combined in-memory DataFrame
     if output_filename is None:
         if all_dfs:
+            logger.info("[Backfill] Returning DataFrame.\n")
             return pd.concat(all_dfs, ignore_index=True)
         else:
+            logger.info("[Backfill] No data fetched; returning empty DataFrame.\n")
             return pd.DataFrame()
 
     # Otherwise, no need to return anything

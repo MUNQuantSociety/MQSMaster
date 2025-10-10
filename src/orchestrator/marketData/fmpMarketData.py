@@ -1,8 +1,6 @@
 import threading
 import requests
 import time
-import pandas as pd
-from datetime import datetime
 from common.auth.apiAuth import APIAuth
 import logging
 
@@ -22,6 +20,8 @@ class FMPMarketData:
     def __init__(self):
         self.api_auth = APIAuth()
         self.fmp_api_key = self.api_auth.get_fmp_api_key()
+        if not isinstance(self.fmp_api_key, str) or not self.fmp_api_key:
+            raise ValueError("FMP API key is missing or invalid (empty). Ensure FMP_API_KEY is set in environment / .env")
         self.logger = logging.getLogger(self.__class__.__name__)
 
         # Rate Limiting Config
