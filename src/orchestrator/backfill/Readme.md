@@ -25,11 +25,17 @@ These are shared across (most) subcommands:
 
 * `--start DDMMYY` – Start date (inclusive)
 * `--end DDMMYY` – End date (inclusive)
+
 * `--tickers T1 T2 ...` – Explicit list (otherwise falls back to a `tickers.json` near the CLI if present)
+
 * `--exchange EXCH` – Exchange code (default: `NASDAQ`)
+
 * `--interval N` – Interval in minutes (default: `1`)
+
 * `--dry-run` – Fetch & parse but skip DB insertion (still logs counts)
+
 * `--output-filename FILE` – If supported by downstream fetch, writes combined CSV (current implementation: only honored by the underlying `backfill_data` path; concurrent mode may ignore)
+
 * `--log-level LEVEL` – One of `DEBUG|INFO|WARNING|ERROR` (default: `INFO`)
 * `--on-conflict MODE` – `fail` (raise / rely on unique constraint) or `ignore` (append `ON CONFLICT DO NOTHING`). Default: `fail`.
 
@@ -45,11 +51,6 @@ Command-Specific Arguments
 `inject-csv`:
 * `--csv-dir DIR` – Folder containing CSV dumps matching the loader’s expected schema.
 * `--threads INT` – Worker threads for parallel file ingestion (default: 5).
-
-Exit Codes
-----------
-* `0` – Successful run (even if some tickers returned no data).
-* Non‑zero – CLI argument errors or unrecoverable ingestion exceptions.
 
 Examples
 --------
@@ -154,6 +155,3 @@ FAQ
 
 **Q:** Can I backfill thousands of tickers at once?  
 **A:** Technically yes with `concurrent`, but watch API quotas and DB pool limits; consider batching logically.
-
-
-
