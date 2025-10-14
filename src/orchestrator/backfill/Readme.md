@@ -52,6 +52,11 @@ Command-Specific Arguments
 * `--csv-dir DIR` – Folder containing CSV dumps matching the loader’s expected schema.
 * `--threads INT` – Worker threads for parallel file ingestion (default: 5).
 
+Exit Codes
+----------
+* `0` – Successful run (even if some tickers returned no data).
+* Non‑zero – CLI argument errors or unrecoverable ingestion exceptions.
+
 Examples
 --------
 Backfill two tickers over January 2025 (1‑minute bars) without inserting (dry run):
@@ -155,3 +160,6 @@ FAQ
 
 **Q:** Can I backfill thousands of tickers at once?  
 **A:** Technically yes with `concurrent`, but watch API quotas and DB pool limits; consider batching logically.
+
+
+
