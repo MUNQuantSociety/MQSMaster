@@ -50,7 +50,7 @@ jobs:
           ls -la tests/
 
       - name: Collect-only (debug discovery)
-        run: pytest --collect-only -q tests/
+        run: pytest --collect-only -q tests
 
       - name: Test with pytest
         env:
