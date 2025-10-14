@@ -67,3 +67,4 @@ class RelativeMomentumIndex(Indicator):
             else:
                 rs = self._avg_gain / self._avg_loss
                 self._current_value = 100.0 - (100.0 / (1.0 + rs))
+            return self._current_value

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import os
 import sys
@@ -8,18 +6,15 @@ import logging
 from datetime import datetime
 from typing import List, Optional
 
+logger = logging.getLogger("backfill_cli")
+
 # Ensure repository root import path (adjust relative to this file)
 CURRENT_DIR = os.path.dirname(__file__)
 REPO_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "../../.."))
 if REPO_ROOT not in sys.path:
     sys.path.append(REPO_ROOT)
-
-# Lazy imports inside handlers to avoid loading everything on simple --help
-
 DATE_FMT = "%d%m%y"
 ALLOWED_INTERVALS = {1,5,15,30,60}
-
-logger = logging.getLogger("backfill_cli")
 
 def _parse_date(date_str: str):
     try:
@@ -30,26 +25,25 @@ def _parse_date(date_str: str):
 def _ensure_tickers(args) -> List[str]:
     if args.tickers:
         return [t.upper() for t in args.tickers]
-    # If user did not pass tickers, try reading tickers.json beside this module's parent
+    # If user did not pass tickers, try reading tickers.json
     fallback_path = os.path.join(CURRENT_DIR, "tickers.json")
     if os.path.exists(fallback_path):
         import json
         with open(fallback_path, 'r') as f:
             tickers = json.load(f)
-            cont = input ("No tickers specified. Continue with first 10 tickers? [y/n]: ")
+            cont = input ("No tickers specified. Continue with first 5 tickers? [y/n]: ")
             if cont.lower() != 'y':
                 raise SystemExit("Aborted by user.")
             logger.info("Loaded first 5 tickers from %s", fallback_path)
         return tickers[:5]
-    raise SystemExit(f"No tickers specified and tickers.json not found.{fallback_path}")
-
+    raise SystemExit(f"No tickers specified and tickers.json not found. {fallback_path}")
 
 def _validate_interval(interval: int):
     if interval not in ALLOWED_INTERVALS:
         raise SystemExit(f"Interval {interval} not in allowed set {sorted(ALLOWED_INTERVALS)}")
 
 # ---------------------- Subcommand Handlers ---------------------- #
-
+# Lazy imports inside handlers to avoid loading everything on simple --help
 def cmd_specific(args):
     _validate_interval(args.interval)
     tickers = _ensure_tickers(args)
@@ -107,30 +101,30 @@ def cmd_concurrent(args):
             start_date=args.start,
             end_date=args.end,
             interval=args.interval,
-            exchange=args.exchange,
+            exchange=args.exchange.lower(),
             dry_run=args.dry_run,
-            on_conflict=args.on_conflict,
+            on_conflict=args.on_conflict.lower(),
             threads=args.threads
         )
-    except TypeError:
-        logger.error("Error: concurrent_backfill failed.")
-        raise SystemExit(1)
+    except Exception as e:
+        logger.error("Error: concurrent_backfill failed: %s", e)
+        raise 
 
 
 def cmd_inject_csv(args):
-    from src.orchestrator.backfill.injectBackfill import load_csv_files_to_db, process_file
+    from src.orchestrator.backfill.injectBackfill import load_csv_files_to_db
     directory = args.csv_dir
-    db = db_connection()
+    threads = args.threads
+
     if not os.path.isdir(directory):
-        raise SystemExit(f"CSV directory does not exist: {directory}")
-    for f in os.listdir(directory):
-        if not os.path.isfile(os.path.join(directory, f)):
-            raise SystemExit(f"CSV directory contains non-file entry: {f}")
-        process = process_file(os.path.join(directory, f), db)
-        if not process:
-            logger.error("Error processing CSV file: %s", f)
-    else:
-        load_csv_files_to_db(directory_path=directory, max_workers=args.threads)
+        raise SystemExit(f"Directory not found: {directory}")
+    logger.info(f"Injecting CSV files from directory: {directory} using {threads} threads")
+
+    try:
+        load_csv_files_to_db(directory_path=directory, max_workers=threads)
+    except Exception as e:
+        logger.error("Error injecting CSV files: %s", e)
+        raise SystemExit(1)
 
 
 # ---------------------- Parser Construction ---------------------- #

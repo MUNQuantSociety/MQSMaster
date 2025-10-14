@@ -1,23 +1,18 @@
 """
 specific_backfill.py
 ---------------
-Backfills historical data for specified tickers and injects it directly into the database.
+Backfills historical data for specified tickers and injects it directly into the database, with gap filling measures.
 """
 
 import sys
-import os
 from datetime import datetime
 import logging
 from psycopg2.extras import execute_values
 from psycopg2.errors import UniqueViolation
-import json
 from src.common.database.MQSDBConnector import MQSDBConnector
 from src.orchestrator.backfill.backfill import backfill_data, BATCH_DAYS
 
-
 logger = logging.getLogger(__name__)
-# Ensure we can import backfill.py from the orchestrator dir
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
 
 def parse_date_arg(date_str):
