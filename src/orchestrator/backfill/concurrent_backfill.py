@@ -131,7 +131,7 @@ def concurrent_backfill(tickers, start_date, end_date, interval, exchange=None, 
         with ThreadPoolExecutor(max_workers=threads) as executor:
             # Pass the single db_connector instance to each worker
             futures = [
-                executor.submit(backfill_single_ticker, ticker, start_date, end_date, interval, exchange, db_connector)
+                executor.submit(backfill_single_ticker, ticker, start_date, end_date, interval, exchange, db_connector, dry_run, on_conflict)
                 for ticker in tickers
             ]
             for fut in futures:
