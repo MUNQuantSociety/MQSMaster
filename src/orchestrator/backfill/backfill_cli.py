@@ -1,38 +1,3 @@
-#!/usr/bin/env python3
-"""Backfill CLI
-=======================
-backfill_cli.py
-----------------------
-Command-line interface for various backfill operations, including:
-  - specific: backfill a continuous date range for given tickers
-  - concurrent: concurrent multi-ticker backfill
-  - inject-csv: load previously downloaded CSV dumps into the database
-[subcommands]
-    --start DDMMYY       Start date (e.g., 040325 for March 4, 2025)
-    --end DDMMYY         End date (e.g., 040325 for March 4, 2025)
-    --tickers TICKER...  Optional list of tickers (default: read tickers.json)
-    --exchange EXCHANGE  Stock exchange code (default: NASDAQ)
-    --interval INT       Bar interval in minutes (1,5,15,30,60; default: 1)
-    --dry-run            Fetch and parse data but do not insert into DB
-    --output-filename FILE  Output CSV filename (default: None)
-[specific only]
-    --on-conflict MODE   Conflict handling: 'ignore' or 'fail' (default: fail)
-[concurrent only]
-    --threads INT        Max worker threads (default: 6)
-[inject-csv only]
-    --csv-dir DIR        Directory containing CSV dumps to load
-
-Usage examples:
-- Backfill specific date range for tickers in tickers.json:
-      python backfill_cli.py specific --start 010123 --end 010224 --interval 1 --on-conflict ignore --dry-run --output-filename backfill_output.csv --log-level DEBUG --exchange nasdaq
-
-- Concurrent backfill for multiple tickers:
-      python backfill_cli.py concurrent --start 010123 --end 010224 --interval 5 --on-conflict ignore --dry-run --output-filename backfill_output.csv --log-level DEBUG --exchange nasdaq
-
-- Inject CSV dumps into the database:
-      python backfill_cli.py inject-csv --csv-dir ./csv_dumps --dry-run --output-filename backfill_output.csv --log-level DEBUG --exchange nasdaq
-
-"""
 from __future__ import annotations
 
 import argparse
@@ -71,7 +36,11 @@ def _ensure_tickers(args) -> List[str]:
         import json
         with open(fallback_path, 'r') as f:
             tickers = json.load(f)
-        return tickers
+            cont = input ("No tickers specified. Continue with first 10 tickers? [y/n]: ")
+            if cont.lower() != 'y':
+                raise SystemExit("Aborted by user.")
+            logger.info("Loaded first 5 tickers from %s", fallback_path)
+        return tickers[:5]
     raise SystemExit(f"No tickers specified and tickers.json not found.{fallback_path}")
 
 
@@ -117,7 +86,7 @@ def cmd_specific(args):
             stats_total["tickers"]  += 1
 
             elapsed = time.time() - t_start
-            logger.info(f"[{ticker}] Inserted in {elapsed:0.2f}s (ins={per['inserted']} skip={per.get('skipped',0)})")
+            logger.info(f"[{ticker}] Inserted in {elapsed:0.2f}s")
             print('-----------------------------\n')
     finally:
         total_elapsed = datetime.now() - wall_start
@@ -149,14 +118,17 @@ def cmd_concurrent(args):
 
 
 def cmd_inject_csv(args):
-    from src.orchestrator.backfill.injectBackfill import load_csv_files_to_db, process_csv_files_to_db
+    from src.orchestrator.backfill.injectBackfill import load_csv_files_to_db, process_file
     directory = args.csv_dir
     db = db_connection()
     if not os.path.isdir(directory):
         raise SystemExit(f"CSV directory does not exist: {directory}")
-    process = process_csv_files_to_db(directory_path=directory, db_connection=db)
-    if not process:
-        logger.error("Error processing CSV files.")
+    for f in os.listdir(directory):
+        if not os.path.isfile(os.path.join(directory, f)):
+            raise SystemExit(f"CSV directory contains non-file entry: {f}")
+        process = process_file(os.path.join(directory, f), db)
+        if not process:
+            logger.error("Error processing CSV file: %s", f)
     else:
         load_csv_files_to_db(directory_path=directory, max_workers=args.threads)
 
