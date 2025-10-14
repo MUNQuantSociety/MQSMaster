@@ -44,10 +44,10 @@ jobs:
 
       - name: Verify tests folder
         run: |
-          ls -la
-          if [ ! -d tests ]; then
+          ls -la tests/
+          if [ ! -d tests/ ]; then
             echo "::error::No 'tests' directory found on this branch."; exit 1; fi
-          ls -la tests
+          ls -la tests/
 
       - name: Collect-only (debug discovery)
         run: pytest --collect-only -q tests
