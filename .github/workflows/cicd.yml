@@ -2,9 +2,9 @@ name: Python CI/CD Pipeline
 
 on:
   push:
-    branches: [ "nas_refactor" ]
+    branches: [ "fallRefactor" ]
   pull_request:
-    branches: [ "nas_refactor" ]
+    branches: [ "fallRefactor" ]
 
 jobs:
   build-and-test:
