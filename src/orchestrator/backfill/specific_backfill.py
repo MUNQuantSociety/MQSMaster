@@ -9,15 +9,8 @@ from datetime import datetime
 import logging
 from psycopg2.extras import execute_values
 from psycopg2.errors import UniqueViolation
-<<<<<<< HEAD
 from src.common.database.MQSDBConnector import MQSDBConnector
 from src.orchestrator.backfill.backfill import backfill_data, BATCH_DAYS
-=======
-import json
-from src.common.database.MQSDBConnector import MQSDBConnector
-from src.orchestrator.backfill.backfill import backfill_data, BATCH_DAYS
-
->>>>>>> ed1248cd1835eb9fea69d06dfec89ba463cc5c53
 
 logger = logging.getLogger(__name__)
 
