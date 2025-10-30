@@ -1,40 +1,3 @@
-#!/usr/bin/env python3
-"""Backfill CLI
-=======================
-backfill_cli.py
-----------------------
-Command-line interface for various backfill operations, including:
-  - specific: backfill a continuous date range for given tickers
-  - concurrent: concurrent multi-ticker backfill
-  - inject-csv: load previously downloaded CSV dumps into the database
-[subcommands]
-    --start DDMMYY       Start date (e.g., 040325 for March 4, 2025)
-    --end DDMMYY         End date (e.g., 040325 for March 4, 2025)
-    --tickers TICKER...  Optional list of tickers (default: read tickers.json)
-    --exchange EXCHANGE  Stock exchange code (default: NASDAQ)
-    --interval INT       Bar interval in minutes (1,5,15,30,60; default: 1)
-    --dry-run            Fetch and parse data but do not insert into DB
-    --output-filename FILE  Output CSV filename (default: None)
-[specific only]
-    --on-conflict MODE   Conflict handling: 'ignore' or 'fail' (default: fail)
-[concurrent only]
-    --threads INT        Max worker threads (default: 6)
-[inject-csv only]
-    --csv-dir DIR        Directory containing CSV dumps to load
-
-Usage examples:
-- Backfill specific date range for tickers in tickers.json:
-      python backfill_cli.py specific --start 010123 --end 010224 --interval 1 --on-conflict ignore --dry-run --output-filename backfill_output.csv --log-level DEBUG --exchange nasdaq
-
-- Concurrent backfill for multiple tickers:
-      python backfill_cli.py concurrent --start 010123 --end 010224 --interval 5 --on-conflict ignore --dry-run --output-filename backfill_output.csv --log-level DEBUG --exchange nasdaq
-
-- Inject CSV dumps into the database:
-      python backfill_cli.py inject-csv --csv-dir ./csv_dumps --dry-run --output-filename backfill_output.csv --log-level DEBUG --exchange nasdaq
-
-"""
-from __future__ import annotations
-
 import argparse
 import os
 import sys
@@ -43,18 +6,15 @@ import logging
 from datetime import datetime
 from typing import List, Optional
 
+logger = logging.getLogger("backfill_cli")
+
 # Ensure repository root import path (adjust relative to this file)
 CURRENT_DIR = os.path.dirname(__file__)
 REPO_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "../../.."))
 if REPO_ROOT not in sys.path:
     sys.path.append(REPO_ROOT)
-
-# Lazy imports inside handlers to avoid loading everything on simple --help
-
 DATE_FMT = "%d%m%y"
 ALLOWED_INTERVALS = {1,5,15,30,60}
-
-logger = logging.getLogger("backfill_cli")
 
 def _parse_date(date_str: str):
     try:
@@ -65,22 +25,25 @@ def _parse_date(date_str: str):
 def _ensure_tickers(args) -> List[str]:
     if args.tickers:
         return [t.upper() for t in args.tickers]
-    # If user did not pass tickers, try reading tickers.json beside this module's parent
+    # If user did not pass tickers, try reading tickers.json
     fallback_path = os.path.join(CURRENT_DIR, "tickers.json")
     if os.path.exists(fallback_path):
         import json
         with open(fallback_path, 'r') as f:
             tickers = json.load(f)
-        return tickers
-    raise SystemExit(f"No tickers specified and tickers.json not found.{fallback_path}")
-
+            cont = input ("No tickers specified. Continue with first 5 tickers? [y/n]: ")
+            if cont.lower() != 'y':
+                raise SystemExit("Aborted by user.")
+            logger.info("Loaded first 5 tickers from %s", fallback_path)
+        return tickers[:5]
+    raise SystemExit(f"No tickers specified and tickers.json not found. {fallback_path}")
 
 def _validate_interval(interval: int):
     if interval not in ALLOWED_INTERVALS:
         raise SystemExit(f"Interval {interval} not in allowed set {sorted(ALLOWED_INTERVALS)}")
 
 # ---------------------- Subcommand Handlers ---------------------- #
-
+# Lazy imports inside handlers to avoid loading everything on simple --help
 def cmd_specific(args):
     _validate_interval(args.interval)
     tickers = _ensure_tickers(args)
@@ -117,7 +80,7 @@ def cmd_specific(args):
             stats_total["tickers"]  += 1
 
             elapsed = time.time() - t_start
-            logger.info(f"[{ticker}] Inserted in {elapsed:0.2f}s (ins={per['inserted']} skip={per.get('skipped',0)})")
+            logger.info(f"[{ticker}] Inserted in {elapsed:0.2f}s")
             print('-----------------------------\n')
     finally:
         total_elapsed = datetime.now() - wall_start
@@ -138,27 +101,30 @@ def cmd_concurrent(args):
             start_date=args.start,
             end_date=args.end,
             interval=args.interval,
-            exchange=args.exchange,
+            exchange=args.exchange.lower(),
             dry_run=args.dry_run,
-            on_conflict=args.on_conflict,
+            on_conflict=args.on_conflict.lower(),
             threads=args.threads
         )
-    except TypeError:
-        logger.error("Error: concurrent_backfill failed.")
-        raise SystemExit(1)
+    except Exception as e:
+        logger.error("Error: concurrent_backfill failed: %s", e)
+        raise 
 
 
 def cmd_inject_csv(args):
-    from src.orchestrator.backfill.injectBackfill import load_csv_files_to_db, process_csv_files_to_db
+    from src.orchestrator.backfill.injectBackfill import load_csv_files_to_db
     directory = args.csv_dir
-    db = db_connection()
+    threads = args.threads
+
     if not os.path.isdir(directory):
-        raise SystemExit(f"CSV directory does not exist: {directory}")
-    process = process_csv_files_to_db(directory_path=directory, db_connection=db)
-    if not process:
-        logger.error("Error processing CSV files.")
-    else:
-        load_csv_files_to_db(directory_path=directory, max_workers=args.threads)
+        raise SystemExit(f"Directory not found: {directory}")
+    logger.info(f"Injecting CSV files from directory: {directory} using {threads} threads")
+
+    try:
+        load_csv_files_to_db(directory_path=directory, max_workers=threads)
+    except Exception as e:
+        logger.error("Error injecting CSV files: %s", e)
+        raise SystemExit(1)
 
 
 # ---------------------- Parser Construction ---------------------- #

@@ -1,22 +1,19 @@
 """
 specific_backfill.py
 ---------------
-Backfills historical data for specified tickers and injects it directly into the database.
+Backfills historical data for specified tickers and injects it directly into the database, with gap filling measures.
 """
 
 import sys
-import os
 from datetime import datetime
 import logging
 from psycopg2.extras import execute_values
-import json
+from psycopg2.errors import UniqueViolation
+from src.common.database.MQSDBConnector import MQSDBConnector
+from src.orchestrator.backfill.backfill import backfill_data, BATCH_DAYS
 
 logger = logging.getLogger(__name__)
-# Ensure we can import backfill.py from the orchestrator dir
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
-from src.common.database.MQSDBConnector import MQSDBConnector
-from src.orchestrator.backfill.backfill import backfill_data
 
 def parse_date_arg(date_str):
     """Parses date string in DDMMYY format and returns a datetime.date object."""
@@ -27,10 +24,15 @@ def parse_date_arg(date_str):
         sys.exit(1)
 
 def backfill_db(tickers, start_date, end_date, interval, exchange, dry_run, on_conflict='fail', output=None):
-    stats = {ticker: {"inserted": 0, "skipped": 0, "total": 0} for ticker in tickers}
+    per_ticker = {ticker: {"prepared": 0, "inserted": 0, "skipped": 0, "total": 0} for ticker in tickers}
+    agg_prepared = 0
+    agg_inserted = 0
+    agg_skipped = 0
+
     db = MQSDBConnector()
 
     for ticker in tickers:
+        conn = None
         try:
             insert_data = []
             df = backfill_data(
@@ -39,16 +41,15 @@ def backfill_db(tickers, start_date, end_date, interval, exchange, dry_run, on_c
                 end_date=end_date,
                 interval=interval,
                 exchange=exchange,
-                output_filename=output  # Pass output filename if needed
+                output_filename=output
             )
 
             if df is None or df.empty:
-                print(f"[{ticker}] No data returned from backfill.")
+                logger.info("[%s] No data returned from backfill.", ticker)
                 continue
-            
-            stats[ticker]["total"] = len(df)
-            conn = db.get_connection()
 
+            per_ticker[ticker]["total"] = len(df)
+            conn = db.get_connection()
             if conn is None:
                 logger.error("No DB connection available for %s", ticker)
                 continue
@@ -66,13 +67,12 @@ def backfill_db(tickers, start_date, end_date, interval, exchange, dry_run, on_c
                         float(row['close']),
                         int(float(row['volume'])),
                     ))
-                    stats[ticker]["inserted"] += 1
-                    
+                    per_ticker[ticker]["prepared"] += 1
                 except Exception as e:
-                    stats[ticker]["skipped"] += 1
-                    print(f"[{ticker}] Skipping row due to parsing error: {e}")
-                    continue
+                    per_ticker[ticker]["skipped"] += 1
+                    logger.warning("[%s] Skipping row due to parsing error: %s", ticker, e)
 
+            # Build insert SQL
             insert_sql = """
                 INSERT INTO market_data (
                     ticker, timestamp, date, exchange,
@@ -83,26 +83,45 @@ def backfill_db(tickers, start_date, end_date, interval, exchange, dry_run, on_c
             if on_conflict == "ignore":
                 insert_sql += " ON CONFLICT (ticker, timestamp) DO NOTHING"
 
-            if insert_data and not dry_run:
-                with conn.cursor() as cursor:
-                    execute_values(cursor, insert_sql, insert_data)
-                conn.commit()
-                logger.info(f"[{ticker}] Rows inserted: {len(insert_data)}, Rows skipped: {stats[ticker]['skipped']}, Total rows: {stats[ticker]['total']}")
-                fill_gaps_for_ticker(db, ticker, start_date, end_date, interval=interval, exchange=exchange, dry_run=dry_run, on_conflict=on_conflict)
-                print("✅ Specific backfill completed and data inserted into the database.")
+            prepared = len(insert_data)
+            if prepared and not dry_run:
+                try:
+                    with conn.cursor() as cursor:
+                        execute_values(cursor, insert_sql, insert_data)
+                    conn.commit()
+                    # We approximate inserted as prepared here; conflict-ignored rows are not counted separately.
+                    per_ticker[ticker]["inserted"] = prepared
+                    logger.info("[%s] prepared=%d inserted=%d skipped=%d total=%d",
+                                ticker, prepared, per_ticker[ticker]["inserted"], per_ticker[ticker]["skipped"], per_ticker[ticker]["total"])
+                    # fill gaps in the database for any missing or skipped dates
+                    fill_gaps_for_ticker(db, ticker, start_date, end_date, interval, exchange, dry_run, on_conflict)
+                except UniqueViolation as uv:
+                    # Clean handling for duplicate key errors when on_conflict='fail'
+                    conn.rollback()
+                    logger.error("[%s] Duplicate key violation (likely existing rows). Consider --on-conflict ignore.\n\n[WARNING]: %s", ticker, uv)
             elif dry_run:
-                fill_gaps_for_ticker(db, ticker, start_date, end_date, interval=interval, exchange=exchange, dry_run=dry_run, on_conflict=on_conflict)
-                logger.info(f"\n\t[{ticker}:DRY_RUN]\n\tRows inserted: {len(insert_data)}\n\tRows skipped:  {stats[ticker]['skipped']}\n\tTotal rows:    {stats[ticker]['total']}\n")
+                logger.info("[%s:DRY_RUN] prepared=%d skipped=%d total=%d",
+                            ticker, prepared, per_ticker[ticker]["skipped"], per_ticker[ticker]["total"])
             else:
-                print(f"[{ticker}] No valid rows to insert.")
+                logger.info("[%s] No valid rows to insert.", ticker)
         except Exception as e:
-            print(f"[{ticker}] Error during backfill or insert: {e}")
+            logger.exception("[%s] Error during backfill or insert: %s", ticker, e)
         finally:
-            if 'conn' in locals():
+            if conn:
                 db.release_connection(conn)
-    return {"prepared": len(insert_data), "inserted": len(insert_data) - stats[ticker]["skipped"], "skipped": stats[ticker]["skipped"]}
 
-from src.orchestrator.backfill.backfill import BATCH_DAYS
+        # Aggregate totals after each ticker
+        agg_prepared += per_ticker[ticker]["prepared"]
+        agg_inserted += per_ticker[ticker]["inserted"]
+        agg_skipped  += per_ticker[ticker]["skipped"]
+
+    return {
+        "prepared": agg_prepared,
+        "inserted": agg_inserted,
+        "skipped": agg_skipped,
+        "per_ticker": per_ticker,
+    }
+
 def get_existing_dates(db, ticker, start_date, end_date):
     sql = """
       SELECT DISTINCT date
@@ -198,8 +217,8 @@ def fill_gaps_for_ticker(db, ticker, start_date, end_date, interval=1, exchange=
                 sql += " ON CONFLICT (ticker, timestamp) DO NOTHING"
 
             if dry_run:
-                logger.info(f"[{ticker}:DRY_RUN] Rows inserted: {len(insert_tuples)}")
-                continue
+                logger.info(f"[{ticker}:DRY_RUN] Rows prepared: {len(insert_tuples)}")
+
             else:
                 logger.info(f"[{ticker}] Inserting {len(insert_tuples)} rows…")
                 from psycopg2.extras import execute_values
@@ -209,57 +228,4 @@ def fill_gaps_for_ticker(db, ticker, start_date, end_date, interval=1, exchange=
                 print(f"    → inserted {len(insert_tuples)} rows")
         finally:
             db.release_connection(conn)
-
-
-if __name__ == "__main__":
-    # 1. Load tickers from tickers.json
-    script_dir = os.path.dirname(__file__)
-    ticker_file_path = os.path.join(script_dir, 'tickers.json')
-
-    try:
-        with open(ticker_file_path, 'r') as f:
-            MY_TICKERS = json.load(f)
-    except FileNotFoundError:
-        print(f"Error: Ticker file not found at {ticker_file_path}. Please create it.")
-        sys.exit(1)
-    except json.JSONDecodeError:
-        print(f"Error: Invalid JSON in {ticker_file_path}. Please check the file format.")
-        sys.exit(1)
-
-    # 2. Parse command-line arguments
-    start_date_arg = None
-    end_date_arg = None
-
-    for arg in sys.argv[1:]:
-        if arg.startswith("startdate="):
-            start_date_arg = arg.split("=")[1]
-        elif arg.startswith("enddate="):
-            end_date_arg = arg.split("=")[1]
-
-    # Validate date arguments
-    if not start_date_arg or not end_date_arg:
-        print("❌ Missing required arguments: startdate and enddate.")
-        print("Usage: python3 specific_backfill.py startdate=040325 enddate=300325")
-        sys.exit(1)
-
-    # Parse and convert date strings
-    start_date = parse_date_arg(start_date_arg)
-    end_date = parse_date_arg(end_date_arg)
-
-    # 3. Perform backfill and inject into DB
-    result_summary = backfill_db(
-        tickers=MY_TICKERS,
-        start_date=start_date,
-        end_date=end_date,
-        interval=1,
-        exchange="NASDAQ",
-        dry_run=False  # Set to True to skip actual DB insertion for testing
-    )
-
-    # Print summary of results
-    print("\nBackfill summary:")
-    print("----------------")
-    print(f"Prepared: {result_summary['prepared']}")
-    print(f"Inserted: {result_summary['inserted']}")
-    print(f"Skipped:  {result_summary['skipped']}")
-    print("✅ Specific backfill completed and data inserted into the database.")
+    logger.info(f"[{ticker}] gap fill complete.")
