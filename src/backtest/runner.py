@@ -84,7 +84,7 @@ class BacktestRunner:
         
         lookback_days = getattr(self.portfolio, "lookback_days", None)
         if lookback_days:
-            adjusted_start = self.end_date - pd.Timedelta(days = lookback_days)
+            adjusted_start = self.start_date  - pd.Timedelta(days = lookback_days)
             if self.start_date < adjusted_start:
                 self.start_date = adjusted_start
                 self.logger.info(f"Adjusted Start Date to {self.start_date} based on lookback_days={lookback_days}")

@@ -11,7 +11,9 @@
 
 import logging
 from common.database.MQSDBConnector import MQSDBConnector
-from portfolios.portfolio_dummy.strategy import CrossoverRmiStrategy
+from portfolios.portfolio_2.strategy import MomentumStrategy
+from portfolios.portfolio_1.strategy import VolMomentum
+from portfolios.portfolio_3.strategy import RegimeAdaptiveStrategy
 from backtest.backtest_engine import BacktestEngine
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -26,9 +28,9 @@ def main():
         backtest_engine = BacktestEngine(db_connector=dbconn, backtest_executor=None)
 
         backtest_engine.setup(
-            portfolio_classes=[CrossoverRmiStrategy],
-            start_date="2024-01-01",
-            end_date="2024-06-01",
+            portfolio_classes=[RegimeAdaptiveStrategy],
+            start_date="2025-01-01",
+            end_date="2025-06-01",
             initial_capital=1000000.0,
             slippage=0.000001 # 0.1 basis point
         )
