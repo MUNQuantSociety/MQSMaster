@@ -8,10 +8,6 @@ from typing import Dict, Optional
 # Imports from your project structure
 from src.portfolios.portfolio_BASE.strategy import BasePortfolio
 from src.portfolios.strategy_api import StrategyContext
-# in src/portfolios/indicators/__init__.py
-from portfolios.indicators.vwap import VWAP
-from portfolios.indicators.average_true_range import AverageTrueRange
-from portfolios.indicators.rate_of_change import RateOfChange
 
 class RegimeAdaptiveStrategy(BasePortfolio):
     """
@@ -24,7 +20,6 @@ class RegimeAdaptiveStrategy(BasePortfolio):
     def __init__(self, db_connector, executor, debug=False, config_dict=None, backtest_start_date=None):
         
         # --- Base Class Initialization ---
-        # If config_dict is not passed, load it from the default JSON
         if config_dict is None:
             config_path = os.path.join(os.path.dirname(__file__), "config.json")
             if not os.path.exists(config_path):
@@ -40,24 +35,18 @@ class RegimeAdaptiveStrategy(BasePortfolio):
         self.last_decision_time = {} # Cooldown timer per ticker
         self.trade_history = {}      # History for confidence decay
         
-        # Market open high-volatility window
         self.market_open_start = timedelta(hours=9, minutes=30)
         self.market_open_end = timedelta(hours=10, minutes=0)
 
         #*---------------------------------------------------
         #* 1. DEFINE YOUR INDICATORS HERE
         #*---------------------------------------------------
-        # These indicators match the calculations from your original helper methods
         indicator_definitions = { 
-            # For fade_signal: vwap + atr
             "vwap": ("VWAP", {"period": 20}),
             "atr": ("AverageTrueRange", {"period": 14}),
-
-            # For momentum_signal: 5-period % change
             "momentum_pct": ("RateOfChange", {"period": 5}) 
         }
 
-        # This line registers all your defined indicators
         self.RegisterIndicatorSet(indicator_definitions)
         
         self.logger.info("RegimeAdaptiveStrategy initialized for OnData framework.")
@@ -80,10 +69,21 @@ class RegimeAdaptiveStrategy(BasePortfolio):
             self.logger.error(f"Error accessing context properties: {e}")
             return
 
+        # --- 2. Determine Volatility Regime from VIX ---
+        try:
+            vix_asset = context.Market['^VIX']
+            
+            if not vix_asset.Exists or vix_asset.Close is None:
+                self.logger.warning(f"No VIX data found at {trade_ts}. Skipping cycle.")
+                return
+            vix_value = vix_asset.Close 
+        except Exception as e:
+            self.logger.error(f"Error getting VIX data: {e}")
+            return
+            
         # --- 3. Loop Through Tickers and Apply Logic ---
         for ticker in self.tickers:
             
-            # We don't trade VIX, we just use it for data
             if ticker == '^VIX':
                 continue
 
@@ -103,7 +103,6 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                 # --- 3c. Check if all data is ready ---
                 indicators_to_check = [vwap_ind, atr_ind, momentum_ind]
                 if not all(ind.IsReady for ind in indicators_to_check):
-                    # self.logger.debug(f"Indicators not ready for {ticker} at {trade_ts}")
                     continue
                 
                 if not asset_data.Exists:
@@ -117,7 +116,6 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                 latest_price = asset_data.Close
                 quantity = positions_dict.get(ticker, 0.0)
 
-                # Validate all data exists before proceeding
                 all_values = [vwap_v, atr_v, momentum_v, latest_price, quantity]
                 if any(v is None for v in all_values):
                     self.logger.warning(f"Skipping {ticker} due to None values.")
@@ -165,7 +163,6 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                 # --- 3e. Execute Trade (if signal) ---
                 if signal != "HOLD":
                     
-                    # Use self.executor directly to get the trade_result
                     trade_result = self.executor.execute_trade(
                         portfolio_id=self.portfolio_id,
                         ticker=ticker,
@@ -185,7 +182,6 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                     success = False
                     if trade_result and trade_result.get('status') == 'success':
                         success = True
-                        # Update cash for the *next* ticker in this loop
                         current_cash = trade_result['updated_cash'] 
                     
                     if ticker not in self.trade_history:
@@ -193,12 +189,10 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                     
                     self.trade_history[ticker].append(success)
                     
-                    # Keep only the last 10 results
                     if len(self.trade_history[ticker]) > 10:
                         self.trade_history[ticker] = self.trade_history[ticker][-10:]
                     #*---------------------------------------------------
 
-                    # Update the cooldown timer
                     self.last_decision_time[ticker] = trade_ts
 
             except Exception as e:
