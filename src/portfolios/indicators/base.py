@@ -24,9 +24,9 @@ class Indicator(ABC):
         return self._current_value
 
     @abstractmethod
-    def Update(self, timestamp: datetime, data_point: float):
+    def Update(self, timestamp: datetime, data_row):
         """
-        Updates the indicator with a new data point.
+        Updates the indicator with a new data row (dict or pd.Series).
         """
         raise NotImplementedError("Each indicator must implement the 'Update' method.")
 

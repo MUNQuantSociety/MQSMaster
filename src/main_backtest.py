@@ -11,6 +11,8 @@
 
 import logging
 from common.database.MQSDBConnector import MQSDBConnector
+from portfolios.portfolio_2.strategy import MomentumStrategy
+from portfolios.portfolio_1.strategy import VolMomentum
 from portfolios.portfolio_3.strategy import RegimeAdaptiveStrategy
 from backtest.backtest_engine import BacktestEngine
 

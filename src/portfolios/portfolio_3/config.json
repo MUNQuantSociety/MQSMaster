@@ -1,7 +1,12 @@
 {
   "PORTFOLIO_ID": "3",
+<<<<<<< HEAD
   "TICKERS": ["AAPL", "TSLA", "AMZN", "MSFT", "NVDA"],
   "INTERVAL": 1,
+=======
+  "TICKERS": ["AAPL", "TSLA", "AMZN", "MSFT", "NVDA","^VIX"],
+  "INTERVAL": 600,
+>>>>>>> fallRefactor
   "LOOKBACK_DAYS": 90,
   "EXCH": "NASDAQ",
   "WEIGHTS": {
