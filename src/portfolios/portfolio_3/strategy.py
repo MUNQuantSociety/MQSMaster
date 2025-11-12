@@ -163,19 +163,7 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                 # --- 3e. Execute Trade (if signal) ---
                 if signal != "HOLD":
                     
-                    trade_result = self.executor.execute_trade(
-                        portfolio_id=self.portfolio_id,
-                        ticker=ticker,
-                        signal_type=signal,
-                        confidence=confidence,
-                        arrival_price=latest_price,
-                        cash=current_cash,
-                        positions=quantity,
-                        port_notional=port_notional,
-                        ticker_weight=self.portfolio_weights.get(ticker, 0.0),
-                        timestamp=trade_ts
-                    )
-
+                    trade_result = context.trade(self.ticker, signal, confidence )
                     #*---------------------------------------------------
                     #* INLINED: update_trade_history()
                     #*---------------------------------------------------

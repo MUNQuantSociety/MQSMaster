@@ -29,10 +29,10 @@ def main():
 
         backtest_engine.setup(
             portfolio_classes=[RegimeAdaptiveStrategy],
-            start_date="2025-01-01",
-            end_date="2025-06-01",
+            start_date="2024-11-01",
+            end_date="2025-10-01",
             initial_capital=1000000.0,
-            slippage=0.000001 # 0.1 basis point
+            slippage=0 # 0.1 basis point
         )
         
         backtest_engine.run()
