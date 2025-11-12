@@ -1,8 +1,8 @@
 {
   "PORTFOLIO_ID": "2",
-  "TICKERS": ["AAPL", "TSLA", "AMZN", "MSFT", "NVDA"],
+  "TICKERS": ["AAPL", "TSLA", "AMD", "MSFT", "NVDA"],
   "INTERVAL": 23400,
-  "LOOKBACK_DAYS": 90,
+  "LOOKBACK_DAYS": 9,
   "EXCH": "NASDAQ",
   "WEIGHTS": {
     "AAPL": 0.20,
