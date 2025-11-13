@@ -39,3 +39,4 @@ class TrendRotateStrategy(BasePortfolio):
         risk_on = 
         risk_off = 
 
+#hello testing world
