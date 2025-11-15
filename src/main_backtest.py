@@ -13,6 +13,7 @@ import logging
 from common.database.MQSDBConnector import MQSDBConnector
 from portfolios.portfolio_2.strategy import MomentumStrategy
 from portfolios.portfolio_1.strategy import VolMomentum
+from portfolios.portfolio_4.strategy import TrendRotateStrategy
 from portfolios.portfolio_3.strategy import RegimeAdaptiveStrategy
 from backtest.backtest_engine import BacktestEngine
 
@@ -28,7 +29,7 @@ def main():
         backtest_engine = BacktestEngine(db_connector=dbconn, backtest_executor=None)
 
         backtest_engine.setup(
-            portfolio_classes=[RegimeAdaptiveStrategy],
+            portfolio_classes=[TrendRotateStrategy],
             start_date="2024-11-01",
             end_date="2025-10-01",
             initial_capital=1000000.0,
