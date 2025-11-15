@@ -12,6 +12,7 @@ class TrendRotateStrategy(BasePortfolio):
         super().__init__(db_connector, executor, debug, config_dict, backtest_start_date)
         self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
         self.config_dict = config_dict or {}
+        self.portfolio_weights = {}
 
         # strategy parameters
         self.fast_period = self.config_dict.get("fast_trend_period", 20)
@@ -114,5 +115,7 @@ class TrendRotateStrategy(BasePortfolio):
                 if qty > 0:
                     context.sell(ticker, confidence=1.0)
                     simulated_weights[ticker] = 0.0
+                    
+        self.portfolio_weights = simulated_weights.copy()
 
 #hello testing world
