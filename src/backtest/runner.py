@@ -1,17 +1,18 @@
-# Backtest/runner.py
-
 import pandas as pd
 import numpy as np
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Union
 from tqdm.auto import tqdm
+from zoneinfo import ZoneInfo  # <-- ADDED for timezone fix
 
 from .reporting import generate_backtest_report
 from .utils import fetch_historical_data
 from .executor import BacktestExecutor
 from portfolios.portfolio_BASE.strategy import BasePortfolio
 
+# Define the exchange timezone
+NY_TZ = ZoneInfo("America/New_York")
 
 class BacktestRunner:
     """
@@ -30,8 +31,15 @@ class BacktestRunner:
         self.portfolio = portfolio
         self.logger = portfolio.logger
         self.total_start_capital = initial_capital
+        
+        # FIX 3: Use new timezone-aware method
         self.start_date = self._ensure_datetime(start_date)
         self.end_date = self._ensure_datetime(end_date, default_is_yesterday=True)
+        
+        # --- FIX 1: Save the *actual* backtest start date ---
+        self.backtest_loop_start_date = self.start_date
+        # --- END FIX 1 ---
+
         self.slippage = slippage
 
         lookback_days = getattr(self.portfolio, 'lookback_days', 365)
@@ -50,37 +58,53 @@ class BacktestRunner:
 
 
     def _ensure_datetime(self, dt_val, default_is_yesterday=False) -> Optional[datetime]:
-        """Converts input to a timezone-naive datetime object at midnight."""
+        """
+        FIX 3: Converts input to a timezone-AWARE datetime object at midnight
+        in 'America/New_York'.
+        """
         if dt_val is None:
             if default_is_yesterday:
                 try:
-                    today = datetime.now().date()
-                    yesterday = today - timedelta(days=1)
-                    return datetime(yesterday.year, yesterday.month, yesterday.day)
+                    ny_now = datetime.now(NY_TZ)
+                    yesterday = (ny_now - timedelta(days=1)).date()
+                    return datetime(yesterday.year, yesterday.month, yesterday.day, tzinfo=NY_TZ)
                 except Exception as e:
                      self.logger.error(f"Error getting yesterday's date: {e}")
                      return None
             return None
-        if isinstance(dt_val, datetime):
-            return datetime(dt_val.year, dt_val.month, dt_val.day)
-        if hasattr(dt_val, 'year') and not isinstance(dt_val, datetime):
-            return datetime(dt_val.year, dt_val.month, dt_val.day)
+        
         try:
             pd_dt = pd.to_datetime(dt_val, errors='coerce')
             if pd.isna(pd_dt):
                 self.logger.warning(f"Could not parse '{dt_val}' as a datetime.")
                 return None
-            return datetime(pd_dt.year, pd_dt.month, pd_dt.day)
+            
+            # Create naive datetime at midnight, then localize to NY
+            naive_dt = datetime(pd_dt.year, pd_dt.month, pd_dt.day)
+            # Use replace() to correctly handle DST changes
+            return naive_dt.replace(tzinfo=NY_TZ) 
         except Exception as e:
             self.logger.error(f"Failed to convert '{dt_val}' to datetime: {e}")
             return None
 
 
     def _prepare_data(self) -> bool:
-        """Fetches, cleans, sorts, and prepares historical market data."""
+        """
+        Fetches, cleans, sorts, and prepares historical market data.
+        (This function is now correct)
+        """
+        
         if not self.start_date or not self.end_date:
                 self.logger.error("Invalid start or end date for data preparation.")
                 return False
+        
+        # This is your correct "cold start" fix for the *data query*
+        lookback_days = getattr(self.portfolio, "lookback_days", None)
+        if lookback_days:
+            adjusted_start = self.start_date  - pd.Timedelta(days = lookback_days)
+            # This 'self.start_date' is now only used for the *query*
+            self.start_date = adjusted_start 
+            self.logger.info(f"Adjusted data query Start Date to {self.start_date} to include lookback_days={lookback_days}")
 
         df = fetch_historical_data(self.portfolio, self.start_date, self.end_date)
         if df.empty:
@@ -96,7 +120,6 @@ class BacktestRunner:
         except Exception as e:
             self.logger.exception(f"Error during data preparation: {e}", exc_info=True)
             return False
-
 
     def _setup_executor(self) -> None:
         """Sets up the new unified BacktestExecutor."""
@@ -120,30 +143,61 @@ class BacktestRunner:
         self.logger.info("Starting backtest event loop...")
 
         poll_td = pd.Timedelta(seconds=self.portfolio.poll_interval)
+        
+        # This series is built from the *full* dataframe, so lookups are correct
         timestamps_series = self.main_data_df['timestamp']
         self.perf_records = []
         last_poll_time: Optional[pd.Timestamp] = None
 
+        # --- FIX 2: Filter the timestamps we iterate over ---
+        
+        # 1. Group the *full* dataframe once for efficient lookups
         data_groups = self.main_data_df.groupby('timestamp', sort=True)
+        
+        # 2. Get all unique timestamps, which are already sorted
+        all_timestamps = self.main_data_df['timestamp'].unique()
+        
+        # 3. Filter them to start *only* from the intended backtest start date
+        loop_timestamps = all_timestamps[all_timestamps >= self.backtest_loop_start_date]
+        if len(loop_timestamps) == 0:
+             self.logger.error(f"No data found on or after the intended start date: {self.backtest_loop_start_date}")
+             return
+        # --- END FIX 2 ---
+        
 
-        # --- PROGRESS BAR IMPLEMENTATION ---
-        # Wrap the main loop's iterable with tqdm to show progress.
-        progress_bar = tqdm(data_groups, total=len(data_groups), desc="Running Backtest", unit=" steps", leave=True)
+        # Wrap the *filtered* timestamps with tqdm
+        progress_bar = tqdm(loop_timestamps, total=len(loop_timestamps), desc="Running Backtest", unit=" steps", leave=True)
 
-        for current_timestamp, current_data_chunk in progress_bar:
+        for current_timestamp in progress_bar: # <-- Iterate over filtered timestamps
             if last_poll_time and (current_timestamp - last_poll_time) < poll_td:
                 continue
             last_poll_time = current_timestamp
+
+            # Get the data chunk for this timestamp from the *full* group
+            try:
+                current_data_chunk = data_groups.get_group(current_timestamp)
+            except KeyError:
+                continue # Should not happen, but safe to check
 
             price_updates = dict(zip(current_data_chunk['ticker'], current_data_chunk['close_price']))
             for ticker, price in price_updates.items():
                 if pd.notna(price):
                     self.executor.update_price(ticker, float(price))
-
+            
+            # This logic now works perfectly:
+            # current_timestamp is (e.g.) `2025-01-02 04:30:00`
+            # window_start_time is `2024-10-04 04:30:00` (i.e., 90 days ago)
             window_start_time = current_timestamp - self.strategy_lookback_window
+            
+            # start_index will search the *full* timestamps_series and find the correct index in 2024
             start_index = timestamps_series.searchsorted(window_start_time, side='left')
+            
+            # end_index is the absolute index of the current bar
             end_index = current_data_chunk.index.max()
             
+            if start_index < 0: start_index = 0
+            
+            # This slice is now correct: [data_from_90_days_ago ... data_from_today]
             historical_slice_df = self.main_data_df.iloc[start_index : end_index + 1]
 
             if not historical_slice_df.empty:

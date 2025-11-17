@@ -9,7 +9,6 @@ authors = [
   { name="MQS", email="munquantsociety@gmail.com" },
 ]
 description = "A quantitative trading bot."
-requires-python = ">=3.12"
 
 [tool.setuptools.packages.find]
 where = ["src"]

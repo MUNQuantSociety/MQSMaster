@@ -15,12 +15,14 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from psycopg2.extras import execute_values
 import json
+import logging
 
 # Ensure we can import backfill.py
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 from src.orchestrator.backfill.backfill import backfill_data
-from common.database.MQSDBConnector import MQSDBConnector
+from src.common.database.MQSDBConnector import MQSDBConnector
 
+logger = logging.getLogger(__name__)
 # Number of threads to use. NEEDS TO BE LESS THAN MQSDBCONNECTOR MAX CONN VALUE!
 MAX_WORKERS = 8
 
@@ -34,7 +36,7 @@ def parse_date_arg(date_str):
         sys.exit(1)
 
 
-def backfill_single_ticker(ticker, start_date, end_date, interval, exchange, db_connector):
+def backfill_single_ticker(ticker, start_date, end_date, interval, exchange, db_connector, dry_run=False, on_conflict='fail'):
     """
     Calls backfill_data(...) for a single ticker and injects data into the DB.
     This function now receives a shared MQSDBConnector instance.
@@ -88,12 +90,16 @@ def backfill_single_ticker(ticker, start_date, end_date, interval, exchange, db_
             )
             VALUES %s
         """
+        if on_conflict == "ignore":
+            insert_sql += " ON CONFLICT (ticker, timestamp) DO NOTHING"
 
-        if insert_data:
+        if insert_data and not dry_run:
             with conn.cursor() as cursor:
                 execute_values(cursor, insert_sql, insert_data)
             conn.commit()
             print(f"[{ticker}] Inserted {len(insert_data)} rows into DB.")
+        elif dry_run:
+            logger.info(f"[{ticker}:DRY_RUN] Rows prepared: {len(insert_data)}.") 
         else:
             print(f"[{ticker}] No valid rows to insert.")
 
@@ -105,7 +111,7 @@ def backfill_single_ticker(ticker, start_date, end_date, interval, exchange, db_
             db_connector.release_connection(conn)
 
 
-def concurrent_backfill(tickers, start_date, end_date, interval, exchange=None):
+def concurrent_backfill(tickers, start_date, end_date, interval, exchange=None, dry_run=False, on_conflict='fail', threads=MAX_WORKERS):
     """
     Spawns multiple threads, each calling 'backfill_data' for a single ticker.
     Injects each ticker's results directly into the DB using a shared connector.
@@ -117,15 +123,15 @@ def concurrent_backfill(tickers, start_date, end_date, interval, exchange=None):
 
     print(f"[ConcurrentBackfill] Starting concurrency for {len(tickers)} tickers.")
     print(f"  Date range: {start_date} to {end_date}, interval={interval} min, exchange={exchange}")
-    print(f"  Using up to {MAX_WORKERS} threads.")
+    print(f"  Using up to {threads} threads.")
     
     # Create ONE shared database connector instance
     db_connector = MQSDBConnector()
     try:
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        with ThreadPoolExecutor(max_workers=threads) as executor:
             # Pass the single db_connector instance to each worker
             futures = [
-                executor.submit(backfill_single_ticker, ticker, start_date, end_date, interval, exchange, db_connector)
+                executor.submit(backfill_single_ticker, ticker, start_date, end_date, interval, exchange, db_connector, dry_run, on_conflict)
                 for ticker in tickers
             ]
             for fut in futures:

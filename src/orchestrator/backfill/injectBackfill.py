@@ -135,6 +135,7 @@ def process_file(csv_file, db):
             logging.info(f"Finished processing file: {csv_file} for ticker: {ticker}")
         finally:
             db.release_connection(conn)
+            return True
     except Exception as general_exception:
         logging.error(f"Unexpected error processing {csv_file}: {general_exception}")
 
@@ -159,6 +160,8 @@ def load_csv_files_to_db(directory_path, max_workers=5):
 
     db.close_all_connections()
     logging.info("All CSV files processed successfully!")
+    logging.info(f"Script path: {script_path}")
+    logging.info(f"CSV folder path: {csv_folder_path}")
 
 if __name__ == "__main__":
     # Provide the folder that contains your CSV files.

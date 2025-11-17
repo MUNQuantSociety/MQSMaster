@@ -1,5 +1,5 @@
 # This is where backtests are setup.
-# Simply add you portfolio class to the list of portfolio classes in the `setup` method.
+# Simply add you portfolio class to the list of portfolio classes in the `setup` method, line 28.
 
 # High level overview of how to set up a backtest:
 
@@ -12,6 +12,9 @@
 import logging
 from common.database.MQSDBConnector import MQSDBConnector
 from portfolios.portfolio_2.strategy import MomentumStrategy
+from portfolios.portfolio_1.strategy import VolMomentum
+from portfolios.portfolio_4.strategy import TrendRotateStrategy
+from portfolios.portfolio_3.strategy import RegimeAdaptiveStrategy
 from backtest.backtest_engine import BacktestEngine
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -26,11 +29,11 @@ def main():
         backtest_engine = BacktestEngine(db_connector=dbconn, backtest_executor=None)
 
         backtest_engine.setup(
-            portfolio_classes=[MomentumStrategy],
-            start_date="2024-01-01",
-            end_date="2025-01-01",
+            portfolio_classes=[TrendRotateStrategy],
+            start_date="2024-11-01",
+            end_date="2025-10-01",
             initial_capital=1000000.0,
-            slippage=0.000001
+            slippage=0 # 0.1 basis point
         )
         
         backtest_engine.run()

@@ -1,24 +1,40 @@
-# portfolios/portfolio_BASE/strategy.py
+# src/portfolios/portfolio_BASE/strategy.py
 
-import os
+import importlib
 import logging
-import pandas as pd
-from datetime import datetime, timedelta
+import re
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional, Any
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+
+import pandas as pd
+
+from src.portfolios.indicators.base import Indicator
+from src.portfolios.strategy_api import StrategyContext
+
+
+def _camel_to_snake(name: str) -> str:
+    """Converts a CamelCase string to snake_case for dynamic module loading."""
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
 
 class BasePortfolio(ABC):
     """
-    Base class for all portfolio strategies. It now fetches core portfolio state
-    (cash and positions) atomically to prevent data consistency issues.
+    Base class for all portfolio strategies, featuring a dynamic, stateful
+    indicator manager and the StrategyContext API.
     """
 
-    def __init__(self, db_connector, executor, debug=False, config_dict=None):
+    def __init__(self, db_connector, executor, debug=False, config_dict=None, backtest_start_date: Optional[datetime] = None):
+        """
+        Initializes the base portfolio, loading configuration.
+        """
         self.db = db_connector
         self.executor = executor
         self.running = True
         self.debug = debug
-
+        self.backtest_start_date = backtest_start_date
+        self._last_processed_timestamp: Optional[datetime] = None
         if config_dict is None:
             raise ValueError("config_dict is required for portfolio configuration.")
 
@@ -31,11 +47,163 @@ class BasePortfolio(ABC):
         
         self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
         self.logger.info(f"Initialized portfolio {self.portfolio_id} with {len(self.tickers)} tickers.")
+
+        self.portfolio_config_dict = {
+            "id": self.portfolio_id,
+            "tickers": self.tickers,
+            "weights": self.portfolio_weights,
+            "poll_interval": self.poll_interval,
+            "lookback_days": self.lookback_days
+        }
+        
+        # --- Indicator Management ---
+        self._indicators: List[Indicator] = []
+
+    # --- DYNAMIC INDICATOR FACTORY ---
+    def AddIndicator(self, indicator_class_name: str, ticker: str, **kwargs) -> Indicator:
+        """
+        Dynamically loads, instantiates, warms up, and registers an indicator.
+        This is the scalable factory for all indicators.
+
+        Args:
+            indicator_class_name (str): The CamelCase name of the indicator class (e.g., "SimpleMovingAverage").
+            ticker (str): The ticker the indicator should run on.
+            **kwargs: Keyword arguments for the indicator (e.g., period=50).
+
+        Returns:
+            An instance of the requested indicator, fully warmed-up and ready to use.
+        """
+        if ticker not in self.tickers:
+            raise ValueError(f"Ticker '{ticker}' is not part of this portfolio's universe.")
+
+        try:
+            module_name = _camel_to_snake(indicator_class_name)
+            module = importlib.import_module(f"src.portfolios.indicators.{module_name}")
+            indicator_class = getattr(module, indicator_class_name)
+        except (ImportError, AttributeError) as e:
+            self.logger.error(f"Could not dynamically load indicator '{indicator_class_name}'. "
+                              f"Details: {e}")
+            raise
+
+        indicator = indicator_class(ticker=ticker, **kwargs)
+        
+        warmup_days = int(kwargs.get('period', 20) * 1.7) 
+        end_time = self.backtest_start_date or datetime.now()
+        start_time = end_time - timedelta(days=warmup_days)
+        
+        sql = self.MARKET_DATA_QUERY.format(placeholders='%s')
+        params = [ticker, start_time.date(), end_time.date()]
+        result = self.db.execute_query(sql, params, fetch='all')
+
+        price_col = kwargs.get('price_col', 'close_price')
+        if result['status'] == 'success' and result.get('data'):
+            df = pd.DataFrame(result['data'])
+
+            # --- Correctly handle timezone-aware data from the database ---
+            # 1. Convert to UTC to create a standard, timezone-aware index.
+            # 2. Convert back to 'America/New_York' to preserve the desired timezone info.
+            df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True).dt.tz_convert('America/New_York')
+            
+            df[price_col] = pd.to_numeric(df[price_col], errors='coerce').dropna()
+            df.sort_values('timestamp', inplace=True)
+            
+            for row in df.itertuples():
+                # The timestamp passed to Update() is now a proper, localized timestamp
+                indicator.Update(row.timestamp, getattr(row, price_col))
+        
+        self._indicators.append(indicator)
+        return indicator
     
-    # --- SQL Query Constants for Maintainability ---
-    
-    # Unified query to fetch cash and positions in a single, atomic operation.
-    # This prevents race conditions where cash and positions could be out of sync.
+    def RegisterIndicatorSet(self, indicator_definitions: Dict[str, tuple]):
+        """
+        Initializes a set of indicators for every ticker and attaches them as
+        ticker-keyed dictionaries to the strategy instance. This is the
+        recommended way to reduce __init__ boilerplate.
+
+        Args:
+            indicator_definitions (dict): A dictionary where keys are the desired
+                attribute names (e.g., 'fast_sma') and values are a tuple of
+                (IndicatorClassName, {**kwargs}).
+
+                Example:
+                {
+                    "fast_sma": ("SimpleMovingAverage", {"period": 10}),
+                    "slow_sma": ("SimpleMovingAverage", {"period": 30})
+                }
+        """
+        for attr_name, (class_name, kwargs) in indicator_definitions.items():
+            # Create a dictionary to hold this indicator for all tickers
+            indicator_dict = {
+                ticker: self.AddIndicator(class_name, ticker=ticker, **kwargs)
+                for ticker in self.tickers
+            }
+            
+            # Attach the completed dictionary as an attribute (e.g., self.fast_sma)
+            setattr(self, attr_name, indicator_dict)
+            self.logger.info(f"Registered indicator set '{attr_name}' for all tickers.")
+
+
+    def generate_signals_and_trade(self, data: Dict[str, pd.DataFrame], current_time: Optional[datetime] = None):
+        """
+        (Framework-Internal Method)
+        Updates indicators with ALL new data points, constructs the context,
+        and calls the user's OnData method.
+        """
+        market_data_df = data.get('MARKET_DATA')
+        if market_data_df is not None and not market_data_df.empty:
+            
+            # --- Find ALL new bars since the last update ---
+            if self._last_processed_timestamp:
+                new_data = market_data_df[market_data_df['timestamp'] > self._last_processed_timestamp]
+            else:
+                # On the first run, process only the single latest point to set a baseline
+                new_data = market_data_df.sort_values('timestamp').groupby('ticker').last().reset_index()
+
+            # Process each new bar in chronological order for each ticker
+            if not new_data.empty:
+                for timestamp, group in new_data.sort_values('timestamp').groupby('timestamp'):
+                    for row in group.itertuples():
+                        for indicator in self._indicators:
+                            if indicator.ticker == row.ticker:
+                                price_col = getattr(indicator, 'price_col', 'close_price')
+                                if hasattr(row, price_col) and pd.notna(getattr(row, price_col)):
+                                    indicator.Update(row.timestamp, getattr(row, price_col))
+
+        # Update the last processed time to the current time of the data slice
+        self._last_processed_timestamp = current_time
+
+        context = StrategyContext(
+            market_data_df=market_data_df,
+            cash_df=data.get('CASH_EQUITY'),
+            positions_df=data.get('POSITIONS'),
+            port_notional_df=data.get('PORT_NOTIONAL'),
+            current_time=current_time,
+            executor=self.executor,
+            portfolio_config=self.portfolio_config_dict
+        )
+
+        self.OnData(context)
+
+
+    @abstractmethod
+    def OnData(self, context: StrategyContext):
+        """
+        (User-Facing Method)
+        This is the primary method that all user-defined strategies must implement.
+        It is called by the framework on each time step (or polling interval)
+        and provides a powerful context object with all necessary market and
+        portfolio information and tools.
+
+        Args:
+            context (StrategyContext): The stateful API object for this point in time.
+        """
+        pass
+
+    # --- Data Fetching Logic (Largely Unchanged) ---
+    # The methods below are still required for the base class to function,
+    # as it's responsible for fetching the data that will eventually be
+    # passed into the StrategyContext.
+
     ATOMIC_STATE_QUERY = """
     WITH latest_cash AS (
         SELECT *
@@ -76,12 +244,6 @@ class BasePortfolio(ABC):
         VALUES (%s, %s, 0)
         RETURNING *;
     """
-    @abstractmethod
-    def generate_signals_and_trade(self, data: Dict[str, pd.DataFrame], current_time: Optional[datetime] = None):
-        """
-        Subclasses implement this method for strategy-specific signal generation and trade logic.
-        """
-        pass
 
     def get_data(self, data_feeds: List[str]) -> Dict[str, pd.DataFrame]:
         """
@@ -90,7 +252,6 @@ class BasePortfolio(ABC):
         """
         data = {feed: pd.DataFrame() for feed in data_feeds}
 
-        # --- 1. Atomic Fetch for Core Portfolio State ---
         try:
             params = (self.portfolio_id, self.portfolio_id)
             state_result = self.db.execute_query(self.ATOMIC_STATE_QUERY, params, fetch='one')
@@ -104,14 +265,13 @@ class BasePortfolio(ABC):
         except Exception as e:
             self.logger.exception(f"Failed to fetch atomic state for portfolio {self.portfolio_id}: {e}")
 
-        # --- 2. Seed Missing Positions (if needed) ---
         if "POSITIONS" in data_feeds:
             existing_tickers = set(data["POSITIONS"]['ticker']) if not data["POSITIONS"].empty else set()
             missing_tickers = set(self.tickers) - existing_tickers
             if missing_tickers:
-                self._seed_missing_positions(data["POSITIONS"], missing_tickers)
+                # The _seed_missing_positions method returns a new DataFrame
+                data["POSITIONS"] = self._seed_missing_positions(data["POSITIONS"], missing_tickers)
 
-        # --- 3. Fetch Non-Critical Data Separately ---
         if "MARKET_DATA" in data_feeds:
             data["MARKET_DATA"] = self._get_market_data()
         
@@ -120,13 +280,13 @@ class BasePortfolio(ABC):
 
         return data
 
-    def _seed_missing_positions(self, positions_df: pd.DataFrame, missing_tickers: set):
+    def _seed_missing_positions(self, positions_df: pd.DataFrame, missing_tickers: set) -> pd.DataFrame:
         """Helper to insert zero-quantity rows for tickers without a position record."""
         self.logger.info(f"Seeding zero-quantity positions for missing tickers: {missing_tickers}")
         seeded_rows = []
         for ticker in missing_tickers:
             try:
-                res = self.db.execute_query(self.SEED_POSITION_QUERY, (self.portfolio_id, ticker), fetch=True)
+                res = self.db.execute_query(self.SEED_POSITION_QUERY, (self.portfolio_id, ticker), fetch='all')
                 if res.get('data'):
                     seeded_rows.extend(res['data'])
             except Exception as e:
@@ -134,6 +294,9 @@ class BasePortfolio(ABC):
         
         if seeded_rows:
             seeded_df = pd.DataFrame(seeded_rows)
+            # Ensure columns match before concatenating to avoid issues
+            if not positions_df.empty:
+                 seeded_df = seeded_df[positions_df.columns.intersection(seeded_df.columns)]
             return pd.concat([positions_df, seeded_df], ignore_index=True)
         return positions_df
 
@@ -157,6 +320,11 @@ class BasePortfolio(ABC):
         df = pd.DataFrame(result['data'])
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df['close_price'] = pd.to_numeric(df['close_price'])
+        # Add other price columns to numeric conversion for robustness
+        for col in ['open_price', 'high_price', 'low_price', 'volume']:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
         df.dropna(subset=['timestamp', 'ticker', 'close_price'], inplace=True)
         df.sort_values('timestamp', inplace=True)
         return df
