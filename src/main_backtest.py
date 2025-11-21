@@ -19,6 +19,7 @@ from backtest.backtest_engine import BacktestEngine
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+#added backtest setup parameters to main
 def main(portfolio_classes= None,
          start_date="2024-11-01",
          end_date="2025-10-01",
