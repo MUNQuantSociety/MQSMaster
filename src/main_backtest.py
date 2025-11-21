@@ -19,24 +19,33 @@ from backtest.backtest_engine import BacktestEngine
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-def main():
+def main(portfolio_classes= None,
+         start_date="2024-11-01",
+         end_date="2025-10-01",
+         initial_capital=1000000.0,
+         slippage=0):
     """
     Main entry point for the MQS Trading System backtests.
     """
+    if portfolio_classes is None:
+        portfolio_classes = [TrendRotateStrategy]
+
     try:
         dbconn = MQSDBConnector()
         
         backtest_engine = BacktestEngine(db_connector=dbconn, backtest_executor=None)
 
         backtest_engine.setup(
-            portfolio_classes=[TrendRotateStrategy],
-            start_date="2024-11-01",
-            end_date="2025-10-01",
-            initial_capital=1000000.0,
-            slippage=0 # 0.1 basis point
+            portfolio_classes=portfolio_classes,
+            start_date=start_date,
+            end_date=end_date,
+            initial_capital=initial_capital,
+            slippage=slippage # 0.1 basis point
         )
         
         backtest_engine.run()
+
+        return backtest_engine
 
     finally:
         logging.info("===== DONE =====")
