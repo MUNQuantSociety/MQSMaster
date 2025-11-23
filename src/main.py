@@ -21,13 +21,13 @@ def main():
         db_conn = MQSDBConnector()
         logging.info("Database connector initialized.")
 
-        live_executor = tradeExecutor()
+        live_executor = tradeExecutor(db_conn)
         logging.info("Live executor initialized.")
 
         run_engine = RunEngine(db_connector=db_conn, executor=live_executor)
         logging.info("Run engine initialized.")
 
-        run_engine.setup(portfolios_to_run=[VolMomentum, MomentumStrategy])
+        run_engine.load_portfolios([VolMomentum, MomentumStrategy])
         logging.info("Run engine setup complete.")
 
         run_engine.run()
