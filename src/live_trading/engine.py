@@ -7,6 +7,8 @@ import os
 import threading
 import time
 from typing import List
+import time
+from datetime import datetime, timezone
 
 from src.portfolios.portfolio_BASE.strategy import BasePortfolio
 
@@ -71,10 +73,15 @@ class RunEngine:
             try:
                 start_time = time.time()
                 
-                # The get_data and generate_signals_and_trade calls remain the same,
-                # as the new API is handled within these methods in the base class.
+                # --- FIX START ---
+                # Capture the current UTC time to pass to the strategy
+                now_utc = datetime.now(timezone.utc)
+                
                 data = portfolio.get_data(portfolio.data_feeds)
-                portfolio.generate_signals_and_trade(data, current_time=None)
+                
+                # Pass 'now_utc' instead of 'None'
+                portfolio.generate_signals_and_trade(data, current_time=now_utc)
+                # --- FIX END ---
 
                 if self.failure_counts[portfolio_id] > 0:
                     self.logger.info(f"Portfolio {portfolio_id} recovered after {self.failure_counts[portfolio_id]} failures.")

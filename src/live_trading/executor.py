@@ -143,10 +143,10 @@ class tradeExecutor:
 
 
     def update_database(self, portfolio_id, ticker, signal_type, quantity_to_trade, 
-                     updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp):
+                         updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp):
         """
         Update database tables after trade execution within a single transaction.
-        If any operation fails, all changes are rolled back.
+        The 'with conn:' block ensures atomic execution (all-or-nothing).
         """
         date_part = timestamp.date()
         trade_notional = abs(quantity_to_trade * exec_price)
@@ -156,51 +156,53 @@ class tradeExecutor:
             conn = self.dbconn.get_connection()
             if not conn:
                 self.logger.error("Failed to get a database connection from the pool.")
-                return
+                return {'status': 'error', 'message': 'Database connection failed'}
 
-            with conn.cursor() as cursor:
-                # Update cash_equity_book
-                cash_query = """
-                    INSERT INTO cash_equity_book (timestamp, date, portfolio_id, currency, notional)
-                    VALUES (%s, %s, %s, %s, %s)
-                """
-                cash_values = (timestamp, date_part, portfolio_id, 'USD', updated_cash)
-                cursor.execute(cash_query, cash_values)
+            # TRANSACTION START
+            # Using 'with conn:' automatically starts a transaction.
+            # If the block finishes without error, it auto-commits.
+            # If an exception is raised anywhere inside, it auto-rollbacks.
+            with conn:
+                with conn.cursor() as cursor:
+                    # 1. Update cash_equity_book
+                    cash_query = """
+                        INSERT INTO cash_equity_book (timestamp, date, portfolio_id, currency, notional)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """
+                    cash_values = (timestamp, date_part, portfolio_id, 'USD', updated_cash)
+                    cursor.execute(cash_query, cash_values)
 
-                # Update positions_book (simple insert)
-                position_query = """
-                    INSERT INTO positions_book (portfolio_id, ticker, quantity, updated_at)
-                    VALUES (%s, %s, %s, %s)
-                """
-                position_values = (portfolio_id, ticker, updated_quantity, timestamp)
-                cursor.execute(position_query, position_values)
+                    # 2. Update positions_book
+                    position_query = """
+                        INSERT INTO positions_book (portfolio_id, ticker, quantity, updated_at)
+                        VALUES (%s, %s, %s, %s)
+                    """
+                    position_values = (portfolio_id, ticker, updated_quantity, timestamp)
+                    cursor.execute(position_query, position_values)
 
-                # Insert trade log with new fields
-                trade_log_query = """
-                    INSERT INTO trade_execution_logs (
-                        portfolio_id, ticker, exec_timestamp, side, quantity,
+                    # 3. Insert trade log
+                    trade_log_query = """
+                        INSERT INTO trade_execution_logs (
+                            portfolio_id, ticker, exec_timestamp, side, quantity,
+                            arrival_price, exec_price, slippage_bps,
+                            notional, notional_local, currency, fx_rate
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    trade_log_values = (
+                        portfolio_id, ticker, timestamp, signal_type, quantity_to_trade,
                         arrival_price, exec_price, slippage_bps,
-                        notional, notional_local, currency, fx_rate
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """
-                trade_log_values = (
-                    portfolio_id, ticker, timestamp, signal_type, quantity_to_trade,
-                    arrival_price, exec_price, slippage_bps,
-                    None, trade_notional, 'USD', None
-                )
-                cursor.execute(trade_log_query, trade_log_values)
+                        None, trade_notional, 'USD', None
+                    )
+                    cursor.execute(trade_log_query, trade_log_values)
+            
+            # TRANSACTION END (Commit happens automatically here)
 
-            conn.commit()
             self.logger.info(f"Database successfully updated for trade: {signal_type} {quantity_to_trade} {ticker} @ {exec_price:.2f}")
             return {'status': 'success', 'quantity': quantity_to_trade, 'updated_cash': updated_cash}
 
         except Exception as e:
-            self.logger.exception("Database update transaction failed. Rolling back all changes.")
-            if conn:
-                try:
-                    conn.rollback()
-                except Exception as rollback_error:
-                    self.logger.error(f"Failed to rollback transaction: {rollback_error}")
+            # If we are here, the 'with conn:' block already triggered a rollback.
+            self.logger.exception("Database update transaction failed. Changes rolled back.")
             return {'status': 'error', 'message': str(e)}
 
         finally:
