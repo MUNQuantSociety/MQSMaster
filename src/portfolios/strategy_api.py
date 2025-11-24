@@ -95,8 +95,11 @@ class PortfolioManager:
         self.cash = cash
         self.total_value = total_value
 
-        if positions_df is not None and not positions_df.empty:
-            self.positions = dict(zip(positions_df['ticker'], positions_df['quantity']))
+        # Ensure it is a valid empty DataFrame if None is passed, so .empty check never fails
+        self.positions_df = positions_df if positions_df is not None else pd.DataFrame()
+
+        if not self.positions_df.empty:
+            self.positions = dict(zip(self.positions_df['ticker'], self.positions_df['quantity']))
         else:
             self.positions = {}
 
@@ -123,7 +126,7 @@ class StrategyContext:
         self._portfolio_config = portfolio_config
         self.time = current_time
 
-        # Initialize the high-level helper classes (NOW DEFINED ABOVE)
+        # Initialize the high-level helper classes
         self.Market = MarketData(market_data_df, current_time)
 
         cash_val = cash_df.iloc[0]['notional'] if cash_df is not None and not cash_df.empty else 0.0
@@ -154,7 +157,8 @@ class StrategyContext:
             confidence=confidence,
             arrival_price=asset_data.Close,
             cash=self.Portfolio.cash,
-            positions=self.Portfolio.positions.get(ticker, 0.0),
+            # The executor expects a DataFrame to check buying power/exposure logic.
+            positions=self.Portfolio.positions_df,
             port_notional=self.Portfolio.total_value,
             ticker_weight=self._portfolio_config['weights'].get(ticker, 0.0),
             timestamp=self.time

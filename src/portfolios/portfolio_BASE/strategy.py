@@ -6,6 +6,7 @@ import re
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -149,6 +150,9 @@ class BasePortfolio(ABC):
         Updates indicators with ALL new data points, constructs the context,
         and calls the user's OnData method.
         """
+        # Defensive coding: If current_time is None, default to UTC now
+        if current_time is None:
+            current_time = datetime.now(timezone.utc)
         market_data_df = data.get('MARKET_DATA')
         if market_data_df is not None and not market_data_df.empty:
             
@@ -318,7 +322,7 @@ class BasePortfolio(ABC):
             return pd.DataFrame()
 
         df = pd.DataFrame(result['data'])
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
         df['close_price'] = pd.to_numeric(df['close_price'])
         # Add other price columns to numeric conversion for robustness
         for col in ['open_price', 'high_price', 'low_price', 'volume']:
