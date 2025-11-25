@@ -102,7 +102,7 @@ class BasePortfolio(ABC):
             # --- Correctly handle timezone-aware data from the database ---
             # 1. Convert to UTC to create a standard, timezone-aware index.
             # 2. Convert back to 'America/New_York' to preserve the desired timezone info.
-            df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True).dt.tz_convert('America/New_York')
+            df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
             
             df[price_col] = pd.to_numeric(df[price_col], errors='coerce').dropna()
             df.sort_values('timestamp', inplace=True)

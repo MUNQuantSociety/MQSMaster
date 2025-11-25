@@ -1,12 +1,19 @@
 {
-  "PORTFOLIO_ID": "1",
-  "TICKERS": ["NVDA", "AAPL"],
-  "INTERVAL": 900,
+  "PORTFOLIO_ID": "2",
+  "TICKERS": ["AAPL", "TLT", "AMZN", "LULU", "XLE", "GLD", "SPY", "SQQQ", "IWM"],
+  "INTERVAL": 23400,
   "LOOKBACK_DAYS": 90,
   "EXCH": "NASDAQ",
   "WEIGHTS": {
-    "NVDA": 0.5,
-    "AAPL": 0.5
+    "IWM": 0.183,
+    "AAPL": 0.129,
+    "TLT": 0.186,
+    "AMZN": 0.034,
+    "LULU": 0.08,
+    "XLE": 0.099,
+    "GLD": 0.102,
+    "SPY": 0.093,
+    "SQQQ": 0.001
   },
   "DATA_FEEDS": ["MARKET_DATA", "POSITIONS", "CASH_EQUITY", "PORT_NOTIONAL"]
 }
