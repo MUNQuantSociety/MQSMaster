@@ -1,7 +1,5 @@
 import logging
 from typing import Dict
-import numpy as np
-
 from src.portfolios.indicators.base import Indicator
 from src.portfolios.portfolio_BASE.strategy import BasePortfolio
 from src.portfolios.strategy_api import StrategyContext
@@ -69,8 +67,11 @@ class CrossoverRmiStrategy(BasePortfolio):
             
 
             current_position = portfolio.positions.get(ticker, 0)
-            current_weight = portfolio.get_asset_weight(ticker, asset.Close)
-
+            if asset.Close:
+                current_weight = portfolio.get_asset_weight(ticker, asset.Close)
+            else:
+                self.logger.info(f"Skipping weight calculation for {ticker} due to missing close price.")
+                current_weight = 0.0
             # --- 5. Implement Trading Logic using Context ---
             is_bullish_crossover = fast_previous < slow_previous and fast_current > slow_current
             is_bearish_crossover = fast_previous > slow_previous and fast_current < slow_current

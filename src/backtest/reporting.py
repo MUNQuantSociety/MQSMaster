@@ -228,7 +228,7 @@ def _compute_return_correlations(
     df = df_pct_returns.set_index(date_col)
     return df[columns_to_analyze].corr()
 
-# --- Portfolio Risk Calculation Helpers (Unchanged) ---
+#TODO --- Portfolio Risk Calculation Helpers (Unchanged) ---
 
 def _calculate_portfolio_risk_components(
     full_historical_data: pd.DataFrame,
@@ -327,12 +327,17 @@ def generate_backtest_report(
     if isinstance(portfolio.executor, BacktestExecutor):
         try:
             all_trades = portfolio.executor.trade_log
+            logger.info(f"Trade log contains {len(all_trades)} trades")
             if all_trades:
                 df_trades = pd.DataFrame(all_trades)
                 cols = ['timestamp','portfolio_id','ticker','signal_type','shares','fill_price','confidence','cash_after']
                 df_trades = df_trades[[c for c in cols if c in df_trades.columns]]
                 df_trades.sort_values('timestamp', inplace=True)
-                df_trades.to_csv(os.path.join(out_dir, "trade_log.csv"), index=False)
+                trade_log_path = os.path.join(out_dir, "trade_log.csv")
+                df_trades.to_csv(trade_log_path, index=False)
+                logger.info(f"Saved {len(df_trades)} trades to {trade_log_path}")
+            else:
+                logger.warning("Trade log is empty - no trades were executed during backtest")
         except Exception as e:
             logger.error(f"Error saving trade logs: {e}", exc_info=True)
     

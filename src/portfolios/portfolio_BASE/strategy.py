@@ -151,9 +151,9 @@ class BasePortfolio(ABC):
         """
         market_data_df = data.get('MARKET_DATA')
         if market_data_df is not None and not market_data_df.empty:
-            
             # --- Find ALL new bars since the last update ---
-            if self._last_processed_timestamp:
+            # Guard against comparing a datetime series to None.
+            if self._last_processed_timestamp is not None:
                 new_data = market_data_df[market_data_df['timestamp'] > self._last_processed_timestamp]
             else:
                 # On the first run, process only the single latest point to set a baseline
@@ -169,8 +169,15 @@ class BasePortfolio(ABC):
                                 if hasattr(row, price_col) and pd.notna(getattr(row, price_col)):
                                     indicator.Update(row.timestamp, getattr(row, price_col))
 
-        # Update the last processed time to the current time of the data slice
-        self._last_processed_timestamp = current_time
+        # Update the last processed time. If current_time is None, fall back to newest timestamp.
+        if current_time is not None:
+            self._last_processed_timestamp = current_time
+        else:
+            if market_data_df is not None and not market_data_df.empty:
+                try:
+                    self._last_processed_timestamp = market_data_df['timestamp'].max()
+                except Exception:
+                    self.logger.warning("Could not update last processed timestamp from market data.")
 
         context = StrategyContext(
             market_data_df=market_data_df,
@@ -245,6 +252,15 @@ class BasePortfolio(ABC):
         RETURNING *;
     """
 
+    SEED_CASH_QUERY = """
+        INSERT INTO cash_equity_book (portfolio_id, timestamp, date, currency, notional)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING *;
+    """
+    
+    # Default initial capital for auto-seeding (can be overridden in config)
+    DEFAULT_INITIAL_CAPITAL = 1000000.0
+
     def get_data(self, data_feeds: List[str]) -> Dict[str, pd.DataFrame]:
         """
         Fetches a consistent snapshot of portfolio data. Core state (cash, positions)
@@ -258,8 +274,12 @@ class BasePortfolio(ABC):
 
             if state_result['status'] == 'success' and state_result.get('data'):
                 result_data = state_result['data'][0]
-                if "CASH_EQUITY" in data_feeds and result_data.get('cash_data'):
-                    data["CASH_EQUITY"] = pd.DataFrame([result_data['cash_data']])
+                if "CASH_EQUITY" in data_feeds:
+                    if result_data.get('cash_data'):
+                        data["CASH_EQUITY"] = pd.DataFrame([result_data['cash_data']])
+                    else:
+                        # Auto-seed initial cash if none exists
+                        data["CASH_EQUITY"] = self._seed_initial_cash()
                 if "POSITIONS" in data_feeds and result_data.get('positions_data'):
                     data["POSITIONS"] = pd.DataFrame(result_data['positions_data'])
         except Exception as e:
@@ -279,6 +299,34 @@ class BasePortfolio(ABC):
             data["PORT_NOTIONAL"] = self._get_portfolio_notional(fallback_cash_df=data.get("CASH_EQUITY"))
 
         return data
+
+    def _seed_initial_cash(self) -> pd.DataFrame:
+        """Auto-seed initial cash for portfolio if no cash equity records exist."""
+        import pytz
+        timezone = pytz.timezone('America/New_York')
+        initial_capital = self.DEFAULT_INITIAL_CAPITAL
+        timestamp = datetime.now(timezone)
+        date_part = timestamp.date()
+        
+        self.logger.warning(
+            f"No cash equity found for portfolio {self.portfolio_id}. "
+            f"Auto-seeding with ${initial_capital:,.2f} initial capital."
+        )
+        
+        try:
+            result = self.db.execute_query(
+                self.SEED_CASH_QUERY,
+                (self.portfolio_id, timestamp, date_part, 'USD', initial_capital),
+                fetch='all'
+            )
+            if result.get('status') == 'success' and result.get('data'):
+                self.logger.info(f"Successfully seeded ${initial_capital:,.2f} for portfolio {self.portfolio_id}")
+                return pd.DataFrame(result['data'])
+        except Exception as e:
+            self.logger.exception(f"Failed to seed initial cash for portfolio {self.portfolio_id}: {e}")
+        
+        # Return empty DataFrame if seeding failed
+        return pd.DataFrame()
 
     def _seed_missing_positions(self, positions_df: pd.DataFrame, missing_tickers: set) -> pd.DataFrame:
         """Helper to insert zero-quantity rows for tickers without a position record."""
@@ -318,7 +366,7 @@ class BasePortfolio(ABC):
             return pd.DataFrame()
 
         df = pd.DataFrame(result['data'])
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
         df['close_price'] = pd.to_numeric(df['close_price'])
         # Add other price columns to numeric conversion for robustness
         for col in ['open_price', 'high_price', 'low_price', 'volume']:

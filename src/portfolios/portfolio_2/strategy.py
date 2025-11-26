@@ -22,6 +22,7 @@ class MomentumStrategy(BasePortfolio):
         self.RegisterIndicatorSet(indicator_definitions)
         
     def OnData(self, context: StrategyContext):
+        portfolio = context.Portfolio
         # Loop over each ticker and apply strategy logic
         #? Indicator references: add more as needed
         for ticker in self.tickers:
@@ -45,7 +46,7 @@ class MomentumStrategy(BasePortfolio):
             #stochastic_v = stochastic.Current
             #macd_v = macd.Current
 
-            position = context.Portfolio.positions.get(ticker, 0)
+            position = portfolio.positions.get(ticker, 0)
             if any(v is None for v in 
             #? add additional indicators here after enabling them above
                    [
@@ -58,7 +59,7 @@ class MomentumStrategy(BasePortfolio):
                     #stochastic_v, macd_v
                     ]
                    ):
-                self.logger.warning(
+                self.logger.debug(
                     f"Skipping {ticker} due to None indicator values: fast={fast_v}, slow={slow_v}, rmi={rmi_v}, rsi={rsi_v}"
                 )
                 continue

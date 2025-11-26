@@ -90,16 +90,26 @@ class BacktestExecutor:
         return max(0, buying_power)
 
     def execute_trade(self,
-                      portfolio_id: str,
-                      ticker: str,
-                      signal_type: str,
-                      confidence: float,
-                      arrival_price: float,
-                      cash: float,
-                      positions: float,
-                      port_notional: float,
-                      ticker_weight: float,
-                      timestamp: Optional[datetime] = None):
+                      portfolio_id,
+                      ticker,
+                      signal_type,
+                      confidence,
+                      arrival_price,
+                      cash,
+                      positions,
+                      port_notional,
+                      ticker_weight,
+                      timestamp):
+        try:
+            cash = float(cash)
+            port_notional = float(port_notional)
+            arrival_price = float(arrival_price)
+            confidence = float(confidence)
+            ticker_weight = float(ticker_weight)
+        except (ValueError, TypeError) as e:
+            self.logger.error(f"Numeric conversion failed: {e}")
+            return
+
         signal_type = signal_type.upper()
         if signal_type not in ('BUY', 'SELL', 'HOLD'):
             self.logger.warning(f"Invalid signal type '{signal_type}' for {ticker}. Must be BUY, SELL, or HOLD.")
@@ -117,7 +127,14 @@ class BacktestExecutor:
         # --- Unified Sizing & Margin Logic (Reconciled with Live Executor) ---
         current_quantity = self.positions.get(ticker, 0.0)
         current_notional_value = current_quantity * exec_price
-        
+
+        # If ticker_weight is 0 (no current position), default to equal-weight allocation
+        if ticker_weight == 0.0:
+            tickers_list = self.tickers
+            if not tickers_list or len(tickers_list) == 0:
+                self.logger.error("No tickers list available for fallback allocation.")
+                return
+            ticker_weight = 1.0 / len(tickers_list)
         target_notional = port_notional * ticker_weight
         # A SELL signal targets a negative (short) position
         if signal_type == 'SELL':
@@ -163,5 +180,9 @@ class BacktestExecutor:
             "signal_type": signal_type, "confidence": confidence, "shares": quantity_to_trade,
             "fill_price": exec_price, "cash_after": self.cash
         })
-        
+        self.logger.info(
+            f"Executed {signal_type} of {quantity_to_trade} shares of {ticker} at {exec_price:.2f} "
+            f"for portfolio {portfolio_id}. Cash after trade: {self.cash:.2f}"
+        )
+
         return {'status': 'success', 'quantity': quantity_to_trade, 'updated_cash': self.cash}

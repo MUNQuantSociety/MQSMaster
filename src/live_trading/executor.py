@@ -95,7 +95,7 @@ class tradeExecutor:
 
         # 3. Determine target notional
         current_pos_row = positions[positions['ticker'] == ticker]
-        current_quantity = current_pos_row['quantity'].iloc[0] if not current_pos_row.empty else 0.0
+        current_quantity = float(current_pos_row['quantity'].iloc[0]) if not current_pos_row.empty else 0.0
         current_notional_value = current_quantity * exec_price
         
         target_notional = port_notional_val * ticker_weight_val
@@ -164,15 +164,17 @@ class tradeExecutor:
                     INSERT INTO cash_equity_book (timestamp, date, portfolio_id, currency, notional)
                     VALUES (%s, %s, %s, %s, %s)
                 """
-                cash_values = (timestamp, date_part, portfolio_id, 'USD', updated_cash)
+                cash_values = (timestamp, date_part, portfolio_id, 'USD', float(updated_cash))
                 cursor.execute(cash_query, cash_values)
 
-                # Update positions_book (simple insert)
+                # Update positions_book (upsert: insert or update if exists)
                 position_query = """
                     INSERT INTO positions_book (portfolio_id, ticker, quantity, updated_at)
                     VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (portfolio_id, ticker)
+                    DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = EXCLUDED.updated_at
                 """
-                position_values = (portfolio_id, ticker, updated_quantity, timestamp)
+                position_values = (portfolio_id, ticker, float(updated_quantity), timestamp)
                 cursor.execute(position_query, position_values)
 
                 # Insert trade log with new fields
@@ -184,14 +186,14 @@ class tradeExecutor:
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 trade_log_values = (
-                    portfolio_id, ticker, timestamp, signal_type, quantity_to_trade,
-                    arrival_price, exec_price, slippage_bps,
-                    None, trade_notional, 'USD', None
+                    portfolio_id, ticker, timestamp, signal_type, float(quantity_to_trade),
+                    float(arrival_price), float(exec_price), float(slippage_bps),
+                    None, float(trade_notional), 'USD', None
                 )
                 cursor.execute(trade_log_query, trade_log_values)
 
             conn.commit()
-            self.logger.info(f"Database successfully updated for trade: {signal_type} {quantity_to_trade} {ticker} @ {exec_price:.2f}")
+            self.logger.info(f"Database successfully updated\n [Portfolio {portfolio_id} | Cash: ${updated_cash:,.2f} | Time: {timestamp}]: {signal_type} {quantity_to_trade} {ticker} @ ${exec_price:,.2f}.\n")
             return {'status': 'success', 'quantity': quantity_to_trade, 'updated_cash': updated_cash}
 
         except Exception as e:

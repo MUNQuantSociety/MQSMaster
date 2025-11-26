@@ -2,51 +2,92 @@
 
 from datetime import datetime
 import pandas as pd
+import pytz as pytz 
 # This import registers the .toolkit accessor globally
 from src.portfolios import toolkit 
 
 class AssetData:
     """
     Represents the market data for a single asset at a specific point in time.
-    This version is optimized to work with pre-filtered DataFrames.
     """
-    def __init__(self, ticker: str, asset_specific_df: pd.DataFrame, current_time: datetime):
+    def __init__(self, ticker: str, asset_specific_df: pd.DataFrame, current_time: datetime | None):
         self._ticker = ticker
         self._df = asset_specific_df
         self._time = current_time
 
-        if not self._df.empty:
-            # Efficiently get the latest row up to the current time
-            latest_data = self._df.loc[self._df.index <= current_time]
-            if not latest_data.empty:
-                self.latest_row = latest_data.iloc[-1]
-                self.Exists = True
-                self.Open = float(self.latest_row['open_price'])
-                self.High = float(self.latest_row['high_price'])
-                self.Low = float(self.latest_row['low_price'])
-                self.Close = float(self.latest_row['close_price'])
-                self.Volume = float(self.latest_row['volume'])
-                self.Timestamp = self.latest_row.name # The timestamp is now the index
-            else:
-                self.Exists = False
-                self._set_defaults()
-        else:
+        if self._df.empty:
             self.Exists = False
             self._set_defaults()
+            return
+
+        effective_time = current_time
+        if effective_time is None:
+            try:
+                effective_time = self._df.index.max()
+            except Exception:
+                effective_time = None
+
+        # Obtain latest row up to effective_time (or overall last row if None)
+        if effective_time is None:
+            latest_data = self._df
+        else:
+            try:
+                latest_data = self._df.loc[self._df.index <= effective_time]
+            except TypeError:
+                latest_data = self._df
+
+        if latest_data.empty:
+            self.Exists = False
+            self._set_defaults()
+            return
+
+        self.latest_row = latest_data.iloc[-1]
+        # Safely extract numeric fields; if any core price is missing, mark as non-existent
+        def _to_float(val):
+            try:
+                return float(val)
+            except (TypeError, ValueError):
+                return None
+
+        self.Open = _to_float(self.latest_row.get('open_price'))
+        self.High = _to_float(self.latest_row.get('high_price'))
+        self.Low = _to_float(self.latest_row.get('low_price'))
+        self.Close = _to_float(self.latest_row.get('close_price'))
+        self.Volume = _to_float(self.latest_row.get('volume'))
+        if self.Close is None:
+            self.Exists = False
+            self._set_defaults()
+            return
+        self.Timestamp = self.latest_row.name
+        self.Exists = True
 
     def _set_defaults(self):
         """Helper to set properties to None when no data is available."""
         self.latest_row = None
-        self.Open = self.High = self.Low = self.Close = self.Volume = self.Timestamp = None
+        self.Open = None
+        self.High = None
+        self.Low = None
+        self.Close = None
+        self.Volume = None
+        self.Timestamp = None
 
     def History(self, lookback_period: str) -> pd.DataFrame:
-        if not self.Exists:
+        if self._df.empty:
+            return pd.DataFrame()
+        # Use effective time: if _time is None, use the latest timestamp in the data
+        end_date = self._time
+        if end_date is None:
+            try:
+                end_date = self._df.index.max()
+            except Exception:
+                return pd.DataFrame()
+
+
+        try:
+            start_date = end_date - pd.to_timedelta(lookback_period)
+        except Exception:
             return pd.DataFrame()
 
-        end_date = self._time
-        start_date = end_date - pd.to_timedelta(lookback_period)
-        
-        # Filter the already asset-specific DataFrame, which is much faster
         hist_df = self._df.loc[(self._df.index >= start_date) & (self._df.index <= end_date)]
         return hist_df.copy()
 
@@ -92,8 +133,8 @@ class PortfolioManager:
     Provides a clean, high-level interface to the current state of the portfolio.
     """
     def __init__(self, cash: float, total_value: float, positions_df: pd.DataFrame):
-        self.cash = cash
-        self.total_value = total_value
+        self.cash = float(cash)
+        self.total_value = float(total_value)
 
         if positions_df is not None and not positions_df.empty:
             self.positions = dict(zip(positions_df['ticker'], positions_df['quantity']))
@@ -101,14 +142,15 @@ class PortfolioManager:
             self.positions = {}
 
     def get_asset_value(self, ticker: str, current_price: float) -> float:
-        quantity = self.positions.get(ticker, 0.0)
+        quantity = float(self.positions.get(ticker, 0.0))
         return quantity * current_price
 
     def get_asset_weight(self, ticker: str, current_price: float) -> float:
-        if self.total_value == 0:
+        total_val = float(self.total_value)
+        if total_val == 0:
             return 0.0
-        asset_value = self.get_asset_value(ticker, current_price)
-        return asset_value / self.total_value
+        asset_value = float(self.get_asset_value(ticker, current_price))
+        return asset_value / total_val
 
     def __repr__(self) -> str:
         return f"PortfolioManager(TotalValue={self.total_value:,.2f}, Cash={self.cash:,.2f}, Positions={len(self.positions)})"
@@ -117,14 +159,25 @@ class PortfolioManager:
 class StrategyContext:
     """
     The master context object passed to the strategy's OnData method on each time step.
-    """
+    It encapsulates MarketData, PortfolioManager, and provides trade execution methods"""
     def __init__(self, market_data_df, cash_df, positions_df, port_notional_df, current_time, executor, portfolio_config):
         self._executor = executor
         self._portfolio_config = portfolio_config
-        self.time = current_time
+        self._positions_df = positions_df
+        effective_time = current_time
+        timezone = pytz.timezone('America/New_York')
+        if effective_time is None:
+            if market_data_df is not None and not getattr(market_data_df, 'empty', True) and 'timestamp' in market_data_df.columns:
+                try:
+                    effective_time = pd.to_datetime(market_data_df['timestamp']).max()
+                except Exception:
+                    effective_time = datetime.now(timezone)
+            else:
+                effective_time = datetime.now(timezone)
+        self.time = effective_time
 
-        # Initialize the high-level helper classes (NOW DEFINED ABOVE)
-        self.Market = MarketData(market_data_df, current_time)
+        # Initialize the high-level helper classes
+        self.Market = MarketData(market_data_df, effective_time)
 
         cash_val = cash_df.iloc[0]['notional'] if cash_df is not None and not cash_df.empty else 0.0
         port_val = port_notional_df.iloc[0]['notional'] if port_notional_df is not None and not port_notional_df.empty else 0.0
@@ -154,8 +207,8 @@ class StrategyContext:
             confidence=confidence,
             arrival_price=asset_data.Close,
             cash=self.Portfolio.cash,
-            positions=self.Portfolio.positions.get(ticker, 0.0),
+            positions=self._positions_df,
             port_notional=self.Portfolio.total_value,
-            ticker_weight=self._portfolio_config['weights'].get(ticker, 0.0),
+            ticker_weight=self.Portfolio.get_asset_weight(ticker, asset_data.Close),
             timestamp=self.time
         )

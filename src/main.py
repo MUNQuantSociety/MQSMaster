@@ -8,9 +8,11 @@ from common.database.MQSDBConnector import MQSDBConnector
 from live_trading.executor import tradeExecutor
 from portfolios.portfolio_1.strategy import VolMomentum
 from portfolios.portfolio_2.strategy import MomentumStrategy
+from portfolios.portfolio_3.strategy import RegimeAdaptiveStrategy
+from portfolios.portfolio_dummy.strategy import CrossoverRmiStrategy
 from live_trading.engine import RunEngine
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 def main():
     """
@@ -27,7 +29,7 @@ def main():
         run_engine = RunEngine(db_connector=db_conn, executor=live_executor)
         logging.info("Run engine initialized.")
 
-        run_engine.load_portfolios([VolMomentum, MomentumStrategy])
+        run_engine.load_portfolios([VolMomentum, MomentumStrategy, RegimeAdaptiveStrategy, CrossoverRmiStrategy])
         logging.info("Run engine setup complete.")
 
         run_engine.run()

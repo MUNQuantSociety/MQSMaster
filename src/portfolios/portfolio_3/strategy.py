@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional
 
 # Imports from your project structure
+from src.portfolios.indicators.base import Indicator
 from src.portfolios.portfolio_BASE.strategy import BasePortfolio
 from src.portfolios.strategy_api import StrategyContext
 
@@ -33,8 +34,8 @@ class RegimeAdaptiveStrategy(BasePortfolio):
         # --- Strategy Properties ---
         self.interval_seconds = self.poll_interval
         self.last_decision_time = {} # Cooldown timer per ticker
-        self.trade_history = {}      # History for confidence decay
-        
+        self.trade_history = {} # History for confidence decay
+
         self.market_open_start = timedelta(hours=9, minutes=30)
         self.market_open_end = timedelta(hours=10, minutes=0)
 
@@ -58,13 +59,11 @@ class RegimeAdaptiveStrategy(BasePortfolio):
         This method is called for each new data point (e.g., each minute bar).
         All strategy logic is contained here.
         """
-        
+
         # --- 1. Get Current State from Context ---
         try:
             trade_ts = context.time
-            current_cash = context.Portfolio.cash
             positions_dict = context.Portfolio.positions
-            port_notional = context.Portfolio.total_value
         except Exception as e:
             self.logger.error(f"Error accessing context properties: {e}")
             return
@@ -80,10 +79,8 @@ class RegimeAdaptiveStrategy(BasePortfolio):
         except Exception as e:
             self.logger.error(f"Error getting VIX data: {e}")
             return
-            
         # --- 3. Loop Through Tickers and Apply Logic ---
         for ticker in self.tickers:
-            
             if ticker == '^VIX':
                 continue
 
@@ -106,7 +103,7 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                     continue
                 
                 if not asset_data.Exists:
-                    self.logger.warning(f"No market data for {ticker} at {trade_ts}")
+                    self.logger.debug(f"No market data for {ticker} at {trade_ts}")
                     continue
 
                 # --- 3d. Get Current Values ---
@@ -118,7 +115,7 @@ class RegimeAdaptiveStrategy(BasePortfolio):
 
                 all_values = [vwap_v, atr_v, momentum_v, latest_price, quantity]
                 if any(v is None for v in all_values):
-                    self.logger.warning(f"Skipping {ticker} due to None values.")
+                    self.logger.debug(f"Skipping {ticker} due to None values.")
                     continue
 
                 #*---------------------------------------------------
@@ -126,9 +123,8 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                 #*---------------------------------------------------
                 time_of_day = trade_ts.time()
                 is_market_open = self.market_open_start <= timedelta(hours=time_of_day.hour, minutes=time_of_day.minute) <= self.market_open_end
-                is_high_vol = is_market_open or (vix_value > 10) # VIX threshold
-
-                
+                 # VIX threshold
+                is_high_vol = is_market_open or (vix_value > 18)
                 #*---------------------------------------------------
                 #* INLINED: fade_signal() and momentum_signal()
                 #*---------------------------------------------------
@@ -144,12 +140,11 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                         signal = "BUY"
                 else:
                     # Regime: Low Volatility -> Use Momentum
-                    if momentum_v > 0.002: # 0.2% positive change
+                    if momentum_v > 0.2:
                         signal = "BUY"
-                    elif momentum_v < -0.002: # 0.2% negative change
+                    elif momentum_v < -0.2:
                         signal = "SELL"
 
-                
                 #*---------------------------------------------------
                 #* INLINED: calculate_confidence()
                 #*---------------------------------------------------
@@ -162,26 +157,21 @@ class RegimeAdaptiveStrategy(BasePortfolio):
 
                 # --- 3e. Execute Trade (if signal) ---
                 if signal != "HOLD":
+                    self.logger.debug(f"[{ticker}] Executing {signal} with confidence {confidence}")
                     
-                    trade_result = context.trade(self.ticker, signal, confidence )
-                    #*---------------------------------------------------
-                    #* INLINED: update_trade_history()
-                    #*---------------------------------------------------
-                    success = False
-                    if trade_result and trade_result.get('status') == 'success':
-                        success = True
-                        current_cash = trade_result['updated_cash'] 
-                    
-                    if ticker not in self.trade_history:
-                        self.trade_history[ticker] = []
-                    
-                    self.trade_history[ticker].append(success)
-                    
-                    if len(self.trade_history[ticker]) > 10:
-                        self.trade_history[ticker] = self.trade_history[ticker][-10:]
-                    #*---------------------------------------------------
+                    if signal == "BUY":
+                        context.buy(ticker, confidence)
+                    elif signal == "SELL":
+                        context.sell(ticker, confidence)
 
                     self.last_decision_time[ticker] = trade_ts
 
+                    # Track trade attempt for confidence decay
+                    if ticker not in self.trade_history:
+                        self.trade_history[ticker] = []
+                    self.trade_history[ticker].append(True)  # Assume success
+                    if len(self.trade_history[ticker]) > 10:
+                        self.trade_history[ticker] = self.trade_history[ticker][-10:]
+
             except Exception as e:
-                self.logger.exception(f"[{ticker}] Error during OnData decision loop: {e}")
+                self.logger.error(f"[{ticker}] Error during OnData decision loop: {e}")
