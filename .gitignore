@@ -17,10 +17,6 @@ venv/
 *.lock
 .vscode/
 src/backtest/data
-
-# Jupyter Notebook outputs (keeps diffs clean)
-*.ipynb_checkpoints/
-**/.ipynb_checkpoints/
 # Build artifacts
 build/
 dist/

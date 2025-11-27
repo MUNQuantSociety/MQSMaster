@@ -1,2 +1,0 @@
-# Clean notebook outputs on commit
-*.ipynb filter=strip-notebook-output
