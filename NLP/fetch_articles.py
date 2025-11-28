@@ -44,6 +44,7 @@ def parse_args():
 
 
 # ─── FUNCTIONS ────────────────────────────────────────────────────────────────
+#TODO: Implement content scraping if needed
 def scrape_article_content(symbol):
     """
     Scrape the full article content from the given URL using Selenium and BeautifulSoup.
@@ -79,7 +80,7 @@ def scrape_article_content(symbol):
     except Exception as e:
         print(f"Error scraping {url}: {e}")
     return ""
-
+#############################################################################
 def fetch_news(symbol, start_date, end_date, start_page=0):
     """
     Fetch stock news from FMP for a symbol within a date range.
