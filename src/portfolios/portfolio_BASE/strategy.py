@@ -165,9 +165,23 @@ class BasePortfolio(ABC):
                     for row in group.itertuples():
                         for indicator in self._indicators:
                             if indicator.ticker == row.ticker:
+                                # Get the OHLCV column names from indicator config
                                 price_col = getattr(indicator, 'price_col', 'close_price')
+                                vol_col = getattr(indicator, 'vol_col', 'volume')
+                                high_col = getattr(indicator, 'high_col', 'high_price')
+                                low_col = getattr(indicator, 'low_col', 'low_price')
+
                                 if hasattr(row, price_col) and pd.notna(getattr(row, price_col)):
                                     indicator.Update(row.timestamp, getattr(row, price_col))
+                                # Handle volume if applicable
+                                if hasattr(indicator, 'vol_col') and pd.notna(getattr(row, vol_col)):
+                                    indicator.Update(row.timestamp, getattr(row, vol_col))
+                                # Handle high/low if applicable
+                                if hasattr(indicator, 'high_col') and pd.notna(getattr(row, high_col)):
+                                    indicator.Update(row.timestamp, getattr(row, high_col))
+                                if hasattr(indicator, 'low_col') and pd.notna(getattr(row, low_col)):
+                                    indicator.Update(row.timestamp, getattr(row, low_col))
+                                self.logger.debug(f"Updated {indicator.__class__.__name__} for {row.ticker} at {row.timestamp}: {getattr(row, price_col)}, vol={getattr(row, vol_col, 'N/A')}, high={getattr(row, high_col, 'N/A')}, low={getattr(row, low_col, 'N/A')}")
 
         # Update the last processed time. If current_time is None, fall back to newest timestamp.
         if current_time is not None:

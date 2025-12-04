@@ -30,13 +30,9 @@ class VolMomentum(BasePortfolio):
             if not all([asset.Exists, roc.IsReady]):
                 continue
 
-            # Risk Rule: Don't open new long positions if cash is less than 10% of total value
-
-
             return_history = asset.History("60d")
             returns = return_history['close_price'].pct_change(60).dropna()
             volatility = returns.std() * (252 ** 0.5)
-
 
             momentum = roc.Current
             threshold = volatility * vol_multiplier
@@ -46,13 +42,22 @@ class VolMomentum(BasePortfolio):
             bullish = momentum > threshold
             bearish = momentum < -threshold
 
-            if bullish:
+            if bullish and not is_risk_off:
                 is_risk_off = False
 
-            if bullish: # Max 25% weight
+            weight = 0.2 if bullish else 0.0
+            asset_weight = 0.0
+            if asset.Exists:
+                asset_weight = portfolio.get_asset_weight(ticker, asset.Close)
+            if asset_weight <= weight:
+                target_weight = True
+            else:
+                target_weight = False
+                
+            if (bullish and target_weight) or position < 0: # Max 25% weight
                 self.logger.debug(f"[{ticker}] BUY signal: momentum ({momentum:.4f}) > threshold ({threshold:.4f}), position={position}")
                 context.buy(ticker, confidence=1.0)
 
-            elif bearish and position > 0:
+            elif position > 0 and (bearish or target_weight is False or is_risk_off):
                 self.logger.debug(f"[{ticker}] SELL signal: momentum ({momentum:.4f}) < threshold ({threshold:.4f}), position={position}")
                 context.sell(ticker, confidence=1.0)

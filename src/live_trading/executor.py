@@ -132,24 +132,28 @@ class tradeExecutor:
         if desired_trade_notional > 0: # Finalizing a BUY
             updated_cash = cash_val - trade_value
             updated_quantity = current_quantity + quantity_to_trade
+            port_notional_val = port_notional_val - trade_value
         elif desired_trade_notional < 0: # Finalizing a SELL
             updated_cash = cash_val + trade_value
             updated_quantity = current_quantity - quantity_to_trade
+            port_notional_val = port_notional_val + trade_value
                 
         return self.update_database(
             portfolio_id, ticker, signal_type, quantity_to_trade,
-            updated_cash, updated_quantity, arrival_price_val, exec_price, slippage_bps, timestamp
+            updated_cash, updated_quantity, arrival_price_val, exec_price, slippage_bps, timestamp, port_notional_val
         )
 
 
     def update_database(self, portfolio_id, ticker, signal_type, quantity_to_trade, 
-                     updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp):
+                     updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp, port_notional):
         """
         Update database tables after trade execution within a single transaction.
         If any operation fails, all changes are rolled back.
         """
         date_part = timestamp.date()
         trade_notional = abs(quantity_to_trade * exec_price)
+        if signal_type == 'SELL':
+            trade_notional = -trade_notional
 
         conn = None
         try:
@@ -164,7 +168,7 @@ class tradeExecutor:
                     INSERT INTO cash_equity_book (timestamp, date, portfolio_id, currency, notional)
                     VALUES (%s, %s, %s, %s, %s)
                 """
-                cash_values = (timestamp, date_part, portfolio_id, 'USD', float(updated_cash))
+                cash_values = (timestamp, date_part, portfolio_id, 'USD', float(round(updated_cash, 2)))
                 cursor.execute(cash_query, cash_values)
 
                 # Update positions_book (upsert: insert or update if exists)
@@ -187,8 +191,8 @@ class tradeExecutor:
                 """
                 trade_log_values = (
                     portfolio_id, ticker, timestamp, signal_type, float(quantity_to_trade),
-                    float(arrival_price), float(exec_price), float(slippage_bps),
-                    None, float(trade_notional), 'USD', None
+                    float(round(arrival_price, 2)), float(round(exec_price, 2)), float(round(slippage_bps, 2)),
+                    float(round(port_notional, 2)), float(round(trade_notional, 2)), 'USD', 1.0
                 )
                 cursor.execute(trade_log_query, trade_log_values)
 
