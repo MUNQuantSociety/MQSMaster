@@ -12,12 +12,22 @@ from portfolios.portfolio_3.strategy import RegimeAdaptiveStrategy
 from portfolios.portfolio_dummy.strategy import CrossoverRmiStrategy
 from live_trading.engine import RunEngine
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 def main():
     """
     Main entry point for the MQS Trading System.
+    comment/uncomment portfolio classes in the portfolio_classes list to run different strategies.
     """
+    portfolio_classes= [
+        VolMomentum,
+        MomentumStrategy,
+#        RegimeAdaptiveStrategy,
+#        CrossoverRmiStrategy,
+    ]
+
+#DO NOT CHANGE BELOW THIS LINE
+#======================================================
     db_conn = None
     try:
         db_conn = MQSDBConnector()
@@ -29,7 +39,7 @@ def main():
         run_engine = RunEngine(db_connector=db_conn, executor=live_executor)
         logging.info("Run engine initialized.")
 
-        run_engine.load_portfolios([VolMomentum, MomentumStrategy, RegimeAdaptiveStrategy, CrossoverRmiStrategy])
+        run_engine.load_portfolios(portfolio_classes)
         logging.info("Run engine setup complete.")
 
         run_engine.run()

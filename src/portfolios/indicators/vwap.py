@@ -69,6 +69,3 @@ class VWAP(Indicator):
             else:
                 # Fallback to simple price average if total volume is 0
                 self._current_value = data_point
-        
-        return self._current_value
-
