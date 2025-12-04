@@ -43,9 +43,9 @@ class RegimeAdaptiveStrategy(BasePortfolio):
         #* 1. DEFINE YOUR INDICATORS HERE
         #*---------------------------------------------------
         indicator_definitions = { 
-            "vwap": ("VWAP", {"period": 20}),
-            "atr": ("AverageTrueRange", {"period": 14}),
-            "momentum_pct": ("RateOfChange", {"period": 5}) 
+            "vwap": ("VWAP", {"period": 20, "price_col": "close_price", "vol_col": "volume"}),
+            "atr": ("AverageTrueRange", {"period": 14, "high_col": "high_price", "low_col": "low_price", "close_col": "close_price"}),
+            "momentum_pct": ("RateOfChange", {"period": 5, "price_col": "close_price", "mode": "percentage"}), 
         }
 
         self.RegisterIndicatorSet(indicator_definitions)
