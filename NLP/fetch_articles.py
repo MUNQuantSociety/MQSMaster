@@ -45,41 +45,6 @@ def parse_args():
 
 # ─── FUNCTIONS ────────────────────────────────────────────────────────────────
 #TODO: Implement content scraping if needed
-def scrape_article_content(symbol):
-    """
-    Scrape the full article content from the given URL using Selenium and BeautifulSoup.
-    Returns the article text or an empty string if scraping fails.
-    """
-
-    url = f'https://finance.yahoo.com/quote/{symbol}/news'
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
-        }
-
-    try:
-        import requests
-        from bs4 import BeautifulSoup
-    except ImportError as e:
-        print(f"{e.name} is not installed. Cannot scrape article content.")
-        return ""
-
-    try:
-        resp = requests.get(url, headers=headers, timeout=30)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
-
-        articles = soup.find_all("li", {"class": "js-stream-content"})
-        article_texts = []
-        for article in articles:
-            title_tag = article.find("h3")
-            content_tag = article.find("p")
-            title = title_tag.get_text(strip=True) if title_tag else ""
-            content = content_tag.get_text(strip=True) if content_tag else ""
-            article_texts.append(f"{title}\n{content}")
-        return "\n\n".join(article_texts)
-    except Exception as e:
-        print(f"Error scraping {url}: {e}")
-    return ""
 #############################################################################
 def fetch_news(symbol, start_date, end_date, start_page=0):
     """
