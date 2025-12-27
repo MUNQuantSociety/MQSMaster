@@ -12,7 +12,7 @@ proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if proj_root not in sys.path:
     sys.path.insert(0, proj_root)
 
-from common.auth.apiAuth import APIAuth
+from src.common.auth.apiAuth import APIAuth
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 api = APIAuth()
@@ -44,7 +44,7 @@ def parse_args():
 
 
 # ─── FUNCTIONS ────────────────────────────────────────────────────────────────
-#TODO: Implement content scraping if needed
+# TODO: Implement content scraping
 #############################################################################
 def fetch_news(symbol, start_date, end_date, start_page=0):
     """
@@ -141,7 +141,7 @@ def load_fetch_state(ticker, user_start, user_end):
             return 0
         
         return state["next_start_page"]
-    except:
+    except Exception:
         return 0
 
 
