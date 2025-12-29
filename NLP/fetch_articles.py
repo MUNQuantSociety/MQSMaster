@@ -90,7 +90,7 @@ def fetch_news(symbol, start_date, end_date, start_page=0):
                     "publishedDate": art_date,
                     "title": (art.get("title") or "").strip(),
                     "content": (art.get("text") or art.get("content") or "").strip(),
-                    "site": (art.get("site") or "").strip(),
+                    "site": (art.get("url") or "").strip(),
                 })
 
         if reached_start_date:
