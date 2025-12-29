@@ -10,7 +10,7 @@ python -m NLP.fetch_articles.py <TICKER> <START_DATE> <END_DATE>
 - Replace `<START_DATE>` and `<END_DATE>` with the desired date range in `YYYY-MM-DD` format.
 
 **Example:**
-python -m NLP.fetch_articles.py AAPL 2024-01-01 2025-01-01
+python -m NLP.fetch_articles AAPL 2024-01-01 2025-01-01
 
 
 ## Adding Models
