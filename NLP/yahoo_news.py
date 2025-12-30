@@ -29,6 +29,33 @@ def _load_more_content(driver, max_scrolls=10, pause_seconds=2.5):
         if new_height == last_height:
             break
         last_height = new_height
+def format_date(date_str):
+    """
+    Convert date string from Yahoo format to standard YYYY-MM-DD HH:MM:SS.
+    subract the value of scraped date from current date to get the actual date
+    """
+    from datetime import datetime
+
+    try:
+        now = datetime.now()
+        parts = date_str.split()
+        unit = list(parts[-2]).pop()
+        value = int(parts[-2].rstrip(unit))
+        if "m" in unit:
+            dt = now - pd.Timedelta(minutes=value)
+        elif "h" in unit:
+            dt = now - pd.Timedelta(hours=value)
+        elif "d" in unit:
+            dt = now - pd.Timedelta(days=value)
+        elif "w" in unit:
+            dt = now - pd.Timedelta(weeks=value)
+# Unknown format
+        else:
+            dt = datetime.strptime(date_str, "%B %d, %Y")
+
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return date_str  # Return original if parsing fails
 
 
 def scrape_article_content(symbol, max_scrolls=10):
@@ -80,6 +107,7 @@ def scrape_article_content(symbol, max_scrolls=10):
                 link = x.find_element(By.TAG_NAME, "a").get_attribute("href")
                 title = x.find_element(By.TAG_NAME, "h3").text
                 date = x.find_element(By.CLASS_NAME, "publishing").text
+                date = format_date(date)
                 yield {"date": date, "title": title, "link": link}
         else:
             driver.quit()
@@ -93,7 +121,6 @@ def scrape_article_content(symbol, max_scrolls=10):
                 driver.quit()
             except Exception:
                 pass
-
 
 def main():
     symbols = ["AAPL", "MSFT", "GOOGL"]
