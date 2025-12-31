@@ -1,11 +1,12 @@
-import sys
-import os
-import time
-import requests
-import pandas as pd
 import argparse
-from datetime import datetime
 import json
+import os
+import sys
+import time
+from datetime import datetime
+
+import pandas as pd
+import requests
 
 # insert project root into your path
 proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -31,9 +32,7 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="Fetch and update stock-news CSVs for a ticker within a date range."
     )
-    p.add_argument(
-        "ticker", help="The ticker symbol to fetch (e.g., AAPL)."
-    )
+    p.add_argument("ticker", help="The ticker symbol to fetch (e.g., AAPL).")
     p.add_argument(
         "start_date", help="Start date for fetching articles, in YYYY-MM-DD format."
     )
@@ -86,12 +85,16 @@ def fetch_news(symbol, start_date, end_date, start_page=0):
 
             if art_date <= end_date:
                 # ⬇️ FIX APPLIED HERE ⬇️
-                all_articles.append({
-                    "publishedDate": art_date,
-                    "title": (art.get("title") or "").strip(),
-                    "content": (art.get("text") or art.get("content") or "").strip(),
-                    "site": (art.get("url") or "").strip(),
-                })
+                all_articles.append(
+                    {
+                        "publishedDate": art_date,
+                        "title": (art.get("title") or "").strip(),
+                        "content": (
+                            art.get("text") or art.get("content") or ""
+                        ).strip(),
+                        "site": (art.get("url") or "").strip(),
+                    }
+                )
 
         if reached_start_date:
             print(f"[{symbol}] Reached the start date boundary.")
@@ -99,47 +102,54 @@ def fetch_news(symbol, start_date, end_date, start_page=0):
 
         page += 1
         time.sleep(RATE_LIMIT)
-    
-    hit_max_pages = (page == start_page + MAX_PAGES_PER_RUN)
+
+    hit_max_pages = page == start_page + MAX_PAGES_PER_RUN
     next_start_page = page
-    
+
     if hit_max_pages:
-        print(f"[{symbol}] Reached page limit for this run. Next start page: {next_start_page}")
+        print(
+            f"[{symbol}] Reached page limit for this run. Next start page: {next_start_page}"
+        )
     else:
-        print(f"[{symbol}] Finished fetching available pages. Total pages: {page - start_page}")
+        print(
+            f"[{symbol}] Finished fetching available pages. Total pages: {page - start_page}"
+        )
 
     return all_articles, hit_max_pages, next_start_page
+
+
 def save_fetch_state(ticker, next_start_page, start_date, end_date):
     """Save fetch state to JSON file"""
     os.makedirs(STATE_DIR, exist_ok=True)
     state_path = os.path.join(STATE_DIR, f"{ticker}_state.json")
-    
+
     state = {
         "next_start_page": next_start_page,
         "start_date": start_date.strftime("%Y-%m-%d"),
-        "end_date": end_date.strftime("%Y-%m-%d")
+        "end_date": end_date.strftime("%Y-%m-%d"),
     }
-    
-    with open(state_path, 'w') as f:
+
+    with open(state_path, "w") as f:
         json.dump(state, f)
 
 
 def load_fetch_state(ticker, user_start, user_end):
     """Load fetch state from JSON file if dates match"""
     state_path = os.path.join(STATE_DIR, f"{ticker}_state.json")
-    
+
     if not os.path.exists(state_path):
         return 0  # Start from page 0 if no state
-    
+
     try:
-        with open(state_path, 'r') as f:
+        with open(state_path, "r") as f:
             state = json.load(f)
-        
+
         # Reset state if date range changed
-        if (state["start_date"] != user_start.strftime("%Y-%m-%d") or
-            state["end_date"] != user_end.strftime("%Y-%m-%d")):
+        if state["start_date"] != user_start.strftime("%Y-%m-%d") or state[
+            "end_date"
+        ] != user_end.strftime("%Y-%m-%d"):
             return 0
-        
+
         return state["next_start_page"]
     except Exception:
         return 0
@@ -151,7 +161,7 @@ def update_ticker_csv(symbol, start_date_str, end_date_str):
     """
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     csv_path = os.path.join(OUTPUT_DIR, f"{symbol}.csv")
-    
+
     try:
         user_start = datetime.strptime(start_date_str, "%Y-%m-%d")
         user_end = datetime.strptime(end_date_str, "%Y-%m-%d").replace(
@@ -160,27 +170,26 @@ def update_ticker_csv(symbol, start_date_str, end_date_str):
     except ValueError:
         print("Error: Dates must be in YYYY-MM-DD format.")
         return
-    
+
     # Load or initialize fetch state
     start_page = load_fetch_state(symbol, user_start, user_end)
     has_more_pages = True
     run_count = 1
-    
+
     while has_more_pages:
-        print(f"\n--- Starting fetch cycle #{run_count} (starting page: {start_page}) ---")
-        
+        print(
+            f"\n--- Starting fetch cycle #{run_count} (starting page: {start_page}) ---"
+        )
+
         # Fetch articles from current start page
         articles, hit_max_pages, next_page = fetch_news(
-            symbol, 
-            user_start, 
-            user_end, 
-            start_page
+            symbol, user_start, user_end, start_page
         )
-        
+
         # Update CSV if we found articles
         if articles:
             new_df = pd.DataFrame(articles)
-            
+
             if os.path.exists(csv_path):
                 try:
                     old_df = pd.read_csv(csv_path, parse_dates=["publishedDate"])
@@ -189,39 +198,110 @@ def update_ticker_csv(symbol, start_date_str, end_date_str):
                     combined = new_df
             else:
                 combined = new_df
-                
+
             # Remove duplicates and sort
             initial_count = len(combined)
             combined.drop_duplicates(
-                subset=["publishedDate", "title"], 
-                keep="first", 
-                inplace=True
+                subset=["publishedDate", "title"], keep="first", inplace=True
             )
             combined.sort_values("publishedDate", ascending=False, inplace=True)
             combined.to_csv(csv_path, index=False, date_format="%Y-%m-%d %H:%M:%S")
-            
+
             added = len(combined) - (initial_count - len(new_df))
             duplicates_removed = initial_count - len(combined)
-            print(f"[{symbol}] Added {added} new articles, removed {duplicates_removed} duplicates")
+            print(
+                f"[{symbol}] Added {added} new articles, removed {duplicates_removed} duplicates"
+            )
         else:
             print(f"[{symbol}] No new articles found in this batch")
-        
+
         # Update state and determine if we should continue
         start_page = next_page
         has_more_pages = hit_max_pages
         save_fetch_state(symbol, start_page, user_start, user_end)
-        
+
         run_count += 1
-    
+
     print(f"\n[{symbol}] Fetching completed successfully!")
 
+
+def remove_duplicates(*kwargs):
+    """Remove duplicates based on title and publishedDate."""
+    combined = pd.concat([*kwargs], ignore_index=True)
+    before_dedup = len(combined)
+    combined.drop_duplicates(
+        subset=["publishedDate", "title"], keep="first", inplace=True
+    )
+    after_dedup = len(combined)
+    print(
+        f"Removed {before_dedup - after_dedup} duplicates; {after_dedup} unique articles remain."
+    )
+    return combined
+
+def temp_save_articles(args, yahoo_news_df, finviz_news_df, alpha_news_df):
+    """Save temporary article CSVs for duplicate checking."""
+    path = os.path.dirname(__file__) + "/articles"
+    # Write temporary files for duplicate checking
+
+    yahoo_path = f"{path}/{args.ticker.upper()}_yahoo_news.csv"
+    finviz_path = f"{path}/{args.ticker.upper()}_finviz_news.csv"
+    alpha_path = f"{path}/{args.ticker.upper()}_alpha_news.csv"
+    fmp_path = f"{path}/{args.ticker.upper()}.csv"
+
+    with open(yahoo_path, "w", encoding="utf-8") as f:
+        yahoo_news_df.to_csv(f, index=False, date_format="%Y-%m-%d %H:%M:%S")
+    with open(finviz_path, "w", encoding="utf-8") as f:
+        finviz_news_df.to_csv(f, index=False, date_format="%Y-%m-%d %H:%M:%S")
+    with open(alpha_path, "w", encoding="utf-8") as f:
+        alpha_news_df.to_csv(f, index=False, date_format="%Y-%m-%d %H:%M:%S")
+    return fmp_path, yahoo_path, finviz_path, alpha_path
 
 def main():
     """Main function to parse arguments and initiate the fetch."""
     args = parse_args()
     update_ticker_csv(args.ticker.upper(), args.start_date, args.end_date)
 
+    from .fetch_alt_articles import ArticleScraper
+
+    scraper = ArticleScraper(args.ticker.upper())
+    # Alpha Vantage expects format YYYYMMDDTHHmm (no seconds)
+    start = datetime.strptime(args.start_date, "%Y-%m-%d").strftime("%Y%m%dT%H%M")
+    end = (
+        datetime.strptime(args.end_date, "%Y-%m-%d")
+        .replace(hour=23, minute=59)
+        .strftime("%Y%m%dT%H%M")
+    )
+    yahoo = scraper.scrape_yahoo()
+    finviz = scraper.scrape_finviz()
+    alpha = scraper.scrape_alpha(
+        ticker=[args.ticker.upper()], time_from=start, time_to=end
+    )
+    print("--------------------\n")
+    print(f"Fetching more articles for {args.ticker.upper()}.")
+    path = os.path.dirname(__file__) + "/articles"
+    # Convert to DataFrame for further analysis if needed
+    yahoo_news_df = pd.DataFrame(yahoo)
+    finviz_news_df = pd.DataFrame(finviz)
+    alpha_news_df = pd.DataFrame(alpha)
+
+    # Save temporary CSVs
+    fmp_path, yahoo_path, finviz_path, alpha_path = temp_save_articles(args, yahoo_news_df, finviz_news_df, alpha_news_df)
+    fmp_df = pd.read_csv(fmp_path)
+    # Check for duplicates across sources
+    scraper.check_duplicates()
+    combined_df = remove_duplicates(fmp_df, yahoo_news_df, finviz_news_df, alpha_news_df)
+    combined_df.to_csv(
+        f"{path}/{args.ticker.upper()}.csv",
+        index=False,
+        date_format="%Y-%m-%d %H:%M:%S",
+    )
+
+    # Clean up temporary files
+    os.remove(yahoo_path)
+    os.remove(finviz_path)
+    os.remove(alpha_path)
+    print(f"Cleaned up temporary files for {args.ticker.upper()}")
+
 
 if __name__ == "__main__":
     main()
-    

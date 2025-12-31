@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -54,7 +55,9 @@ class ArticleScraper:
 
                 soup = BeautifulSoup(content, "html.parser")
                 paragraphs = soup.find_all("p")
-                full_content = " ".join([p.get_text().strip() for p in paragraphs])
+                full_content = " ".join([p.get_text().strip() for p in paragraphs])[
+                    :500
+                ]
 
                 # Remove common prefixes
                 remove = {
@@ -99,6 +102,64 @@ class ArticleScraper:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             return results
 
+    def check_duplicates(self):
+        import re
+
+        df = pd.read_csv(f"{PATH}/{self.symbol}.csv")
+        df_1 = pd.read_csv(f"{PATH}/{self.symbol}_alpha_news.csv")
+        df_2 = pd.read_csv(f"{PATH}/{self.symbol}_finviz_news.csv")
+        df_3 = pd.read_csv(f"{PATH}/{self.symbol}_yahoo_news.csv")
+
+        # Normalize function
+        def normalize(title):
+            return re.sub(r"[^a-zA-Z0-9]", "", str(title)).lower()
+
+        # Use set comprehensions for efficiency
+        cleaned_titles_0 = {normalize(w) for w in df["title"]}
+        cleaned_titles_1 = {normalize(x) for x in df_1["title"]}
+        cleaned_titles_2 = {normalize(y) for y in df_2["title"]}
+        cleaned_titles_3 = {normalize(z) for z in df_3["title"]}
+
+        duplicates = cleaned_titles_0.intersection(
+            cleaned_titles_1, cleaned_titles_2, cleaned_titles_3
+        )
+        total_titles = (
+            len(cleaned_titles_0)
+            + len(cleaned_titles_1)
+            + len(cleaned_titles_2)
+            + len(cleaned_titles_3)
+        )
+
+        print(f"Found {len(duplicates)}/{total_titles} Duplicate titles.")
+
+        # Build reverse mapping: normalized -> original titles
+        normalized_to_original = {}
+        for df_data, col in [
+            (df, "title"),
+            (df_1, "title"),
+            (df_2, "title"),
+            (df_3, "title"),
+        ]:
+            for title in df_data[col]:
+                norm = normalize(title)
+                if norm in duplicates:
+                    if norm not in normalized_to_original:
+                        normalized_to_original[norm] = set()
+                    normalized_to_original[norm].add(title)
+
+        # Flatten all unique original titles
+        cleaned_dups = {
+            title for titles in normalized_to_original.values() for title in titles
+        }
+
+        print("\nDuplicates Titles:")
+        print(duplicates)
+        print("----------------")
+        for n, title in enumerate(sorted(cleaned_dups), 1):
+            print(f" {n} - {title}")
+        return duplicates
+
+
     def scrape_yahoo(self):
         """
         Scrape latest news items for `symbol` from Yahoo Finance.
@@ -116,6 +177,14 @@ class ArticleScraper:
             title = content.get("title", "N/A")
             summary = content.get("summary", "N/A")
             pub_date = content.get("pubDate", "N/A")
+            if pub_date != "N/A":
+                try:
+                    pub_date = datetime.strptime(
+                        pub_date.replace("T", " ").replace("Z", ""), "%Y-%m-%d %H:%M:%S"
+                    ).strftime("%Y-%m-%d %H:%M:%S")
+                except ValueError as e:
+                    print(f"Error parsing date {pub_date}: {e}")
+
             canonical_url = content.get("canonicalUrl", {}).get("url", "N/A")
 
             yield {
@@ -182,8 +251,6 @@ class ArticleScraper:
         apikey=ALPHA_KEY,
     ):
         """Scrape news articles from Alpha Vantage for given tickers and time range."""
-        from datetime import datetime
-
         import requests
 
         url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={','.join(ticker)}&time_from={time_from}&time_to={time_to}&apikey={apikey}"
@@ -199,12 +266,12 @@ class ArticleScraper:
             summary = news.get("summary", "N/A")
             pub_date = news.get("time_published", "N/A")
 
-            # Format the timestamp from API format (e.g., "20251231T120000Z") to readable format
+            # Format the timestamp from API format (e.g., "2025-12-31T11:30:10Z") to readable format
             if pub_date != "N/A":
                 try:
-                    pub_date = datetime.strptime(pub_date, "%Y%m%dT%H%M%S").strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
+                    pub_date = datetime.strptime(
+                        pub_date.replace("T", "").replace("Z", ""), "%Y%m%d%H%M%S"
+                    ).strftime("%Y-%m-%d %H:%M:%S")
                 except ValueError as e:
                     print(f"Error parsing date {pub_date}: {e}")
 
@@ -225,7 +292,7 @@ def main():
         yahoo = scraper.scrape_yahoo()
         finviz = scraper.scrape_finviz()
         alpha = scraper.scrape_alpha()
-        print('--------------------\n')
+        print("--------------------\n")
         print(f"Fetching articles for {symbol}.")
 
         # Convert to DataFrame for further analysis if needed
