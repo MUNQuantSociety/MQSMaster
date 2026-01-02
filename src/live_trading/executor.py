@@ -1,12 +1,24 @@
-from datetime import datetime
 import logging
 import math
-import pandas as pd
-from common.database.schemaDefinitions import MQSDBConnector
-from common.auth.apiAuth import APIAuth
-from orchestrator.marketData.fmpMarketData import FMPMarketData
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+import pandas as pd
+
+try:
+    from common.auth.apiAuth import APIAuth
+    from common.database.schemaDefinitions import MQSDBConnector
+    from orchestrator.marketData.fmpMarketData import FMPMarketData
+except ImportError:
+    logging.warning(
+        "APIAuth, MQSDBConnector, FMPMarketData relative import failed; using absolute import."
+    )
+    from src.common.auth.apiAuth import APIAuth
+    from src.common.database.schemaDefinitions import MQSDBConnector
+    from src.orchestrator.marketData.fmpMarketData import FMPMarketData
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
 
 class tradeExecutor:
     def __init__(self, db_connector: MQSDBConnector, leverage: float = 2.0):
@@ -19,46 +31,55 @@ class tradeExecutor:
         self.leverage = leverage
         self.logger.info(f"tradeExecutor initialized with leverage={self.leverage}.")
 
-    def _calculate_buying_power(self, portfolio_equity: float, positions_df: pd.DataFrame, 
-                                current_ticker: str, current_ticker_price: float) -> float:
+    def _calculate_buying_power(
+        self,
+        portfolio_equity: float,
+        positions_df: pd.DataFrame,
+        current_ticker: str,
+        current_ticker_price: float,
+    ) -> float:
         if positions_df.empty:
             return portfolio_equity * self.leverage
 
         gross_position_value = 0.0
         for _, row in positions_df.iterrows():
-            ticker = row['ticker']
-            quantity = row['quantity']
+            ticker = row["ticker"]
+            quantity = row["quantity"]
             price = 0.0
 
             if ticker == current_ticker:
                 price = current_ticker_price
             else:
                 price = self.get_current_price(ticker)
-            
+
             # --- ROBUSTNESS CHECK ---
             if price <= 0:
                 self.logger.critical(
                     f"Could not fetch valid price for position {ticker} during buying power calculation. "
                     f"Temporarily halting new trades by returning zero buying power."
                 )
-                return 0.0 # Return 0 to prevent trading with an uncertain portfolio state
+                return (
+                    0.0  # Return 0 to prevent trading with an uncertain portfolio state
+                )
 
             gross_position_value += abs(quantity * price)
 
         buying_power = (portfolio_equity * self.leverage) - gross_position_value
         return max(0, buying_power)
 
-    def execute_trade(self,
-                      portfolio_id,
-                      ticker,
-                      signal_type,
-                      confidence,
-                      arrival_price,
-                      cash,
-                      positions, # This is a DataFrame
-                      port_notional,
-                      ticker_weight,
-                      timestamp):
+    def execute_trade(
+        self,
+        portfolio_id,
+        ticker,
+        signal_type,
+        confidence,
+        arrival_price,
+        cash,
+        positions,  # This is a DataFrame
+        port_notional,
+        ticker_weight,
+        timestamp,
+    ):
         """
         Calculates and executes a trade using a margin model that
         supports both long and short positions, with buying power constraints on all trades.
@@ -74,46 +95,57 @@ class tradeExecutor:
             return
 
         signal_type = signal_type.upper()
-        if signal_type not in ('BUY', 'SELL', 'HOLD'):
+        if signal_type not in ("BUY", "SELL", "HOLD"):
             return
 
         confidence_val = max(0.0, min(1.0, confidence_val))
-        if signal_type == 'HOLD' or confidence_val == 0.0:
+        if signal_type == "HOLD" or confidence_val == 0.0:
             return
 
         # 1. Calculate buying power before fetching the final exec_price
-        buying_power = self._calculate_buying_power(port_notional_val, positions, ticker, arrival_price_val)
+        buying_power = self._calculate_buying_power(
+            port_notional_val, positions, ticker, arrival_price_val
+        )
 
         # 2. Get the final execution price
         exec_price = self.get_current_price(ticker)
         if exec_price <= 0:
-            self.logger.error(f"Could not fetch valid execution price for {ticker}. Aborting.")
+            self.logger.error(
+                f"Could not fetch valid execution price for {ticker}. Aborting."
+            )
             return
-        
-        slippage_bps = ((exec_price / arrival_price_val) - 1) * 10000 if arrival_price_val > 0 else 0
 
+        slippage_bps = (
+            ((exec_price / arrival_price_val) - 1) * 10000
+            if arrival_price_val > 0
+            else 0
+        )
 
         # 3. Determine target notional
-        current_pos_row = positions[positions['ticker'] == ticker]
-        current_quantity = float(current_pos_row['quantity'].iloc[0]) if not current_pos_row.empty else 0.0
+        current_pos_row = positions[positions["ticker"] == ticker]
+        current_quantity = (
+            float(current_pos_row["quantity"].iloc[0])
+            if not current_pos_row.empty
+            else 0.0
+        )
         current_notional_value = current_quantity * exec_price
-        
+
         target_notional = port_notional_val * ticker_weight_val
-        if signal_type == 'SELL':
+        if signal_type == "SELL":
             target_notional *= -1
 
         adjustment_notional = target_notional - current_notional_value
         desired_trade_notional = adjustment_notional * confidence_val
 
         # --- CORRECTED: Unified Constraint & Sizing Logic ---
-        if abs(desired_trade_notional) < 1.0: # Ignore trades smaller than $1.00
+        if abs(desired_trade_notional) < 1.0:  # Ignore trades smaller than $1.00
             return
-        
+
         final_trade_notional = 0.0
-        if desired_trade_notional > 0: # This is a BUY operation
+        if desired_trade_notional > 0:  # This is a BUY operation
             # Constrain by cash AND buying power
             final_trade_notional = min(desired_trade_notional, cash_val, buying_power)
-        else: # This is a SELL/SHORT operation
+        else:  # This is a SELL/SHORT operation
             # Constrain by buying power
             final_trade_notional = min(abs(desired_trade_notional), buying_power)
 
@@ -123,36 +155,56 @@ class tradeExecutor:
         quantity_to_trade = math.floor(final_trade_notional / exec_price)
         if quantity_to_trade == 0:
             return
-            
+
         # --- 4. Execute and Update Database ---
         updated_cash = cash_val
         updated_quantity = current_quantity
         trade_value = quantity_to_trade * exec_price
 
-        if desired_trade_notional > 0: # Finalizing a BUY
+        if desired_trade_notional > 0:  # Finalizing a BUY
             updated_cash = cash_val - trade_value
             updated_quantity = current_quantity + quantity_to_trade
             port_notional_val = port_notional_val - trade_value
-        elif desired_trade_notional < 0: # Finalizing a SELL
+        elif desired_trade_notional < 0:  # Finalizing a SELL
             updated_cash = cash_val + trade_value
             updated_quantity = current_quantity - quantity_to_trade
             port_notional_val = port_notional_val + trade_value
-                
+
         return self.update_database(
-            portfolio_id, ticker, signal_type, quantity_to_trade,
-            updated_cash, updated_quantity, arrival_price_val, exec_price, slippage_bps, timestamp, port_notional_val
+            portfolio_id,
+            ticker,
+            signal_type,
+            quantity_to_trade,
+            updated_cash,
+            updated_quantity,
+            arrival_price_val,
+            exec_price,
+            slippage_bps,
+            timestamp,
+            port_notional_val,
         )
 
-
-    def update_database(self, portfolio_id, ticker, signal_type, quantity_to_trade, 
-                     updated_cash, updated_quantity, arrival_price, exec_price, slippage_bps, timestamp, port_notional):
+    def update_database(
+        self,
+        portfolio_id,
+        ticker,
+        signal_type,
+        quantity_to_trade,
+        updated_cash,
+        updated_quantity,
+        arrival_price,
+        exec_price,
+        slippage_bps,
+        timestamp,
+        port_notional,
+    ):
         """
         Update database tables after trade execution within a single transaction.
         If any operation fails, all changes are rolled back.
         """
         date_part = timestamp.date()
         trade_notional = abs(quantity_to_trade * exec_price)
-        if signal_type == 'SELL':
+        if signal_type == "SELL":
             trade_notional = -trade_notional
 
         conn = None
@@ -168,7 +220,13 @@ class tradeExecutor:
                     INSERT INTO cash_equity_book (timestamp, date, portfolio_id, currency, notional)
                     VALUES (%s, %s, %s, %s, %s)
                 """
-                cash_values = (timestamp, date_part, portfolio_id, 'USD', float(round(updated_cash, 2)))
+                cash_values = (
+                    timestamp,
+                    date_part,
+                    portfolio_id,
+                    "USD",
+                    float(round(updated_cash, 2)),
+                )
                 cursor.execute(cash_query, cash_values)
 
                 # Update positions_book (upsert: insert or update if exists)
@@ -178,7 +236,12 @@ class tradeExecutor:
                     ON CONFLICT (portfolio_id, ticker)
                     DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = EXCLUDED.updated_at
                 """
-                position_values = (portfolio_id, ticker, float(updated_quantity), timestamp)
+                position_values = (
+                    portfolio_id,
+                    ticker,
+                    float(updated_quantity),
+                    timestamp,
+                )
                 cursor.execute(position_query, position_values)
 
                 # Insert trade log with new fields
@@ -190,24 +253,43 @@ class tradeExecutor:
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 trade_log_values = (
-                    portfolio_id, ticker, timestamp, signal_type, float(quantity_to_trade),
-                    float(round(arrival_price, 2)), float(round(exec_price, 2)), float(round(slippage_bps, 2)),
-                    float(round(port_notional, 2)), float(round(trade_notional, 2)), 'USD', 1.0
+                    portfolio_id,
+                    ticker,
+                    timestamp,
+                    signal_type,
+                    float(quantity_to_trade),
+                    float(round(arrival_price, 2)),
+                    float(round(exec_price, 2)),
+                    float(round(slippage_bps, 2)),
+                    float(round(port_notional, 2)),
+                    float(round(trade_notional, 2)),
+                    "USD",
+                    1.0,
                 )
                 cursor.execute(trade_log_query, trade_log_values)
 
             conn.commit()
-            self.logger.info(f"Database successfully updated\n [Portfolio {portfolio_id} | Cash: ${updated_cash:,.2f} | Time: {timestamp}]: {signal_type} {quantity_to_trade} {ticker} @ ${exec_price:,.2f}.\n")
-            return {'status': 'success', 'quantity': quantity_to_trade, 'updated_cash': updated_cash}
+            self.logger.info(
+                f"Database successfully updated\n [Portfolio {portfolio_id} | Cash: ${updated_cash:,.2f} | Time: {timestamp}]: {signal_type} {quantity_to_trade} {ticker} @ ${exec_price:,.2f}.\n"
+            )
+            return {
+                "status": "success",
+                "quantity": quantity_to_trade,
+                "updated_cash": updated_cash,
+            }
 
         except Exception as e:
-            self.logger.exception("Database update transaction failed. Rolling back all changes.")
+            self.logger.exception(
+                "Database update transaction failed. Rolling back all changes."
+            )
             if conn:
                 try:
                     conn.rollback()
                 except Exception as rollback_error:
-                    self.logger.error(f"Failed to rollback transaction: {rollback_error}")
-            return {'status': 'error', 'message': str(e)}
+                    self.logger.error(
+                        f"Failed to rollback transaction: {rollback_error}"
+                    )
+            return {"status": "error", "message": str(e)}
 
         finally:
             if conn:
@@ -223,30 +305,38 @@ class tradeExecutor:
 
         try:
             data = self.marketData._make_request(url, params)
-            if isinstance(data, list) and data and 'price' in data[0] and data[0]['price'] is not None:
-                return float(data[0]['price'])
+            if (
+                isinstance(data, list)
+                and data
+                and "price" in data[0]
+                and data[0]["price"] is not None
+            ):
+                return float(data[0]["price"])
 
-            self.logger.warning(f"No valid price found for ticker {ticker} in API response. Response: {data}")
+            self.logger.warning(
+                f"No valid price found for ticker {ticker} in API response. Response: {data}"
+            )
             return 0.0
 
         except Exception as e:
             self.logger.error(f"Price fetch failed for {ticker}: {e}")
             return 0.0
-    
-    
+
     def liquidate(self, portfolio_id):
         """
         Liquidates all long and short positions for a given portfolio.
         """
-        self.logger.warning(f"Attempting to liquidate all positions for portfolio {portfolio_id}.")
-        
+        self.logger.warning(
+            f"Attempting to liquidate all positions for portfolio {portfolio_id}."
+        )
+
         # This logic would need access to the full portfolio state (cash, positions, etc.)
         # A complete implementation is complex as it requires fetching the current state.
         # This is a conceptual fix for the logic.
-        
+
         # 1. Fetch current positions from the database
         # 2. Fetch current cash and calculate port_notional
-        
+
         # For each position:
         #   If quantity > 0 (long), create a SELL signal for the full quantity.
         #   If quantity < 0 (short), create a BUY signal for the absolute quantity.
@@ -255,4 +345,6 @@ class tradeExecutor:
         # NOTE: The original `liquidate` function is flawed and needs a significant rewrite
         # to fetch the full portfolio state before it can generate the correct closing trades.
         # The provided code has a bug calling a non-existent `self.sell`.
-        self.logger.error("The liquidate function is not fully implemented and contains logical errors.")
+        self.logger.error(
+            "The liquidate function is not fully implemented and contains logical errors."
+        )

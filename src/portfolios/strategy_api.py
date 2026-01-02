@@ -1,10 +1,14 @@
 # src/portfolios/strategy_api.py
-
+import logging
 from datetime import datetime
 import pandas as pd
 import pytz as pytz 
 # This import registers the .toolkit accessor globally
-from src.portfolios import toolkit 
+try:
+    from portfolios import toolkit
+except ImportError:
+    logging.warning("toolkit relative import failed; using absolute import.")
+    from src.portfolios import toolkit 
 
 class AssetData:
     """

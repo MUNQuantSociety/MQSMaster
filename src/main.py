@@ -4,30 +4,44 @@
 
 
 import logging
-from common.database.MQSDBConnector import MQSDBConnector
-from live_trading.executor import tradeExecutor
-from portfolios.portfolio_1.strategy import VolMomentum
-from portfolios.portfolio_2.strategy import MomentumStrategy
-from portfolios.portfolio_3.strategy import RegimeAdaptiveStrategy
-from portfolios.portfolio_dummy.strategy import CrossoverRmiStrategy
-from live_trading.engine import RunEngine
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+try:
+    from common.database.MQSDBConnector import MQSDBConnector
+    from live_trading.engine import RunEngine
+    from live_trading.executor import tradeExecutor
+    from portfolios.portfolio_1.strategy import VolMomentum
+    from portfolios.portfolio_2.strategy import MomentumStrategy
+    from portfolios.portfolio_3.strategy import RegimeAdaptiveStrategy
+    from portfolios.portfolio_dummy.strategy import CrossoverRmiStrategy
+except ImportError:
+    logging.debug("Necessary modules relative imports failed; using absolute import.")
+    from src.common.database.MQSDBConnector import MQSDBConnector
+    from src.live_trading.engine import RunEngine
+    from src.live_trading.executor import tradeExecutor
+    from src.portfolios.portfolio_1.strategy import VolMomentum
+    from src.portfolios.portfolio_2.strategy import MomentumStrategy
+    from src.portfolios.portfolio_3.strategy import RegimeAdaptiveStrategy
+    from src.portfolios.portfolio_dummy.strategy import CrossoverRmiStrategy
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
 
 def main():
     """
     Main entry point for the MQS Trading System.
     comment/uncomment portfolio classes in the portfolio_classes list to run different strategies.
     """
-    portfolio_classes= [
+    portfolio_classes = [
         VolMomentum,
         MomentumStrategy,
-#        RegimeAdaptiveStrategy,
-#        CrossoverRmiStrategy,
+        RegimeAdaptiveStrategy,
+        CrossoverRmiStrategy,
     ]
 
-#DO NOT CHANGE BELOW THIS LINE
-#======================================================
+    # DO NOT CHANGE BELOW THIS LINE
+    # ======================================================
     db_conn = None
     try:
         db_conn = MQSDBConnector()
@@ -45,9 +59,13 @@ def main():
         run_engine.run()
 
     except Exception as e:
-        logging.critical(f"A critical error occurred in the main application loop: {e}", exc_info=True)
+        logging.critical(
+            f"A critical error occurred in the main application loop: {e}",
+            exc_info=True,
+        )
     finally:
         logging.info("MQS Trading System is shutting down.")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
