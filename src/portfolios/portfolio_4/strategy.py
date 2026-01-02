@@ -1,16 +1,31 @@
-import os
-import json
 import logging
-import pandas as pd
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional
-from src.portfolios.portfolio_BASE.strategy import BasePortfolio
-from src.portfolios.strategy_api import StrategyContext
+
+try:
+    from portfolios.portfolio_BASE.strategy import BasePortfolio
+    from portfolios.strategy_api import StrategyContext
+except ImportError:
+    logging.debug(
+        "Importing Base Portfolio and strategy_api from 'src.portfolios' for Backtesting."
+    )
+    from src.portfolios.portfolio_BASE.strategy import BasePortfolio
+    from src.portfolios.strategy_api import StrategyContext
+
 
 class TrendRotateStrategy(BasePortfolio):
-    def __init__(self, db_connector, executor, debug=False, config_dict=None, backtest_start_date=None):
-        super().__init__(db_connector, executor, debug, config_dict, backtest_start_date)
-        self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
+    def __init__(
+        self,
+        db_connector,
+        executor,
+        debug=False,
+        config_dict=None,
+        backtest_start_date=None,
+    ):
+        super().__init__(
+            db_connector, executor, debug, config_dict, backtest_start_date
+        )
+        self.logger = logging.getLogger(
+            f"{self.__class__.__name__}_{self.portfolio_id}"
+        )
         self.config_dict = config_dict or {}
         self.portfolio_weights = {}
 
@@ -33,9 +48,9 @@ class TrendRotateStrategy(BasePortfolio):
         self.RegisterIndicatorSet(indicator_definitions)
 
     def OnData(self, context: StrategyContext):
-       # ensure config has portfolio_id (does not work without this)
+        # ensure config has portfolio_id (does not work without this)
         config_with_id = self.config_dict.copy()
-        config_with_id['id'] = self.portfolio_id
+        config_with_id["id"] = self.portfolio_id
         context._portfolio_config = config_with_id
 
         positions = context.Portfolio.positions or {}
@@ -44,16 +59,18 @@ class TrendRotateStrategy(BasePortfolio):
             self.logger.warning("Invalid or zero portfolio notional.")
             return
 
-       # check trend
+        # check trend
         risk_on_trending = [
-            t for t in self.risk_on
+            t
+            for t in self.risk_on
             if self.trend_fast[t].IsReady
             and self.trend_slow[t].IsReady
             and self.trend_fast[t].Current > self.trend_slow[t].Current
         ]
 
         risk_off_trending = [
-            t for t in self.risk_off
+            t
+            for t in self.risk_off
             if self.trend_fast[t].IsReady
             and self.trend_slow[t].IsReady
             and self.trend_fast[t].Current > self.trend_slow[t].Current
@@ -84,7 +101,9 @@ class TrendRotateStrategy(BasePortfolio):
             price = latest_prices[ticker]
             qty = float(positions.get(ticker, 0))
             current_val = qty * price if price else 0
-            simulated_weights[ticker] = current_val / port_notional if port_notional else 0
+            simulated_weights[ticker] = (
+                current_val / port_notional if port_notional else 0
+            )
 
         # rotation execution
         for ticker in self.tickers:
@@ -103,19 +122,20 @@ class TrendRotateStrategy(BasePortfolio):
                 # increase position if underweight
                 if current_weight < target_weight * 0.95:
                     context.buy(ticker, confidence=1.0)
-                    simulated_weights[ticker] += (target_weight - current_weight)
+                    simulated_weights[ticker] += target_weight - current_weight
 
                 # decrease if overweight
                 elif current_weight > target_weight * 1.05:
                     context.sell(ticker, confidence=0.6)
-                    simulated_weights[ticker] -= (current_weight - target_weight)
+                    simulated_weights[ticker] -= current_weight - target_weight
 
             else:
                 # exit if currently holding
                 if qty > 0:
                     context.sell(ticker, confidence=1.0)
                     simulated_weights[ticker] = 0.0
-                    
+
         self.portfolio_weights = simulated_weights.copy()
 
-#hello testing world
+
+# hello testing world

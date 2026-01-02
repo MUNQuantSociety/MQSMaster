@@ -1,16 +1,12 @@
-
+from datetime import datetime
 
 import pandas as pd
-import logging
-from typing import List, Optional, Union
-from datetime import datetime
-from portfolios.portfolio_BASE.strategy import BasePortfolio
+
+from src.portfolios.portfolio_BASE.strategy import BasePortfolio
 
 
 def fetch_historical_data(
-    portfolio: BasePortfolio,
-    start_date: datetime,
-    end_date: datetime
+    portfolio: BasePortfolio, start_date: datetime, end_date: datetime
 ) -> pd.DataFrame:
     """
     Fetches historical market data for the portfolio's tickers within the date range.
@@ -19,7 +15,9 @@ def fetch_historical_data(
     tickers = getattr(portfolio, "tickers", [])
 
     if not tickers:
-        logger.warning("No tickers specified in the portfolio; returning empty DataFrame.")
+        logger.warning(
+            "No tickers specified in the portfolio; returning empty DataFrame."
+        )
         return pd.DataFrame()
 
     placeholders = ", ".join(["%s"] * len(tickers))
@@ -59,17 +57,17 @@ def fetch_historical_data(
     # Step 1: Convert timestamp column to datetime objects, standardizing to UTC.
     # This robustly handles mixed timezone formats and is the fix for the original NaT issue.
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
-    
+
     # Step 2: Now that the column has a datetime type, convert from UTC to 'America/New_York'.
     # This fixes the "Can only use .dt accessor" error.
-    df["timestamp"] = df["timestamp"].dt.tz_convert('America/New_York')
-    
+    df["timestamp"] = df["timestamp"].dt.tz_convert("America/New_York")
+
     # Step 3: Convert all numeric columns.
     numeric_cols = ["open_price", "high_price", "low_price", "close_price", "volume"]
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
-            
+
     # --- End of Corrected Logic ---
 
     # Step 4: Drop any rows that failed coercion in the steps above.
