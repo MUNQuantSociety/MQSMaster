@@ -4,8 +4,9 @@ import inspect
 import json
 import logging
 import os
-import pandas as pd
 from typing import List
+
+import pandas as pd
 
 from src.common.database.MQSDBConnector import MQSDBConnector
 from src.portfolios.portfolio_BASE.strategy import BasePortfolio
@@ -19,7 +20,7 @@ class BacktestEngine:
     It is updated to load portfolio configurations dynamically.
     """
 
-    def __init__(self, db_connector: 'MQSDBConnector', backtest_executor=None):
+    def __init__(self, db_connector: "MQSDBConnector", backtest_executor=None):
         self.db_connector = db_connector
         self.backtest_executor = backtest_executor
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -29,12 +30,14 @@ class BacktestEngine:
         self.initial_capital: float = 0.0
         self.slippage: float = 0.0
 
-    def setup(self,
-              portfolio_classes: List[type],
-              start_date: str,
-              end_date: str,
-              initial_capital: float,
-              slippage: float = 0.0):
+    def setup(
+        self,
+        portfolio_classes: List[type[BasePortfolio]],
+        start_date: str,
+        end_date: str,
+        initial_capital: float,
+        slippage: float = 0.0,
+    ):
         """
         Configures the backtest with the necessary parameters.
         """
@@ -59,35 +62,44 @@ class BacktestEngine:
                 # Get the file path of the portfolio's strategy class
                 class_file_path = inspect.getfile(portfolio_class)
                 portfolio_dir = os.path.dirname(class_file_path)
-                config_path = os.path.join(portfolio_dir, 'config.json')
+                config_path = os.path.join(portfolio_dir, "config.json")
 
                 if not os.path.exists(config_path):
-                    self.logger.error(f"Configuration file not found for {portfolio_class.__name__} at {config_path}")
+                    self.logger.error(
+                        f"Configuration file not found for {portfolio_class.__name__} at {config_path}"
+                    )
                     continue
 
-                with open(config_path, 'r') as f:
+                with open(config_path, "r") as f:
                     config_data = json.load(f)
-                
+
                 # --- Instantiate with the loaded config_dict ---
                 portfolio_instance = portfolio_class(
                     db_connector=self.db_connector,
                     executor=None,  # The runner will set the executor later
                     config_dict=config_data,
-                    backtest_start_date=pd.to_datetime(self.start_date)
+                    backtest_start_date=pd.to_datetime(self.start_date),
                 )
-                
-                self.logger.info(f"--- Running backtest for portfolio: {portfolio_instance.portfolio_id} ---")
+
+                self.logger.info(
+                    f"--- Running backtest for portfolio: {portfolio_instance.portfolio_id} ---"
+                )
 
                 runner = BacktestRunner(
                     portfolio=portfolio_instance,
                     start_date=self.start_date,
                     end_date=self.end_date,
                     initial_capital=self.initial_capital,
-                    slippage=self.slippage
+                    slippage=self.slippage,
                 )
                 runner.run()
-                
-                self.logger.info(f"--- Backtest for portfolio: {portfolio_instance.portfolio_id} finished ---")
+
+                self.logger.info(
+                    f"--- Backtest for portfolio: {portfolio_instance.portfolio_id} finished ---"
+                )
 
             except Exception as e:
-                self.logger.exception(f"Error running backtest for {portfolio_class.__name__}: {e}", exc_info=True)
+                self.logger.exception(
+                    f"Error running backtest for {portfolio_class.__name__}: {e}",
+                    exc_info=True,
+                )

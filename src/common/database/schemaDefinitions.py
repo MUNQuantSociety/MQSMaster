@@ -1,4 +1,13 @@
-from common.database.MQSDBConnector import MQSDBConnector
+import logging
+
+try:
+    from common.database.MQSDBConnector import MQSDBConnector
+except ImportError:
+    logging.warning(
+        "MQSDBConnector relative import failed; using absolute import."
+    )
+    from src.common.database.MQSDBConnector import MQSDBConnector
+
 
 class SchemaDefinitions:
     """
@@ -15,8 +24,8 @@ class SchemaDefinitions:
         """
         # Test connection by executing a simple query
         res = self.db.execute_query("SELECT 1", fetch=True)
-        if res['status'] == 'error':
-            print("Error connecting to DB:", res['message'])
+        if res["status"] == "error":
+            print("Error connecting to DB:", res["message"])
             return
 
         create_user_creds_table = """
@@ -26,7 +35,7 @@ class SchemaDefinitions:
             password VARCHAR(100) NOT NULL
         );
         """
-        
+
         create_market_data_table = """
         CREATE TABLE IF NOT EXISTS market_data (
             id SERIAL PRIMARY KEY,
@@ -61,8 +70,6 @@ class SchemaDefinitions:
             created_at TIMESTAMP DEFAULT NOW()
         );
         """
-
-        
 
         create_pnl_book_table = """
         CREATE TABLE IF NOT EXISTS pnl_book (
@@ -137,11 +144,11 @@ class SchemaDefinitions:
             create_risk_book_table,
             create_cash_equity_book_table,
             create_positions_table,
-            create_port_weights_table
+            create_port_weights_table,
         ]
 
         for stmt in statements:
             result = self.db.execute_query(stmt)
-            if result['status'] == 'error':
-                print("Error creating table:", result['message'])
+            if result["status"] == "error":
+                print("Error creating table:", result["message"])
         print("All tables created or confirmed to exist.")
