@@ -6,13 +6,20 @@ from datetime import timedelta
 try:
     from portfolios.portfolio_BASE.strategy import BasePortfolio
     from portfolios.strategy_api import StrategyContext
-except ImportError:
+except ImportError as rel_err:
     logging.warning(
-        "Base Portfolio and strategy_api relative import failed; using absolute import."
+        "Base Portfolio and strategy_api relative import failed; using absolute import. Details: %s",
+        rel_err,
     )
-    from src.portfolios.portfolio_BASE.strategy import BasePortfolio
-    from src.portfolios.strategy_api import StrategyContext
-
+    try:
+        from src.portfolios.portfolio_BASE.strategy import BasePortfolio
+        from src.portfolios.strategy_api import StrategyContext
+    except ImportError as abs_err:
+        logging.error(
+            "Failed to import BasePortfolio and StrategyContext from both relative and absolute paths. Details: %s",
+            abs_err,
+        )
+        raise
 
 class RegimeAdaptiveStrategy(BasePortfolio):
     """
@@ -98,14 +105,14 @@ class RegimeAdaptiveStrategy(BasePortfolio):
         # --- 2. Determine Volatility Regime from VIX ---
         try:
             vix_asset = context.Market["^VIX"]
-        
+
             if not vix_asset.Exists or vix_asset.Close is None:
                 self.logger.warning(f"No VIX data found at {trade_ts}. Skipping cycle.")
                 return
-            vix_value = vix_asset.Close 
+            vix_value = vix_asset.Close
         except Exception as e:
             self.logger.error(f"Error getting VIX data: {e}")
-            raise 
+            raise
         # --- 3. Loop Through Tickers and Apply Logic ---
         for ticker in self.tickers:
             if ticker == "^VIX":

@@ -11,10 +11,13 @@ except ImportError:
     logging.warning(
         "APIAuth, MQSDBConnector, FMPMarketData relative import failed; using absolute import."
     )
-    from src.common.auth.apiAuth import APIAuth
-    from src.common.database.schemaDefinitions import MQSDBConnector
-    from src.orchestrator.marketData.fmpMarketData import FMPMarketData
-
+    try:
+        from src.common.auth.apiAuth import APIAuth
+        from src.common.database.schemaDefinitions import MQSDBConnector
+        from src.orchestrator.marketData.fmpMarketData import FMPMarketData
+    except ImportError:
+        logging.error("Failed to import necessary modules from both relative and absolute paths.")
+        raise
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -96,10 +99,14 @@ class tradeExecutor:
 
         signal_type = signal_type.upper()
         if signal_type not in ("BUY", "SELL", "HOLD"):
+            self.logger.debug("Skip trade: unsupported signal_type=%s", signal_type)
             return
 
         confidence_val = max(0.0, min(1.0, confidence_val))
         if signal_type == "HOLD" or confidence_val == 0.0:
+            self.logger.debug(
+                "Skip trade: signal=%s confidence=%.2f", signal_type, confidence_val
+            )
             return
 
         # 1. Calculate buying power before fetching the final exec_price
@@ -139,6 +146,9 @@ class tradeExecutor:
 
         # --- CORRECTED: Unified Constraint & Sizing Logic ---
         if abs(desired_trade_notional) < 1.0:  # Ignore trades smaller than $1.00
+            self.logger.debug(
+                "Skip trade: desired_notional too small (%.2f) for %s", desired_trade_notional, ticker
+            )
             return
 
         final_trade_notional = 0.0
@@ -150,10 +160,19 @@ class tradeExecutor:
             final_trade_notional = min(abs(desired_trade_notional), buying_power)
 
         if final_trade_notional < 1.0:
+            self.logger.debug(
+                "Skip trade: final_notional too small (%.2f) for %s", final_trade_notional, ticker
+            )
             return
 
         quantity_to_trade = math.floor(final_trade_notional / exec_price)
         if quantity_to_trade == 0:
+            self.logger.debug(
+                "Skip trade: quantity_to_trade=0 (notional=%.2f price=%.2f) for %s",
+                final_trade_notional,
+                exec_price,
+                ticker,
+            )
             return
 
         # --- 4. Execute and Update Database ---
