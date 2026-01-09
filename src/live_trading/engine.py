@@ -14,7 +14,14 @@ except ImportError:
     logging.warning(
         "BasePortfolio relative import failed; using absolute import."
     )
-    from src.portfolios.portfolio_BASE.strategy import BasePortfolio
+    try:
+        from src.portfolios.portfolio_BASE.strategy import BasePortfolio
+    except ImportError as abs_err:
+        logging.error(
+            "Failed to import BasePortfolio from both relative and absolute paths. Details: %s",
+            abs_err,
+        )
+        raise
 
 class RunEngine:
     """

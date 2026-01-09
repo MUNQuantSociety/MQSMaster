@@ -6,8 +6,10 @@ import pytz
 from datetime import datetime, timedelta
 from unittest.mock import Mock, MagicMock
 
-from src.portfolios.strategy_api import AssetData, MarketData, PortfolioManager, StrategyContext
-
+try:
+    from .portfolios.strategy_api import AssetData, MarketData, PortfolioManager, StrategyContext
+except ImportError:
+    from portfolios.strategy_api import AssetData, MarketData, PortfolioManager, StrategyContext
 
 class TestAssetData:
     """Test suite for AssetData class"""

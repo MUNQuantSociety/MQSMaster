@@ -4,13 +4,20 @@ from typing import Dict
 try:
     from portfolios.portfolio_BASE.strategy import BasePortfolio
     from portfolios.strategy_api import StrategyContext
-except ImportError:
+except ImportError as rel_err:
     logging.warning(
-        "Base Portfolio and strategy_api relative import failed; using absolute import."
+        "Base Portfolio and strategy_api relative import failed; using absolute import. Details: %s",
+        rel_err,
     )
-    from src.portfolios.portfolio_BASE.strategy import BasePortfolio
-    from src.portfolios.strategy_api import StrategyContext
-
+    try:
+        from src.portfolios.portfolio_BASE.strategy import BasePortfolio
+        from src.portfolios.strategy_api import StrategyContext
+    except ImportError as abs_err:
+        logging.error(
+            "Failed to import BasePortfolio and StrategyContext from both relative and absolute paths. Details: %s",
+            abs_err,
+        )
+        raise
 
 class CrossoverRmiStrategy(BasePortfolio):
     """

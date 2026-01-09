@@ -24,7 +24,7 @@ except ImportError:
     from src.portfolios.portfolio_dummy.strategy import CrossoverRmiStrategy
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 

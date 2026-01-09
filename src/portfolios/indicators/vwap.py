@@ -1,6 +1,22 @@
+import logging
 from collections import deque
 from datetime import datetime
-from .base import Indicator
+
+try:
+    from .base import Indicator
+except ImportError as rel_err:
+    logging.warning(
+        "Indicator relative import failed; using absolute import. Details: %s",
+        rel_err,
+    )
+    try:
+        from src.portfolios.indicators.base import Indicator
+    except ImportError as abs_err:
+        logging.error(
+            "Failed to import Indicator from both relative and absolute paths. Details: %s",
+            abs_err,
+        )
+        raise
 
 class VWAP(Indicator):
     """
