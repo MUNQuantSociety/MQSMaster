@@ -17,7 +17,7 @@ def generate_trend(start: float, steps: int, drift: float = 0.5, noise: float = 
 
 
 def test_rmi_not_ready_initially():
-    rmi = RelativeMomentumIndex("TEST", period=5, momentum_period=2)
+    rmi = RelativeMomentumIndex("AAPL", period=5, momentum_period=2)
     assert not rmi.IsReady
     assert rmi._current_value is None
 
@@ -25,7 +25,7 @@ def test_rmi_not_ready_initially():
 def test_rmi_readiness_and_value_range():
     period = 5
     momentum_period = 2
-    rmi = RelativeMomentumIndex("TEST", period=period, momentum_period=momentum_period)
+    rmi = RelativeMomentumIndex("AAPL", period=period, momentum_period=momentum_period)
     prices = [100 + i for i in range(50)]  # steadily increasing
 
     ready_seen = False
@@ -39,7 +39,7 @@ def test_rmi_readiness_and_value_range():
 
 def test_rmi_extreme_flat():
     # Flat prices => momentum=0 => avg_loss=avg_gain=0 -> RMI should settle at 0 (as defined)
-    rmi = RelativeMomentumIndex("FLAT", period=4, momentum_period=2)
+    rmi = RelativeMomentumIndex("AAPL", period=4, momentum_period=2)
     prices = [50]*20
     for p in prices:
         rmi.Update(datetime.now(timezone.utc), p)

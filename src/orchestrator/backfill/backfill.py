@@ -7,7 +7,6 @@ Uses caching (temporary CSV storage) to avoid RAM overflow.
 
 import os
 import time
-from backtest import data
 import pandas as pd
 from typing import List
 from datetime import datetime

@@ -1,9 +1,7 @@
-import pytest
-
-from live_trading.executor import tradeExecutor
-from live_trading.engine import RunEngine
-from portfolios.portfolio_1.strategy import VolMomentum
-from portfolios.portfolio_2.strategy import MomentumStrategy
+from src.live_trading.engine import RunEngine
+from src.live_trading.executor import tradeExecutor
+from src.portfolios.portfolio_1.strategy import VolMomentum
+from src.portfolios.portfolio_2.strategy import MomentumStrategy
 
 
 def test_trade_executor_and_engine_wiring(db_connection):
@@ -24,11 +22,15 @@ def test_trade_executor_and_engine_wiring(db_connection):
 
     # Create the live trading engine
     engine = RunEngine(db_connector=db_connection, executor=executor)
-    assert engine is not None, "RunEngine should initialize with DB connector and executor"
+    assert engine is not None, (
+        "RunEngine should initialize with DB connector and executor"
+    )
 
     # The engine should actually hold the executor instance we passed in
     assert hasattr(engine, "executor"), "RunEngine should have an 'executor' attribute"
-    assert engine.executor is executor, "RunEngine.executor should reference the passed tradeExecutor"
+    assert engine.executor is executor, (
+        "RunEngine.executor should reference the passed tradeExecutor"
+    )
 
     # Optionally check that the engine can at least *see* the strategy classes
     # without blowing up on import level

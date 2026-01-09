@@ -8,7 +8,11 @@ try:
     from portfolios import toolkit
 except ImportError:
     logging.warning("toolkit relative import failed; using absolute import.")
-    from src.portfolios import toolkit 
+    try:
+        from src.portfolios import toolkit
+    except ImportError:
+        logging.error("Failed to import toolkit from both relative and absolute paths.")
+        raise
 
 class AssetData:
     """
@@ -201,7 +205,13 @@ class StrategyContext:
     def _trade(self, ticker: str, signal_type: str, confidence: float):
         asset_data = self.Market[ticker]
         if not asset_data.Exists or asset_data.Close is None or asset_data.Close <= 0:
-            print(f"Warning: Cannot trade {ticker}. No valid market data at {self.time}.")
+            logging.warning(
+                "Skip trade: no valid market data for %s at %s (Exists=%s, Close=%s)",
+                ticker,
+                self.time,
+                asset_data.Exists,
+                asset_data.Close,
+            )
             return
 
         self._executor.execute_trade(

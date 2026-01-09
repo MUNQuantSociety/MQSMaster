@@ -10,15 +10,24 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 try:
-    from portfolios.indicators.base import Indicator
-    from portfolios.strategy_api import StrategyContext
-except ImportError:
-    logging.warning(
-        "Indicators and StrategyContext relative import failed; using absolute import."
-    )
     from src.portfolios.indicators.base import Indicator
     from src.portfolios.strategy_api import StrategyContext
-
+except ImportError as abs_err:
+    logging.warning(
+        "Absolute import for Indicator/StrategyContext failed; trying relative. Details: %s",
+        abs_err,
+    )
+    try:
+        from portfolios.indicators.base import Indicator
+        from portfolios.strategy_api import StrategyContext
+    except ImportError as rel_err:
+        logging.error(
+            "Both absolute and relative imports failed for Indicator/StrategyContext.\n"
+            "Absolute error: %s\nRelative error: %s",
+            abs_err,
+            rel_err,
+        )
+        raise
 
 def _camel_to_snake(name: str) -> str:
     """Converts a CamelCase string to snake_case for dynamic module loading."""
