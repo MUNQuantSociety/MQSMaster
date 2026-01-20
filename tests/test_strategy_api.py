@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from unittest.mock import Mock, MagicMock
 
-from portfolios.strategy_api import AssetData, MarketData, PortfolioManager, StrategyContext
+from src.portfolios.strategy_api import AssetData, MarketData, PortfolioManager, StrategyContext
 
 class TestAssetData:
     """Test suite for AssetData class"""
