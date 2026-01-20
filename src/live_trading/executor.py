@@ -61,11 +61,11 @@ class tradeExecutor:
                     f"Could not fetch valid price for position {ticker} during buying power calculation. "
                     f"Temporarily halting new trades by returning zero buying power."
                 )
-                return (
+                return float(
                     0.0  # Return 0 to prevent trading with an uncertain portfolio state
                 )
 
-            gross_position_value += abs(quantity * price)
+            gross_position_value += abs(float(quantity) * price)
 
         buying_power = (portfolio_equity * self.leverage) - gross_position_value
         return max(0, buying_power)
