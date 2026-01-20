@@ -3,13 +3,11 @@
 import pytest
 import pandas as pd
 import pytz
+import logging
 from datetime import datetime, timedelta
 from unittest.mock import Mock, MagicMock
 
-try:
-    from .portfolios.strategy_api import AssetData, MarketData, PortfolioManager, StrategyContext
-except ImportError:
-    from portfolios.strategy_api import AssetData, MarketData, PortfolioManager, StrategyContext
+from portfolios.strategy_api import AssetData, MarketData, PortfolioManager, StrategyContext
 
 class TestAssetData:
     """Test suite for AssetData class"""
@@ -418,7 +416,7 @@ class TestStrategyContext:
         assert call_args['confidence'] == 1.0
     
     def test_trade_with_invalid_ticker(self, market_data, cash_data, positions_data,
-                                       port_notional_data, mock_executor, portfolio_config, capsys):
+                                       port_notional_data, mock_executor, portfolio_config, capsys, caplog):
         """Test that trading invalid ticker shows warning and doesn't execute"""
         current_time = pd.Timestamp('2024-01-02', tz='America/New_York')
         
@@ -432,11 +430,11 @@ class TestStrategyContext:
             portfolio_config=portfolio_config
         )
         
-        context.buy('INVALID_TICKER', confidence=1.0)
-        
-        captured = capsys.readouterr()
-        assert 'Warning' in captured.out
-        assert 'INVALID_TICKER' in captured.out
+        with caplog.at_level(logging.WARNING):
+            context.buy('INVALID_TICKER', confidence=1.0)
+
+        assert any('INVALID_TICKER' in rec.getMessage() and 'Skip trade' in rec.getMessage()
+                   for rec in caplog.records)
         mock_executor.execute_trade.assert_not_called()
     
     def test_context_with_empty_data(self, mock_executor, portfolio_config):
