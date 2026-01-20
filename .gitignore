@@ -24,3 +24,4 @@ src/backtest/data
 # Build artifacts
 build/
 dist/
+**/api_test.py
