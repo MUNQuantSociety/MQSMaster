@@ -1,41 +1,94 @@
 import logging
-from typing import Dict
-from src.portfolios.portfolio_BASE.strategy import BasePortfolio
-from src.portfolios.strategy_api import StrategyContext
 
+# Try relative imports first; on failure, log and attempt absolute imports.
+try:
+    from portfolios.portfolio_BASE.strategy import BasePortfolio
+    from portfolios.strategy_api import StrategyContext
+except ImportError as rel_err:
+    logging.warning(
+        "Base Portfolio and strategy_api relative import failed; using absolute import. Details: %s",
+        rel_err,
+    )
+    try:
+        from src.portfolios.portfolio_BASE.strategy import BasePortfolio
+        from src.portfolios.strategy_api import StrategyContext
+    except ImportError as abs_err:
+        logging.error(
+            "Failed to import BasePortfolio and StrategyContext from both relative and absolute paths. Details: %s",
+            abs_err,
+        )
+        raise
 
 class VolMomentum(BasePortfolio):
-    def __init__(self, db_connector, executor, debug=False, config_dict=None, backtest_start_date=None):
-        super().__init__(db_connector, executor, debug, config_dict, backtest_start_date)
-        self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.portfolio_id}")
-        self.config_dict = config_dict or {}
-
-        # strategy parameters
-        self.momentum_lookback = self.config_dict.get("lookback_days", 20)
-        self.vol_lookback = self.config_dict.get("volatility_lookback_days", 60)
-        self.vol_multiplier = self.config_dict.get("volatility_multiplier", 1.5)
-
-        # register indicators - dummy indicators not actually used
+    def __init__(
+        self,
+        db_connector,
+        executor,
+        debug=False,
+        config_dict=None,
+        backtest_start_date=None,
+    ):
+        super().__init__(
+            db_connector, executor, debug, config_dict, backtest_start_date
+        )
+        self.logger = logging.getLogger(
+            f"{self.__class__.__name__}_{self.portfolio_id}"
+        )
+        # Format: "indicator_variable_name": ("IndicatorName", {params})
         indicator_definitions = {
-            "returns": ("RelativeMomentumIndex", {"period": 14}), 
-            "volatility": ("RelativeStrengthIndex", {"period": 14}) 
+            "roc": ("RateOfChange", {"period": 20}),
         }
         self.RegisterIndicatorSet(indicator_definitions)
 
     def OnData(self, context: StrategyContext):
-        for ticker in self.tickers:
-            returns = self.returns[ticker]
-            vol = self.volatility[ticker]
+        """Generates BUY, SELL, and HOLD signals based on momentum and volatility, updates cash available for trade, and then calls the trade execution logic for each signal."""
+        portfolio = context.Portfolio
+        is_risk_off = portfolio.cash < (float(portfolio.total_value) * 0.10)
+        if is_risk_off:
+            self.logger.info(
+                "Risk-Off Mode: Cash is low. No new long positions will be opened."
+            )
 
-            if not (returns.IsReady and vol.IsReady):
+        # ? A loop to iterate through each ticker and generate signals based on momentum and volatility.
+        for ticker in self.tickers:
+            asset = context.Market[ticker]
+            roc = self.roc[ticker]
+            vol_multiplier = 1.5  # This can be adjusted or made configurable
+
+            if not all([asset.Exists, roc.IsReady]):
                 continue
 
-            momentum = returns.Current
-            threshold = vol.Current * self.vol_multiplier
-            position = context.Portfolio.positions.get(ticker, 0)
+            return_history = asset.History("60d")
+            returns = return_history["close_price"].pct_change(60).dropna()
+            volatility = returns.std() * (252**0.5)
 
-            if momentum > threshold and position == 0:
+            momentum = roc.Current
+            threshold = volatility * vol_multiplier
+            position = portfolio.positions.get(ticker, 0)
+
+            bullish = momentum > threshold
+            bearish = momentum < -threshold
+
+            if bullish and not is_risk_off:
+                is_risk_off = False
+
+            weight = 0.2 if bullish else 0.0
+            asset_weight = 0.0
+            if asset.Exists:
+                asset_weight = portfolio.get_asset_weight(ticker, asset.Close)
+            if asset_weight <= weight:
+                target_weight = True
+            else:
+                target_weight = False
+
+            if (bullish and target_weight) or position < 0:  # Max 25% weight
+                self.logger.debug(
+                    f"[{ticker}] BUY signal: momentum ({momentum:.4f}) > threshold ({threshold:.4f}), position={position}"
+                )
                 context.buy(ticker, confidence=1.0)
 
-            elif momentum < -threshold and position > 0:
+            elif position > 0 and (bearish or target_weight is False or is_risk_off):
+                self.logger.debug(
+                    f"[{ticker}] SELL signal: momentum ({momentum:.4f}) < threshold ({threshold:.4f}), position={position}"
+                )
                 context.sell(ticker, confidence=1.0)

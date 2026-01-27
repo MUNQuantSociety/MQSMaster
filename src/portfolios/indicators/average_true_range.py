@@ -1,7 +1,22 @@
 import logging
 from collections import deque
 from datetime import datetime
-from .base import Indicator
+
+try:
+    from .base import Indicator
+except ImportError as rel_err:
+    logging.warning(
+        "Indicator relative import failed; using absolute import. Details: %s",
+        rel_err,
+    )
+    try:
+        from src.portfolios.indicators.base import Indicator
+    except ImportError as abs_err:
+        logging.error(
+            "Failed to import Indicator from both relative and absolute paths. Details: %s",
+            abs_err,
+        )
+        raise
 
 class AverageTrueRange(Indicator):
     """
@@ -24,20 +39,15 @@ class AverageTrueRange(Indicator):
         self._prev_close = None
         self._sum_tr = 0.0
 
-    def Update(self, timestamp: datetime, data_row):
-        try:
-            high = float(data_row[self.high_col])
-            low = float(data_row[self.low_col])
-            close = float(data_row[self.close_col])
-        except KeyError as e:
-            self._logger.warning(f"Update failed. Data row missing key: {e}")
-            self._is_ready = False
-            self._current_value = None
-            return
-        except (TypeError, ValueError):
-            self._is_ready = False
-            self._current_value = None
-            return
+    def Update(self, timestamp: datetime, data_point: float, **kwargs):
+        """
+        Update ATR with new data.
+        data_point: close price (required)
+        **kwargs: 'high' and 'low' prices (optional, default to close price)
+        """
+        close = data_point
+        high = float(kwargs.get(self.high_col, close))
+        low = float(kwargs.get(self.low_col, close))
 
         if self._prev_close is None:
             self._prev_close = close

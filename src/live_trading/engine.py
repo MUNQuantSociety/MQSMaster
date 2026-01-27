@@ -8,14 +8,27 @@ import threading
 import time
 from typing import List
 
-from src.portfolios.portfolio_BASE.strategy import BasePortfolio
-
+try:
+    from portfolios.portfolio_BASE.strategy import BasePortfolio
+except ImportError:
+    logging.warning(
+        "BasePortfolio relative import failed; using absolute import."
+    )
+    try:
+        from src.portfolios.portfolio_BASE.strategy import BasePortfolio
+    except ImportError as abs_err:
+        logging.error(
+            "Failed to import BasePortfolio from both relative and absolute paths. Details: %s",
+            abs_err,
+        )
+        raise
 
 class RunEngine:
     """
     Manages and runs multiple trading portfolios concurrently for live trading.
     Updated to dynamically load configurations for each portfolio.
     """
+
     def __init__(self, db_connector, executor, debug=False, max_consecutive_failures=5):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.db_connector = db_connector
@@ -23,7 +36,7 @@ class RunEngine:
         self.debug = debug
         self.portfolios: List[BasePortfolio] = []
         self.running = True
-        
+
         self.max_consecutive_failures = max_consecutive_failures
         self.failure_counts = {}
 
@@ -36,13 +49,15 @@ class RunEngine:
                 # --- NEW: Dynamically load the config for the portfolio ---
                 class_file_path = inspect.getfile(portfolio_cls)
                 portfolio_dir = os.path.dirname(class_file_path)
-                config_path = os.path.join(portfolio_dir, 'config.json')
+                config_path = os.path.join(portfolio_dir, "config.json")
 
                 if not os.path.exists(config_path):
-                    self.logger.error(f"Configuration file not found for {portfolio_cls.__name__} at {config_path}")
+                    self.logger.error(
+                        f"Configuration file not found for {portfolio_cls.__name__} at {config_path}"
+                    )
                     continue
 
-                with open(config_path, 'r') as f:
+                with open(config_path, "r") as f:
                     config_data = json.load(f)
 
                 # --- UPDATED: Instantiate with the loaded config_dict ---
@@ -50,14 +65,18 @@ class RunEngine:
                     db_connector=self.db_connector,
                     executor=self.executor,
                     debug=self.debug,
-                    config_dict=config_data
+                    config_dict=config_data,
                 )
                 self.portfolios.append(portfolio_instance)
                 self.failure_counts[portfolio_instance.portfolio_id] = 0
-                self.logger.info(f"Successfully loaded portfolio: {portfolio_cls.__name__}")
+                self.logger.info(
+                    f"Successfully loaded portfolio: {portfolio_cls.__name__}"
+                )
 
             except Exception as e:
-                self.logger.exception(f"Failed to load portfolio {portfolio_cls.__name__}: {e}")
+                self.logger.exception(
+                    f"Failed to load portfolio {portfolio_cls.__name__}: {e}"
+                )
 
     def _run_portfolio(self, portfolio: BasePortfolio):
         """
@@ -65,23 +84,29 @@ class RunEngine:
         and circuit breaker logic.
         """
         portfolio_id = portfolio.portfolio_id
-        self.logger.info(f"Starting run loop for portfolio {portfolio_id} ({portfolio.__class__.__name__}).")
-        
+        self.logger.info(
+            f"Starting run loop for portfolio {portfolio_id} ({portfolio.__class__.__name__})."
+        )
+
         while self.running:
             try:
                 start_time = time.time()
-                
+
                 # The get_data and generate_signals_and_trade calls remain the same,
                 # as the new API is handled within these methods in the base class.
                 data = portfolio.get_data(portfolio.data_feeds)
                 portfolio.generate_signals_and_trade(data, current_time=None)
 
                 if self.failure_counts[portfolio_id] > 0:
-                    self.logger.info(f"Portfolio {portfolio_id} recovered after {self.failure_counts[portfolio_id]} failures.")
+                    self.logger.info(
+                        f"Portfolio {portfolio_id} recovered after {self.failure_counts[portfolio_id]} failures."
+                    )
                     self.failure_counts[portfolio_id] = 0
 
                 if portfolio.debug:
-                    self.logger.info(f"Debug mode: stopping portfolio {portfolio_id} after one run.")
+                    self.logger.info(
+                        f"Debug mode: stopping portfolio {portfolio_id} after one run."
+                    )
                     break
 
                 elapsed_time = time.time() - start_time
@@ -94,14 +119,14 @@ class RunEngine:
                     f"Exception in portfolio {portfolio_id} loop. Consecutive failure "
                     f"count: {self.failure_counts[portfolio_id]}/{self.max_consecutive_failures}. Error: {e}"
                 )
-                
+
                 if self.failure_counts[portfolio_id] >= self.max_consecutive_failures:
                     self.logger.critical(
                         f"CIRCUIT BREAKER TRIPPED: Portfolio {portfolio_id} has failed "
                         f"{self.max_consecutive_failures} consecutive times. Stopping this portfolio thread."
                     )
                     break
-                
+
                 time.sleep(portfolio.poll_interval)
 
         self.logger.info(f"Stopped run loop for portfolio {portfolio_id}.")
@@ -124,14 +149,20 @@ class RunEngine:
         try:
             while self.running:
                 if not any(t.is_alive() for t in threads):
-                    self.logger.warning("All portfolio threads have stopped. Shutting down RunEngine.")
+                    self.logger.warning(
+                        "All portfolio threads have stopped. Shutting down RunEngine."
+                    )
                     self.running = False
                 time.sleep(1)
         except KeyboardInterrupt:
-            self.logger.warning("Keyboard interrupt received. Shutting down all portfolios.")
+            self.logger.warning(
+                "Keyboard interrupt received. Shutting down all portfolios."
+            )
             self.running = False
 
         for thread in threads:
             thread.join()
 
-        self.logger.info("All portfolio threads have been joined. RunEngine shutdown complete.")
+        self.logger.info(
+            "All portfolio threads have been joined. RunEngine shutdown complete."
+        )

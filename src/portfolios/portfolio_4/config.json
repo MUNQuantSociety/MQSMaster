@@ -1,7 +1,9 @@
 {
   "PORTFOLIO_ID": "4",
   "TICKERS": ["AAPL", "MSFT", "TLT", "IEF", "GLD"],
-  "INTERVAL": 60,
+  "INTERVAL": 23400,
+  "LOOKBACK_DAYS": 120,
+  "EXCH": "NASDAQ",
   "fast_trend_period": 20,
   "slow_trend_period": 50,
 
