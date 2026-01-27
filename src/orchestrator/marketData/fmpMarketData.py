@@ -1,8 +1,15 @@
-import threading
-import requests
-import time
-from common.auth.apiAuth import APIAuth
 import logging
+import threading
+import time
+
+import requests
+
+try:
+    from common.auth.apiAuth import APIAuth
+except ImportError:
+    logging.warning("APIAuth relative import failed; using absolute import.")
+    from src.common.auth.apiAuth import APIAuth
+
 
 class FMPMarketData:
     """
@@ -21,7 +28,9 @@ class FMPMarketData:
         self.api_auth = APIAuth()
         self.fmp_api_key = self.api_auth.get_fmp_api_key()
         if not isinstance(self.fmp_api_key, str) or not self.fmp_api_key:
-            raise ValueError("FMP API key is missing or invalid (empty). Ensure FMP_API_KEY is set in environment / .env")
+            raise ValueError(
+                "FMP API key is missing or invalid (empty). Ensure FMP_API_KEY is set in environment / .env"
+            )
         self.logger = logging.getLogger(self.__class__.__name__)
 
         # Rate Limiting Config
@@ -46,15 +55,20 @@ class FMPMarketData:
 
             # Remove timestamps older than the rate limit window (60 seconds)
             self.request_timestamps = [
-                t for t in self.request_timestamps
+                t
+                for t in self.request_timestamps
                 if (current_time - t) < self.LOCK_WINDOW_SECONDS
             ]
 
             # If we are at or above the limit, wait
             if len(self.request_timestamps) >= self.MAX_REQUESTS_PER_MIN:
-                wait_time = self.LOCK_WINDOW_SECONDS - (current_time - self.request_timestamps[0])
+                wait_time = self.LOCK_WINDOW_SECONDS - (
+                    current_time - self.request_timestamps[0]
+                )
                 if wait_time > 0:
-                    print(f"[RateLimiter] Hit API limit ({self.MAX_REQUESTS_PER_MIN} calls/min). Sleeping for {wait_time:.2f} s...")
+                    print(
+                        f"[RateLimiter] Hit API limit ({self.MAX_REQUESTS_PER_MIN} calls/min). Sleeping for {wait_time:.2f} s..."
+                    )
                     time.sleep(wait_time)
 
             # Record timestamp for this request
@@ -70,7 +84,9 @@ class FMPMarketData:
         # to allow each thread to do it if they're stuck.
         while True:
             try:
-                requests.get("https://www.google.com", timeout=5)  # Check internet access
+                requests.get(
+                    "https://www.google.com", timeout=5
+                )  # Check internet access
                 print("[Internet] Connection restored ✅")
                 return  # Exit loop when internet is back
             except requests.exceptions.ConnectionError:
@@ -79,7 +95,7 @@ class FMPMarketData:
 
     def _make_request(self, url, params):
         """
-        Handles API requests with retries, error handling, 
+        Handles API requests with retries, error handling,
         internet failure detection, and thread-safe rate limiting.
         """
         for attempt in range(1, self.MAX_RETRIES + 1):
@@ -87,12 +103,16 @@ class FMPMarketData:
                 # Enforce rate limit before making the request
                 self._check_rate_limit()
 
-                response = requests.get(url, params=params, timeout=self.TIMEOUT_SECONDS)
+                response = requests.get(
+                    url, params=params, timeout=self.TIMEOUT_SECONDS
+                )
 
                 if response.status_code == 200:
                     return response.json()
 
-                print(f"[FMP API] Warning: Received {response.status_code} - {response.text} (Attempt {attempt}/{self.MAX_RETRIES})")
+                print(
+                    f"[FMP API] Warning: Received {response.status_code} - {response.text} (Attempt {attempt}/{self.MAX_RETRIES})"
+                )
 
                 # If it's a 429 (Too Many Requests), wait longer (exponential backoff)
                 if response.status_code == 429:
@@ -100,7 +120,9 @@ class FMPMarketData:
                     time.sleep(10 * attempt)
 
             except requests.exceptions.Timeout:
-                print(f"[FMP API] Timeout on {url} (Attempt {attempt}/{self.MAX_RETRIES}). Retrying...")
+                print(
+                    f"[FMP API] Timeout on {url} (Attempt {attempt}/{self.MAX_RETRIES}). Retrying..."
+                )
                 time.sleep(5 * attempt)
 
             except requests.exceptions.ConnectionError:
@@ -109,16 +131,20 @@ class FMPMarketData:
 
             except requests.exceptions.RequestException as ex:
                 # Catches all other requests-related errors
-                print(f"[FMP API] Request failed: {ex} (Attempt {attempt}/{self.MAX_RETRIES})")
+                print(
+                    f"[FMP API] Request failed: {ex} (Attempt {attempt}/{self.MAX_RETRIES})"
+                )
                 time.sleep(5 * attempt)
 
-        print(f"[FMP API] Failed to fetch data from {url} after {self.MAX_RETRIES} attempts.")
+        print(
+            f"[FMP API] Failed to fetch data from {url} after {self.MAX_RETRIES} attempts."
+        )
         return None  # Fail gracefully
 
     def get_historical_data(self, tickers, from_date, to_date):
         """
         Fetches daily historical data for given tickers.
-        
+
         :param tickers: List or string of stock symbols
         :param from_date: Start date (YYYY-MM-DD)
         :param to_date: End date (YYYY-MM-DD)
@@ -127,7 +153,9 @@ class FMPMarketData:
         if isinstance(tickers, list):
             tickers = ",".join(tickers)
 
-        url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{tickers}"
+        url = (
+            f"https://financialmodelingprep.com/api/v3/historical-price-full/{tickers}"
+        )
         params = {"from": from_date, "to": to_date, "apikey": self.fmp_api_key}
 
         data = self._make_request(url, params)
@@ -136,13 +164,13 @@ class FMPMarketData:
 
         # Parse single or multiple ticker response
         historical_data = []
-        if isinstance(data, dict) and 'historical' in data:
-            return data['historical']  # single ticker
-        elif isinstance(data, dict) and 'historicalStockList' in data:
-            for stock in data['historicalStockList']:
-                t_symbol = stock['symbol']
-                for record in stock['historical']:
-                    record['ticker'] = t_symbol
+        if isinstance(data, dict) and "historical" in data:
+            return data["historical"]  # single ticker
+        elif isinstance(data, dict) and "historicalStockList" in data:
+            for stock in data["historicalStockList"]:
+                t_symbol = stock["symbol"]
+                for record in stock["historical"]:
+                    record["ticker"] = t_symbol
                     historical_data.append(record)
             return historical_data
 
@@ -177,7 +205,7 @@ class FMPMarketData:
 
         print("[FMP API] No intraday data found.")
         return None
-        
+
     def get_realtime_data(self, exchange="NASDAQ"):
         """
         Fetch real-time stock data for an entire exchange using a single batch request.
@@ -191,16 +219,16 @@ class FMPMarketData:
         """
         url = "https://financialmodelingprep.com/stable/batch-exchange-quote?"
         params = {"exchange": exchange, "short": "false", "apikey": self.fmp_api_key}
-        
+
         print(f"Fetching batch data for {exchange}...")
         data = self._make_request(url, params)
-        
+
         if isinstance(data, list):
             return data
 
         print(f"[FMP API] Failed to fetch or parse batch data for {exchange}.")
         return None
-    
+
     def get_current_price(self, ticker):
         """
         Fetch real-time stock price for a single ticker using FMP API.
@@ -211,10 +239,17 @@ class FMPMarketData:
 
         try:
             data = self._make_request(url, params)
-            if isinstance(data, list) and data and 'price' in data[0] and data[0]['price'] is not None:
-                return float(data[0]['price'])
+            if (
+                isinstance(data, list)
+                and data
+                and "price" in data[0]
+                and data[0]["price"] is not None
+            ):
+                return float(data[0]["price"])
 
-            self.logger.warning(f"No valid price found for ticker {ticker} in API response. Response: {data}")
+            self.logger.warning(
+                f"No valid price found for ticker {ticker} in API response. Response: {data}"
+            )
             return 0.0
 
         except Exception as e:

@@ -1,7 +1,22 @@
 import logging
 from collections import deque
 from datetime import datetime
-from .base import Indicator
+
+try:
+    from .base import Indicator
+except ImportError as rel_err:
+    logging.warning(
+        "Indicator relative import failed; using absolute import. Details: %s",
+        rel_err,
+    )
+    try:
+        from src.portfolios.indicators.base import Indicator
+    except ImportError as abs_err:
+        logging.error(
+            "Failed to import Indicator from both relative and absolute paths. Details: %s",
+            abs_err,
+        )
+        raise
 
 class RateOfChange(Indicator):
     """
@@ -24,7 +39,6 @@ class RateOfChange(Indicator):
         
         self.period = int(kwargs.get('period', 5))
         self.price_col = kwargs.get('price_col', 'close_price')
-        self._logger = logging.getLogger(f"{self.__class__.__name__}_{self.ticker}")
         
         if self.period <= 0:
             raise ValueError("RateOfChange indicator requires a 'period' > 0.")
@@ -34,31 +48,16 @@ class RateOfChange(Indicator):
         self._price_buffer = deque(maxlen=self.period + 1)
         
 
-    def Update(self, timestamp: datetime, data_row):
+    def Update(self, timestamp: datetime, data_point: float):
         """
-        Updates the indicator with a new data row.
+        Updates the indicator with a new price.
         
         Args:
             timestamp (datetime): The timestamp of the new data.
-            data_row (dict or pd.Series): The new data bar, containing at least
-                                        the price_col.
+            data_point (float): The price value.
         """
-        try:
-            price = float(data_row[self.price_col])
-        except KeyError as e:
-            # Handle missing data in the row
-            self._logger.warning(f"Update failed. Data row missing key: {e}")
-            self._is_ready = False
-            self._current_value = None
-            return
-        except (TypeError, ValueError):
-            # Handle None or non-numeric data
-            self._is_ready = False
-            self._current_value = None
-            return
-
         # Add the new price to our buffer
-        self._price_buffer.append(price)
+        self._price_buffer.append(data_point)
 
         # Check if the buffer is full
         if len(self._price_buffer) == self.period + 1:
@@ -68,7 +67,7 @@ class RateOfChange(Indicator):
             new_price = self._price_buffer[-1] # The current price
             
             if old_price is not None and old_price != 0:
-                self._current_value = (new_price - old_price) / old_price
+                self._current_value = ((new_price - old_price) / old_price) * 100.0
             elif old_price == 0:
                 # Avoid division by zero; can't calculate ROC
                 self._current_value = 0.0 
@@ -76,4 +75,5 @@ class RateOfChange(Indicator):
                 # Should not happen if data is clean, but good to check
                 self._current_value = None
                 self._is_ready = False
+        return self._current_value
 

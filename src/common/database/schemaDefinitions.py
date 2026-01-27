@@ -1,4 +1,13 @@
-from common.database.MQSDBConnector import MQSDBConnector
+import logging
+
+try:
+    from common.database.MQSDBConnector import MQSDBConnector
+except ImportError:
+    logging.warning(
+        "MQSDBConnector relative import failed; using absolute import."
+    )
+    from src.common.database.MQSDBConnector import MQSDBConnector
+
 
 class SchemaDefinitions:
     """
@@ -15,8 +24,8 @@ class SchemaDefinitions:
         """
         # Test connection by executing a simple query
         res = self.db.execute_query("SELECT 1", fetch=True)
-        if res['status'] == 'error':
-            print("Error connecting to DB:", res['message'])
+        if res["status"] == "error":
+            print("Error connecting to DB:", res["message"])
             return
 
         create_user_creds_table = """
@@ -26,7 +35,7 @@ class SchemaDefinitions:
             password VARCHAR(100) NOT NULL
         );
         """
-        
+
         create_market_data_table = """
         CREATE TABLE IF NOT EXISTS market_data (
             id SERIAL PRIMARY KEY,
@@ -62,8 +71,6 @@ class SchemaDefinitions:
         );
         """
 
-        
-
         create_pnl_book_table = """
         CREATE TABLE IF NOT EXISTS pnl_book (
             pnl_id SERIAL PRIMARY KEY,
@@ -84,7 +91,11 @@ class SchemaDefinitions:
             risk_id SERIAL PRIMARY KEY,
             portfolio_id VARCHAR(50),
             date DATE NOT NULL,
+<<<<<<< HEAD
             timestamp TIMESTAMP DEFAULT NOW()
+=======
+            timestamp TIMESTAMP DEFAULT NOW(),
+>>>>>>> e3f475887053a9f34c3f0cdcb753fd8884d12d8a
             risk_metric VARCHAR(100),
             value NUMERIC,
             created_at TIMESTAMP DEFAULT NOW()
@@ -133,11 +144,11 @@ class SchemaDefinitions:
             create_risk_book_table,
             create_cash_equity_book_table,
             create_positions_table,
-            create_port_weights_table
+            create_port_weights_table,
         ]
 
         for stmt in statements:
             result = self.db.execute_query(stmt)
-            if result['status'] == 'error':
-                print("Error creating table:", result['message'])
+            if result["status"] == "error":
+                print("Error creating table:", result["message"])
         print("All tables created or confirmed to exist.")

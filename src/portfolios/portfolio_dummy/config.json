@@ -1,5 +1,5 @@
 {
-    "PORTFOLIO_ID": "4",
+    "PORTFOLIO_ID": "portfolio_dummy",
     "TICKERS": ["AAPL", "TSLA", "NVDA", "MSFT"],
     "WEIGHTS": {
         "AAPL": 0.25,
@@ -7,6 +7,7 @@
         "NVDA": 0.25,
         "MSFT": 0.25
     },
-    "INTERVAL": 3600,
-    "LOOKBACK_DAYS": 50
+    "INTERVAL": 23400,
+    "LOOKBACK_DAYS": 50,
+     "DATA_FEEDS": ["MARKET_DATA", "POSITIONS", "CASH_EQUITY", "PORT_NOTIONAL"]
 }

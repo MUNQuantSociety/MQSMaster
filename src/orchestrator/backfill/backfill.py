@@ -141,7 +141,14 @@ def backfill_data(
                         to_date=to_date_str,
                         interval=interval,
                     )
-
+                    #!add etf call here
+                    if data_chunk is None:
+                        data_chunk = fmp.get_historical_data(
+                            tickers=ticker,
+                            from_date=from_date_str,
+                            to_date=to_date_str,
+                        )
+                    
                     # If data is valid
                     if data_chunk and isinstance(data_chunk, list):
                         df_chunk = pd.DataFrame(data_chunk)
