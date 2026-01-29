@@ -91,11 +91,7 @@ class SchemaDefinitions:
             risk_id SERIAL PRIMARY KEY,
             portfolio_id VARCHAR(50),
             date DATE NOT NULL,
-<<<<<<< HEAD
-            timestamp TIMESTAMP DEFAULT NOW()
-=======
             timestamp TIMESTAMP DEFAULT NOW(),
->>>>>>> e3f475887053a9f34c3f0cdcb753fd8884d12d8a
             risk_metric VARCHAR(100),
             value NUMERIC,
             created_at TIMESTAMP DEFAULT NOW()
