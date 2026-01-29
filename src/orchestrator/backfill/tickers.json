@@ -1,4 +1,5 @@
 [
+    "BTCUSD",
     "TXG",
     "MMM",
     "ETNB",
@@ -1133,5 +1134,6 @@
     "ZM",
     "ZI",
     "ZS",
-    "ZWS"
+    "ZWS",
+    "^VIX"
 ]

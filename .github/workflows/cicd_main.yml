@@ -1,0 +1,64 @@
+name: Python CI/CD Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # If you have a pyproject.toml / setup.cfg, this installs your package
+          if [ -f pyproject.toml ] || [ -f setup.cfg ] || [ -f setup.py ]; then pip install -e .; fi
+
+      - name: Add repo to PYTHONPATH
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+
+      - name: Lint with flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Verify tests folder
+        run: |
+          ls -la tests/
+          if [ ! -d tests/ ]; then
+            echo "::error::No 'tests' directory found on this branch."; exit 1; fi
+          ls -la tests/
+
+      - name: Collect-only (debug discovery)
+        run: pytest --collect-only -q tests
+
+      - name: Test with pytest
+        env:
+          host: ${{ secrets.DB_HOST }}
+          port: ${{ secrets.DB_PORT }}
+          database: ${{ secrets.DB_NAME }}
+          db_user: ${{ secrets.DB_USER }}
+          password: ${{ secrets.DB_PASSWORD }}
+          sslmode: "require"
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: pytest -vv tests

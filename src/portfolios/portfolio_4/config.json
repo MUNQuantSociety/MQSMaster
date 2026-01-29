@@ -1,0 +1,24 @@
+{
+  "PORTFOLIO_ID": "4",
+  "TICKERS": ["AAPL", "MSFT", "TLT", "IEF", "GLD"],
+  "INTERVAL": 23400,
+  "LOOKBACK_DAYS": 120,
+  "EXCH": "NASDAQ",
+  "fast_trend_period": 20,
+  "slow_trend_period": 50,
+
+  "asset_groups": {
+    "risk_on": ["AAPL", "MSFT"],
+    "risk_off": ["TLT", "IEF", "GLD"]
+  },
+
+  "weights": {
+    "AAPL": 0.2,
+    "MSFT": 0.2,
+    "TLT": 0.2,
+    "IEF": 0.2,
+    "GLD": 0.2
+  },
+
+  "DATA_FEEDS": ["MARKET_DATA", "POSITIONS", "CASH_EQUITY", "PORT_NOTIONAL"]
+}
