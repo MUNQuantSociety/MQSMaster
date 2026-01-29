@@ -17,7 +17,7 @@ def _compute_max_drawdown(portfolio_values: pd.Series) -> float:
     """Calculates the maximum drawdown from a series of portfolio values."""
     if len(portfolio_values) < 2:
         return 0.0
-    arr = pd.Series(portfolio_values).ffill().bfill().to_numpy(dtype=float)
+    arr = pd.Series(portfolio_values).ffill().bfill().to_numpy(dtype=float).copy()
     if not np.all(np.isfinite(arr)):
         logging.warning("Non-finite values in portfolio values; drawdown set to 0.0")
         return 0.0
