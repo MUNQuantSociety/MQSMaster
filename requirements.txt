@@ -15,5 +15,5 @@ matplotlib==3.10.5
 seaborn==0.13.1
 transformers
 scipy>=1.13.0
-statsmodels>=1.2.0
+statsmodels>=0.14.6
 pytz>=2024.1
