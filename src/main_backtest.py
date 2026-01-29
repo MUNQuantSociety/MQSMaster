@@ -36,10 +36,10 @@ def main(
     """
     portfolio_classes = [
         VolMomentum,
-        MomentumStrategy,
-        RegimeAdaptiveStrategy,
-        TrendRotateStrategy,
-        CrossoverRmiStrategy,
+#        MomentumStrategy,
+#        RegimeAdaptiveStrategy,
+#        TrendRotateStrategy,
+#        CrossoverRmiStrategy,
     ]
 
     # DO NOT CHANGE BELOW THIS LINE
