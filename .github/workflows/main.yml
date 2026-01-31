@@ -1,0 +1,86 @@
+name: CI/CD trading sys
+
+on:
+  # [Task] Trigger: pull_request to main
+  # This runs CI checks for every PR targeting the main branch.
+  pull_request:
+    branches:
+      - main
+  # This runs CD when code is merged (pushed) to main.
+  push:
+    branches:
+      - main
+
+jobs:
+  ci:
+    # PR trigger → CI job.
+    runs-on: ubuntu-latest
+
+    steps:
+      # CI steps intentionally removed.
+      # Add your steps here (checkout, lint, tests) when ready.
+
+  build-and-publish:
+    # CD job: build and publish Docker image on main branch pushes.
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # Pull repository code for Docker build.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Dockerfile
+        # Only build/push if a Dockerfile exists at repo root.
+        id: dockerfile
+        run: |
+          if [ -f "Dockerfile" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        # Buildx enables multi-platform and cached builds.
+        if: steps.dockerfile.outputs.exists == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        # Authenticate so we can push the image to GitHub Container Registry.
+        if: steps.dockerfile.outputs.exists == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        # Create image tags (latest + commit SHA).
+        if: steps.dockerfile.outputs.exists == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=sha
+
+      - name: Build and push image
+        # Build the Docker image and push it to GHCR.
+        if: steps.dockerfile.outputs.exists == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Skip publish (no Dockerfile)
+        # Explain why CD didn't run.
+        if: steps.dockerfile.outputs.exists != 'true'
+        run: |
+          echo "Dockerfile not found. Skipping CD publish step."
