@@ -238,23 +238,50 @@ def remove_duplicates(*kwargs):
     )
     return combined
 
-def temp_save_articles(args, yahoo_news_df, finviz_news_df, alpha_news_df):
-    """Save temporary article CSVs for duplicate checking."""
+def merge_all_sources(args, yahoo_news_df, finviz_news_df, alpha_news_df):
+    """Merge all article sources into a single CSV file per ticker."""
     path = os.path.dirname(__file__) + "/articles"
-    # Write temporary files for duplicate checking
-
-    yahoo_path = f"{path}/{args.ticker.upper()}_yahoo_news.csv"
-    finviz_path = f"{path}/{args.ticker.upper()}_finviz_news.csv"
-    alpha_path = f"{path}/{args.ticker.upper()}_alpha_news.csv"
     fmp_path = f"{path}/{args.ticker.upper()}.csv"
-
-    with open(yahoo_path, "w", encoding="utf-8") as f:
-        yahoo_news_df.to_csv(f, index=False, date_format="%Y-%m-%d %H:%M:%S")
-    with open(finviz_path, "w", encoding="utf-8") as f:
-        finviz_news_df.to_csv(f, index=False, date_format="%Y-%m-%d %H:%M:%S")
-    with open(alpha_path, "w", encoding="utf-8") as f:
-        alpha_news_df.to_csv(f, index=False, date_format="%Y-%m-%d %H:%M:%S")
-    return fmp_path, yahoo_path, finviz_path, alpha_path
+    
+    # Load existing FMP data if it exists
+    try:
+        fmp_df = pd.read_csv(fmp_path, parse_dates=["publishedDate"])
+        print(f"Loaded existing FMP data: {len(fmp_df)} articles")
+    except FileNotFoundError:
+        print(f"No existing FMP data found for {args.ticker.upper()}")
+        fmp_df = pd.DataFrame()
+    
+    # Combine all sources
+    all_dataframes = []
+    
+    if not fmp_df.empty:
+        all_dataframes.append(fmp_df)
+        print(f"FMP articles: {len(fmp_df)}")
+    
+    if not yahoo_news_df.empty:
+        all_dataframes.append(yahoo_news_df)
+        print(f"Yahoo articles: {len(yahoo_news_df)}")
+    
+    if not finviz_news_df.empty:
+        all_dataframes.append(finviz_news_df)
+        print(f"Finviz articles: {len(finviz_news_df)}")
+    
+    if not alpha_news_df.empty:
+        all_dataframes.append(alpha_news_df)
+        print(f"Alpha Vantage articles: {len(alpha_news_df)}")
+    
+    if not all_dataframes:
+        print(f"No articles found for {args.ticker.upper()}")
+        return fmp_path
+    
+    # Merge all sources
+    combined_df = remove_duplicates(*all_dataframes)
+    
+    # Save the merged file
+    combined_df.to_csv(fmp_path, index=False, date_format="%Y-%m-%d %H:%M:%S")
+    print(f"Saved merged articles to {fmp_path}: {len(combined_df)} total articles")
+    
+    return fmp_path
 
 def main():
     """Main function to parse arguments and initiate the fetch."""
@@ -277,30 +304,18 @@ def main():
         ticker=[args.ticker.upper()], time_from=start, time_to=end
     )
     print("--------------------\n")
-    print(f"Fetching more articles for {args.ticker.upper()}.")
-    path = os.path.dirname(__file__) + "/articles"
+    print(f"Fetching additional articles for {args.ticker.upper()}.")
+    
     # Convert to DataFrame for further analysis if needed
     yahoo_news_df = pd.DataFrame(yahoo)
     finviz_news_df = pd.DataFrame(finviz)
     alpha_news_df = pd.DataFrame(alpha)
 
-    # Save temporary CSVs
-    fmp_path, yahoo_path, finviz_path, alpha_path = temp_save_articles(args, yahoo_news_df, finviz_news_df, alpha_news_df)
-    fmp_df = pd.read_csv(fmp_path)
-    # Check for duplicates across sources
-    scraper.check_duplicates()
-    combined_df = remove_duplicates(fmp_df, yahoo_news_df, finviz_news_df, alpha_news_df)
-    combined_df.to_csv(
-        f"{path}/{args.ticker.upper()}.csv",
-        index=False,
-        date_format="%Y-%m-%d %H:%M:%S",
-    )
-
-    # Clean up temporary files
-    os.remove(yahoo_path)
-    os.remove(finviz_path)
-    os.remove(alpha_path)
-    print(f"Cleaned up temporary files for {args.ticker.upper()}")
+    # Merge all sources into single file
+    final_path = merge_all_sources(args, yahoo_news_df, finviz_news_df, alpha_news_df)
+    
+    print(f"All articles merged into single file: {final_path}")
+    print(f"Processing completed for {args.ticker.upper()}")
 
 
 if __name__ == "__main__":

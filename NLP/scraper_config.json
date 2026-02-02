@@ -1,0 +1,15 @@
+{
+  "tickers": [
+    "AAPL",
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "TSLA",
+    "NVDA",
+    "AMD"
+  ],
+  "scrape_interval": 300,
+  "enabled": true,
+  "max_retries": 3,
+  "retry_delay": 300
+}

@@ -1,0 +1,328 @@
+2026-02-01 19:43:53,045 - __main__ - INFO - Starting NLP article scraper daemon
+2026-02-01 19:43:53,046 - __main__ - INFO - Starting scrape cycle for 7 tickers
+2026-02-01 19:43:53,047 - __main__ - INFO - Starting comprehensive scraping for AAPL
+2026-02-01 19:43:53,047 - __main__ - INFO - Running fetch_articles for AAPL (attempt 1/3)
+2026-02-01 19:44:23,132 - __main__ - INFO - fetch_articles completed successfully for AAPL
+2026-02-01 19:44:23,132 - __main__ - INFO - Running news_scraper for AAPL (attempt 1/3)
+2026-02-01 19:44:59,867 - __main__ - INFO - news_scraper completed successfully for AAPL: 200 articles
+2026-02-01 19:45:17,540 - __main__ - INFO - Alt scraper found 97 articles for AAPL
+2026-02-01 19:45:17,540 - __main__ - INFO - Scraping summary for AAPL: 3/3 methods successful - {'fetch_articles': True, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 19:45:27,542 - __main__ - INFO - Starting comprehensive scraping for MSFT
+2026-02-01 19:45:27,542 - __main__ - INFO - Running fetch_articles for MSFT (attempt 1/3)
+2026-02-01 19:45:58,651 - __main__ - INFO - fetch_articles completed successfully for MSFT
+2026-02-01 19:45:58,652 - __main__ - INFO - Running news_scraper for MSFT (attempt 1/3)
+2026-02-01 19:46:36,863 - __main__ - INFO - news_scraper completed successfully for MSFT: 200 articles
+2026-02-01 19:46:52,186 - __main__ - INFO - Alt scraper found 101 articles for MSFT
+2026-02-01 19:46:52,186 - __main__ - INFO - Scraping summary for MSFT: 3/3 methods successful - {'fetch_articles': True, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 19:47:02,186 - __main__ - INFO - Starting comprehensive scraping for GOOGL
+2026-02-01 19:47:02,187 - __main__ - INFO - Running fetch_articles for GOOGL (attempt 1/3)
+2026-02-01 19:47:27,105 - __main__ - INFO - fetch_articles completed successfully for GOOGL
+2026-02-01 19:47:27,105 - __main__ - INFO - Running news_scraper for GOOGL (attempt 1/3)
+2026-02-01 19:48:02,534 - __main__ - INFO - news_scraper completed successfully for GOOGL: 200 articles
+2026-02-01 19:48:19,980 - __main__ - INFO - Alt scraper found 93 articles for GOOGL
+2026-02-01 19:48:19,980 - __main__ - INFO - Scraping summary for GOOGL: 3/3 methods successful - {'fetch_articles': True, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 19:48:29,980 - __main__ - INFO - Starting comprehensive scraping for AMZN
+2026-02-01 19:48:29,980 - __main__ - INFO - Running fetch_articles for AMZN (attempt 1/3)
+2026-02-01 19:49:03,005 - __main__ - INFO - fetch_articles completed successfully for AMZN
+2026-02-01 19:49:03,005 - __main__ - INFO - Running news_scraper for AMZN (attempt 1/3)
+2026-02-01 19:49:40,028 - __main__ - INFO - news_scraper completed successfully for AMZN: 197 articles
+2026-02-01 19:49:59,259 - __main__ - INFO - Alt scraper found 86 articles for AMZN
+2026-02-01 19:49:59,259 - __main__ - INFO - Scraping summary for AMZN: 3/3 methods successful - {'fetch_articles': True, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 19:50:09,259 - __main__ - INFO - Starting comprehensive scraping for TSLA
+2026-02-01 19:50:09,260 - __main__ - INFO - Running fetch_articles for TSLA (attempt 1/3)
+2026-02-01 19:50:40,663 - __main__ - INFO - fetch_articles completed successfully for TSLA
+2026-02-01 19:50:40,664 - __main__ - INFO - Running news_scraper for TSLA (attempt 1/3)
+2026-02-01 19:51:18,321 - __main__ - INFO - news_scraper completed successfully for TSLA: 197 articles
+2026-02-01 19:51:35,007 - __main__ - INFO - Alt scraper found 91 articles for TSLA
+2026-02-01 19:51:35,008 - __main__ - INFO - Scraping summary for TSLA: 3/3 methods successful - {'fetch_articles': True, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 19:51:45,008 - __main__ - INFO - Starting comprehensive scraping for NVDA
+2026-02-01 19:51:45,008 - __main__ - INFO - Running fetch_articles for NVDA (attempt 1/3)
+2026-02-01 19:52:14,458 - __main__ - INFO - fetch_articles completed successfully for NVDA
+2026-02-01 19:52:14,458 - __main__ - INFO - Running news_scraper for NVDA (attempt 1/3)
+2026-02-01 19:52:50,742 - __main__ - INFO - news_scraper completed successfully for NVDA: 200 articles
+2026-02-01 19:53:05,574 - __main__ - INFO - Alt scraper found 112 articles for NVDA
+2026-02-01 19:53:05,574 - __main__ - INFO - Scraping summary for NVDA: 3/3 methods successful - {'fetch_articles': True, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 19:53:15,574 - __main__ - INFO - Starting comprehensive scraping for AMD
+2026-02-01 19:53:15,575 - __main__ - INFO - Running fetch_articles for AMD (attempt 1/3)
+2026-02-01 19:53:30,740 - __main__ - INFO - fetch_articles completed successfully for AMD
+2026-02-01 19:53:30,741 - __main__ - INFO - Running news_scraper for AMD (attempt 1/3)
+2026-02-01 19:54:06,814 - __main__ - INFO - news_scraper completed successfully for AMD: 200 articles
+2026-02-01 19:54:17,155 - __main__ - INFO - Alt scraper found 121 articles for AMD
+2026-02-01 19:54:17,155 - __main__ - INFO - Scraping summary for AMD: 3/3 methods successful - {'fetch_articles': True, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 19:54:27,155 - __main__ - INFO - Scrape cycle completed: 7 successful, 0 failed, 634.1s elapsed
+2026-02-01 19:54:27,156 - __main__ - INFO - Sleeping for 2965.9 seconds until next cycle
+2026-02-01 20:20:38,013 - __main__ - INFO - Received interrupt signal. Shutting down gracefully...
+2026-02-01 20:22:36,600 - __main__ - INFO - Starting NLP article scraper daemon
+2026-02-01 20:22:36,600 - __main__ - INFO - Starting scrape cycle for 7 tickers
+2026-02-01 20:22:36,600 - __main__ - INFO - Starting comprehensive scraping for AAPL
+2026-02-01 20:22:36,600 - __main__ - INFO - Running fetch_articles for AAPL (attempt 1/3)
+2026-02-01 20:22:58,211 - __main__ - INFO - fetch_articles completed successfully for AAPL
+2026-02-01 20:22:58,211 - __main__ - INFO - Running news_scraper for AAPL (attempt 1/3)
+2026-02-01 20:23:35,426 - __main__ - INFO - news_scraper completed successfully for AAPL: 200 articles
+2026-02-01 20:23:53,648 - __main__ - INFO - Alt scraper found 97 articles for AAPL
+2026-02-01 20:23:53,648 - __main__ - INFO - Scraping summary for AAPL: 3/3 methods successful - {'fetch_articles': True, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 20:24:03,648 - __main__ - INFO - Starting comprehensive scraping for MSFT
+2026-02-01 20:24:03,648 - __main__ - INFO - Running fetch_articles for MSFT (attempt 1/3)
+2026-02-01 20:24:22,804 - __main__ - INFO - fetch_articles completed successfully for MSFT
+2026-02-01 20:24:22,804 - __main__ - INFO - Running news_scraper for MSFT (attempt 1/3)
+2026-02-01 20:24:58,459 - __main__ - INFO - news_scraper completed successfully for MSFT: 200 articles
+2026-02-01 20:25:13,850 - __main__ - INFO - Alt scraper found 101 articles for MSFT
+2026-02-01 20:25:13,851 - __main__ - INFO - Scraping summary for MSFT: 3/3 methods successful - {'fetch_articles': True, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 20:25:23,851 - __main__ - INFO - Starting comprehensive scraping for GOOGL
+2026-02-01 20:25:23,851 - __main__ - INFO - Running fetch_articles for GOOGL (attempt 1/3)
+2026-02-01 20:25:44,583 - __main__ - INFO - fetch_articles completed successfully for GOOGL
+2026-02-01 20:25:44,584 - __main__ - INFO - Running news_scraper for GOOGL (attempt 1/3)
+2026-02-01 20:26:22,170 - __main__ - INFO - news_scraper completed successfully for GOOGL: 200 articles
+2026-02-01 20:26:38,701 - __main__ - INFO - Alt scraper found 93 articles for GOOGL
+2026-02-01 20:26:38,701 - __main__ - INFO - Scraping summary for GOOGL: 3/3 methods successful - {'fetch_articles': True, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 20:26:48,701 - __main__ - INFO - Starting comprehensive scraping for AMZN
+2026-02-01 20:26:48,701 - __main__ - INFO - Running fetch_articles for AMZN (attempt 1/3)
+2026-02-01 20:27:11,860 - __main__ - INFO - fetch_articles completed successfully for AMZN
+2026-02-01 20:27:11,860 - __main__ - INFO - Running news_scraper for AMZN (attempt 1/3)
+2026-02-01 20:27:48,106 - __main__ - INFO - news_scraper completed successfully for AMZN: 197 articles
+2026-02-01 20:28:07,634 - __main__ - INFO - Alt scraper found 87 articles for AMZN
+2026-02-01 20:28:07,634 - __main__ - INFO - Scraping summary for AMZN: 3/3 methods successful - {'fetch_articles': True, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 20:28:17,635 - __main__ - INFO - Starting comprehensive scraping for TSLA
+2026-02-01 20:28:17,635 - __main__ - INFO - Running fetch_articles for TSLA (attempt 1/3)
+2026-02-01 20:28:38,435 - __main__ - INFO - fetch_articles completed successfully for TSLA
+2026-02-01 20:28:38,436 - __main__ - INFO - Running news_scraper for TSLA (attempt 1/3)
+2026-02-01 20:29:14,383 - __main__ - INFO - news_scraper completed successfully for TSLA: 197 articles
+2026-02-01 20:29:31,884 - __main__ - INFO - Alt scraper found 91 articles for TSLA
+2026-02-01 20:29:31,884 - __main__ - INFO - Scraping summary for TSLA: 3/3 methods successful - {'fetch_articles': True, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 20:29:41,884 - __main__ - INFO - Starting comprehensive scraping for NVDA
+2026-02-01 20:29:41,885 - __main__ - INFO - Running fetch_articles for NVDA (attempt 1/3)
+2026-02-01 20:30:00,384 - __main__ - ERROR - fetch_articles failed for NVDA: 
+Scraping Yahoo News articles...:   0%|          | 0/10 [00:00<?, ?it/s]
+Scraping Yahoo News articles...: 100%|██████████| 10/10 [00:00<00:00, 51653.99it/s]
+
+Scraping Finviz News articles...:   0%|          | 0/100 [00:00<?, ?it/s]
+Scraping Finviz News articles...: 100%|██████████| 100/100 [00:00<00:00, 1987821.80it/s]
+
+Scraping Alpha Vantage News articles...: 0it [00:00, ?it/s]
+Scraping Alpha Vantage News articles...: 0it [00:00, ?it/s]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_articles.py", line 307, in <module>
+    main()
+    ~~~~^^
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_articles.py", line 291, in main
+    scraper.check_duplicates()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_alt_articles.py", line 109, in check_duplicates
+    df_1 = pd.read_csv(f"{PATH}/{self.symbol}_alpha_news.csv")
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 873, in read_csv
+    return _read(filepath_or_buffer, kwds)
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 300, in _read
+    parser = TextFileReader(filepath_or_buffer, **kwds)
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 1645, in __init__
+    self._engine = self._make_engine(f, self.engine)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 1922, in _make_engine
+    return mapping[engine](f, **self.options)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\c_parser_wrapper.py", line 95, in __init__
+    self._reader = parsers.TextReader(src, **kwds)
+                   ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "pandas/_libs/parsers.pyx", line 575, in pandas._libs.parsers.TextReader.__cinit__
+pandas.errors.EmptyDataError: No columns to parse from file
+
+2026-02-01 20:31:00,385 - __main__ - INFO - Running fetch_articles for NVDA (attempt 2/3)
+2026-02-01 20:31:20,241 - __main__ - ERROR - fetch_articles failed for NVDA: 
+Scraping Yahoo News articles...:   0%|          | 0/10 [00:00<?, ?it/s]
+Scraping Yahoo News articles...: 100%|██████████| 10/10 [00:00<00:00, 58497.96it/s]
+
+Scraping Finviz News articles...:   0%|          | 0/100 [00:00<?, ?it/s]
+Scraping Finviz News articles...: 100%|██████████| 100/100 [00:00<00:00, 1932858.99it/s]
+
+Scraping Alpha Vantage News articles...: 0it [00:00, ?it/s]
+Scraping Alpha Vantage News articles...: 0it [00:00, ?it/s]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_articles.py", line 307, in <module>
+    main()
+    ~~~~^^
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_articles.py", line 291, in main
+    scraper.check_duplicates()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_alt_articles.py", line 109, in check_duplicates
+    df_1 = pd.read_csv(f"{PATH}/{self.symbol}_alpha_news.csv")
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 873, in read_csv
+    return _read(filepath_or_buffer, kwds)
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 300, in _read
+    parser = TextFileReader(filepath_or_buffer, **kwds)
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 1645, in __init__
+    self._engine = self._make_engine(f, self.engine)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 1922, in _make_engine
+    return mapping[engine](f, **self.options)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\c_parser_wrapper.py", line 95, in __init__
+    self._reader = parsers.TextReader(src, **kwds)
+                   ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "pandas/_libs/parsers.pyx", line 575, in pandas._libs.parsers.TextReader.__cinit__
+pandas.errors.EmptyDataError: No columns to parse from file
+
+2026-02-01 20:32:20,242 - __main__ - INFO - Running fetch_articles for NVDA (attempt 3/3)
+2026-02-01 20:32:37,863 - __main__ - ERROR - fetch_articles failed for NVDA: 
+Scraping Yahoo News articles...:   0%|          | 0/10 [00:00<?, ?it/s]
+Scraping Yahoo News articles...: 100%|██████████| 10/10 [00:00<00:00, 50963.60it/s]
+
+Scraping Finviz News articles...:   0%|          | 0/100 [00:00<?, ?it/s]
+Scraping Finviz News articles...: 100%|██████████| 100/100 [00:00<00:00, 1800130.47it/s]
+
+Scraping Alpha Vantage News articles...: 0it [00:00, ?it/s]
+Scraping Alpha Vantage News articles...: 0it [00:00, ?it/s]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_articles.py", line 307, in <module>
+    main()
+    ~~~~^^
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_articles.py", line 291, in main
+    scraper.check_duplicates()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_alt_articles.py", line 109, in check_duplicates
+    df_1 = pd.read_csv(f"{PATH}/{self.symbol}_alpha_news.csv")
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 873, in read_csv
+    return _read(filepath_or_buffer, kwds)
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 300, in _read
+    parser = TextFileReader(filepath_or_buffer, **kwds)
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 1645, in __init__
+    self._engine = self._make_engine(f, self.engine)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 1922, in _make_engine
+    return mapping[engine](f, **self.options)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\c_parser_wrapper.py", line 95, in __init__
+    self._reader = parsers.TextReader(src, **kwds)
+                   ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "pandas/_libs/parsers.pyx", line 575, in pandas._libs.parsers.TextReader.__cinit__
+pandas.errors.EmptyDataError: No columns to parse from file
+
+2026-02-01 20:32:37,864 - __main__ - ERROR - Failed to run fetch_articles for NVDA after 3 attempts
+2026-02-01 20:32:37,864 - __main__ - INFO - Running news_scraper for NVDA (attempt 1/3)
+2026-02-01 20:33:13,822 - __main__ - INFO - news_scraper completed successfully for NVDA: 200 articles
+2026-02-01 20:33:28,599 - __main__ - INFO - Alt scraper found 62 articles for NVDA
+2026-02-01 20:33:28,599 - __main__ - INFO - Scraping summary for NVDA: 2/3 methods successful - {'fetch_articles': False, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 20:33:38,599 - __main__ - INFO - Starting comprehensive scraping for AMD
+2026-02-01 20:33:38,599 - __main__ - INFO - Running fetch_articles for AMD (attempt 1/3)
+2026-02-01 20:33:52,264 - __main__ - ERROR - fetch_articles failed for AMD: 
+Scraping Yahoo News articles...:   0%|          | 0/10 [00:00<?, ?it/s]
+Scraping Yahoo News articles...: 100%|██████████| 10/10 [00:00<00:00, 61680.94it/s]
+
+Scraping Finviz News articles...:   0%|          | 0/100 [00:00<?, ?it/s]
+Scraping Finviz News articles...: 100%|██████████| 100/100 [00:00<00:00, 1570900.37it/s]
+
+Scraping Alpha Vantage News articles...: 0it [00:00, ?it/s]
+Scraping Alpha Vantage News articles...: 0it [00:00, ?it/s]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_articles.py", line 307, in <module>
+    main()
+    ~~~~^^
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_articles.py", line 291, in main
+    scraper.check_duplicates()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_alt_articles.py", line 109, in check_duplicates
+    df_1 = pd.read_csv(f"{PATH}/{self.symbol}_alpha_news.csv")
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 873, in read_csv
+    return _read(filepath_or_buffer, kwds)
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 300, in _read
+    parser = TextFileReader(filepath_or_buffer, **kwds)
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 1645, in __init__
+    self._engine = self._make_engine(f, self.engine)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 1922, in _make_engine
+    return mapping[engine](f, **self.options)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\c_parser_wrapper.py", line 95, in __init__
+    self._reader = parsers.TextReader(src, **kwds)
+                   ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "pandas/_libs/parsers.pyx", line 575, in pandas._libs.parsers.TextReader.__cinit__
+pandas.errors.EmptyDataError: No columns to parse from file
+
+2026-02-01 20:34:52,265 - __main__ - INFO - Running fetch_articles for AMD (attempt 2/3)
+2026-02-01 20:35:06,566 - __main__ - ERROR - fetch_articles failed for AMD: 
+Scraping Yahoo News articles...:   0%|          | 0/10 [00:00<?, ?it/s]
+Scraping Yahoo News articles...: 100%|██████████| 10/10 [00:00<00:00, 60349.70it/s]
+
+Scraping Finviz News articles...:   0%|          | 0/100 [00:00<?, ?it/s]
+Scraping Finviz News articles...: 100%|██████████| 100/100 [00:00<00:00, 1847711.01it/s]
+
+Scraping Alpha Vantage News articles...: 0it [00:00, ?it/s]
+Scraping Alpha Vantage News articles...: 0it [00:00, ?it/s]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_articles.py", line 307, in <module>
+    main()
+    ~~~~^^
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_articles.py", line 291, in main
+    scraper.check_duplicates()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_alt_articles.py", line 109, in check_duplicates
+    df_1 = pd.read_csv(f"{PATH}/{self.symbol}_alpha_news.csv")
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 873, in read_csv
+    return _read(filepath_or_buffer, kwds)
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 300, in _read
+    parser = TextFileReader(filepath_or_buffer, **kwds)
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 1645, in __init__
+    self._engine = self._make_engine(f, self.engine)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 1922, in _make_engine
+    return mapping[engine](f, **self.options)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\c_parser_wrapper.py", line 95, in __init__
+    self._reader = parsers.TextReader(src, **kwds)
+                   ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "pandas/_libs/parsers.pyx", line 575, in pandas._libs.parsers.TextReader.__cinit__
+pandas.errors.EmptyDataError: No columns to parse from file
+
+2026-02-01 20:36:06,567 - __main__ - INFO - Running fetch_articles for AMD (attempt 3/3)
+2026-02-01 20:36:19,930 - __main__ - ERROR - fetch_articles failed for AMD: 
+Scraping Yahoo News articles...:   0%|          | 0/10 [00:00<?, ?it/s]
+Scraping Yahoo News articles...: 100%|██████████| 10/10 [00:00<00:00, 58743.75it/s]
+
+Scraping Finviz News articles...:   0%|          | 0/100 [00:00<?, ?it/s]
+Scraping Finviz News articles...: 100%|██████████| 100/100 [00:00<00:00, 2046001.95it/s]
+
+Scraping Alpha Vantage News articles...: 0it [00:00, ?it/s]
+Scraping Alpha Vantage News articles...: 0it [00:00, ?it/s]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_articles.py", line 307, in <module>
+    main()
+    ~~~~^^
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_articles.py", line 291, in main
+    scraper.check_duplicates()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "c:\Users\Kaan Keskindil\MQS\MQSMaster\NLP\fetch_alt_articles.py", line 109, in check_duplicates
+    df_1 = pd.read_csv(f"{PATH}/{self.symbol}_alpha_news.csv")
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 873, in read_csv
+    return _read(filepath_or_buffer, kwds)
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 300, in _read
+    parser = TextFileReader(filepath_or_buffer, **kwds)
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 1645, in __init__
+    self._engine = self._make_engine(f, self.engine)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\readers.py", line 1922, in _make_engine
+    return mapping[engine](f, **self.options)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Kaan Keskindil\AppData\Roaming\Python\Python314\site-packages\pandas\io\parsers\c_parser_wrapper.py", line 95, in __init__
+    self._reader = parsers.TextReader(src, **kwds)
+                   ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "pandas/_libs/parsers.pyx", line 575, in pandas._libs.parsers.TextReader.__cinit__
+pandas.errors.EmptyDataError: No columns to parse from file
+
+2026-02-01 20:36:19,930 - __main__ - ERROR - Failed to run fetch_articles for AMD after 3 attempts
+2026-02-01 20:36:19,930 - __main__ - INFO - Running news_scraper for AMD (attempt 1/3)
+2026-02-01 20:36:55,882 - __main__ - INFO - news_scraper completed successfully for AMD: 200 articles
+2026-02-01 20:37:06,394 - __main__ - INFO - Alt scraper found 71 articles for AMD
+2026-02-01 20:37:06,395 - __main__ - INFO - Scraping summary for AMD: 2/3 methods successful - {'fetch_articles': False, 'news_scraper': True, 'alt_scraper': True}
+2026-02-01 20:37:16,395 - __main__ - INFO - Scrape cycle completed: 7 successful, 0 failed, 879.8s elapsed
+2026-02-01 20:37:16,395 - __main__ - INFO - Sleeping for 2720.2 seconds until next cycle
+2026-02-01 20:43:13,711 - __main__ - INFO - Received interrupt signal. Shutting down gracefully...

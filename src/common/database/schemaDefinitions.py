@@ -136,6 +136,18 @@ class SchemaDefinitions:
             );
         """
 
+        create_news_sentiment_table = """
+        CREATE TABLE IF NOT EXISTS news_sentiment (
+            id SERIAL PRIMARY KEY,
+            ticker VARCHAR(10),
+            article_url TEXT,
+            published_at TIMESTAMP,
+            sentiment_score FLOAT,
+            content_summary TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        );
+        """
+
         statements = [
             create_user_creds_table,
             create_market_data_table,
@@ -145,6 +157,7 @@ class SchemaDefinitions:
             create_cash_equity_book_table,
             create_positions_table,
             create_port_weights_table,
+            create_news_sentiment_table,
         ]
 
         for stmt in statements:
