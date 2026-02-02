@@ -160,13 +160,13 @@ def load_csv_files_to_db(directory_path, max_workers=5):
 
     db.close_all_connections()
     logging.info("All CSV files processed successfully!")
-    logging.info(f"Script path: {script_path}")
-    logging.info(f"CSV folder path: {csv_folder_path}")
+    #logging.info(f"Script path: {script_path}")
+#    logging.info(f"CSV folder path: {csv_folder_path}")
 
 if __name__ == "__main__":
     # Provide the folder that contains your CSV files.
     csv_folder_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/backfill_cache/"))
     load_csv_files_to_db(csv_folder_path, max_workers=5)
     script_path = os.path.abspath(__file__)
-    logging.info(f"Script path: {script_path}")
-    logging.info(f"CSV folder path: {csv_folder_path}")
+    #logging.info(f"Script path: {script_path}")
+    #logging.info(f"CSV folder path: {csv_folder_path}")

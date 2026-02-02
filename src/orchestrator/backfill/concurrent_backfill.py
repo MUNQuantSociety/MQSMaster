@@ -148,7 +148,6 @@ def concurrent_backfill(tickers, start_date, end_date, interval, exchange=None, 
 if __name__ == "__main__":
     # 1. Load tickers from tickers.json
     script_dir = os.path.dirname(__file__)
-    # Corrected typo from .jsonx to .json for robustness
     ticker_file_path = os.path.join(script_dir, '..', 'tickers.json')
 
     try:

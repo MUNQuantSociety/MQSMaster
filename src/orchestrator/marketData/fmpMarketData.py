@@ -1,14 +1,20 @@
 import logging
+import sys
 import threading
 import time
+from pathlib import Path
 
 import requests
 
+SRC_ROOT = Path(__file__).resolve().parents[2]
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
 try:
     from common.auth.apiAuth import APIAuth
-except ImportError:
-    logging.warning("APIAuth relative import failed; using absolute import.")
-    from src.common.auth.apiAuth import APIAuth
+except Exception as e:
+    logging.error(f"Failed to import APIAuth after adding src to sys.path. {e}")
+    raise
 
 
 class FMPMarketData:
@@ -255,3 +261,54 @@ class FMPMarketData:
         except Exception as e:
             self.logger.error(f"Price fetch failed for {ticker}: {e}")
             return 0.0
+
+    def get_SP500_tickers(self):
+        """
+        Fetches the list of S&P 500 tickers from FMP API.
+        Returns a list of ticker symbols.
+        """
+        url = "https://financialmodelingprep.com/stable/sp500-constituent"
+        params = {"apikey": self.fmp_api_key}
+
+        data = self._make_request(url, params)
+        if not data:
+            logging.error("[FMP API] Failed to fetch S&P 500 tickers.")
+            return []
+
+        tickers = [item["symbol"] for item in data if "symbol" in item]
+        try:
+            isinstance(tickers, list) and all(isinstance(t, str) for t in tickers)
+        except Exception as e:
+            logging.error(f"[FMP API] Error parsing S&P 500 tickers: {e}")
+            return []
+        return tickers
+
+    def get_crypto_tickers(self):
+        """
+        Fetches the list of top crypto tickers from FMP API.
+        Returns a list of ticker symbols.
+        """
+        url = "https://financialmodelingprep.com/stable/cryptocurrency-list"
+        params = {"apikey": self.fmp_api_key}
+
+        data = self._make_request(url, params)
+        if not data:
+            logging.error("[FMP API] Failed to fetch crypto tickers.")
+            return []
+
+        tickers = [item["symbol"] for item in data if "symbol" in item]
+        try:
+            isinstance(tickers, list) and all(isinstance(t, str) for t in tickers)
+        except Exception as e:
+            logging.error(f"[FMP API] Error parsing crypto tickers: {e}")
+            return []
+        return tickers
+
+
+if __name__ == "__main__":
+    fmp = FMPMarketData()
+    sp500_tickers = fmp.get_SP500_tickers()
+    print(f"First 10 S&P 500 Tickers:\n {sp500_tickers[:10]}")
+
+    crypto_tickers = fmp.get_crypto_tickers()
+    print(f"First 10 Crypto Tickers:\n {crypto_tickers[:10]}")

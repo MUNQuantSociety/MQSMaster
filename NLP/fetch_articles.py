@@ -288,7 +288,7 @@ def main():
     args = parse_args()
     update_ticker_csv(args.ticker.upper(), args.start_date, args.end_date)
 
-    from .fetch_alt_articles import ArticleScraper
+    from NLP.fetch_alt_articles import ArticleScraper
 
     scraper = ArticleScraper(args.ticker.upper())
     # Alpha Vantage expects format YYYYMMDDTHHmm (no seconds)
