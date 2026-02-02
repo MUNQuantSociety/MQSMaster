@@ -4,10 +4,10 @@
 **/.DS_Store
 __pycache__/
 *.py[cod]
-data_infra/data/
+data/
 MQS/
-finbert-finetuned-final/
-finbert-combined-final/
+NLP/finbert-combined-final/
+NLP/finbert-combined-final/
 finber_eval_results/
 local-gpt2-model/
 visualise_gpt2.ipynb
