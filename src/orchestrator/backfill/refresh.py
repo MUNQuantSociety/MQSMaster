@@ -20,15 +20,9 @@ def main():
     fmp = FMPMarketData()
     sp500 = fmp.get_SP500_tickers()
     print(f"Fetched {len(sp500)} S&P 500 tickers.")
-<<<<<<< Updated upstream
-    # get path of tickers.json
-    tickers_path = Path(__file__).parent / "tickers.json"
-
-=======
     #get path of tickers.json
     tickers_path = Path(__file__).parent / "tickers.json"
     
->>>>>>> Stashed changes
     # fetch crypto tickers from FMP
     # crypto = fmp.get_crypto_tickers()
     # print(f"Fetched {len(crypto)} crypto tickers.")
@@ -46,13 +40,7 @@ def main():
         pd.concat([df_existing, df_tickers]).drop_duplicates().reset_index(drop=True)
     )
     print(f"Total unique tickers after merge: {len(df_combined)}")
-<<<<<<< Updated upstream
     df_combined.to_json(tickers_path, orient="records", indent=2)
-=======
-    df_combined.to_json(
-        tickers_path, orient="records", indent=2
-    )
->>>>>>> Stashed changes
     print(df_combined.head())
     print("✓ Updated tickers.json successfully.")
     import argparse

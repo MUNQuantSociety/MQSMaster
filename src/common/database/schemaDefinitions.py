@@ -164,11 +164,7 @@ class SchemaDefinitions:
             create_cash_equity_book_table,
             create_positions_table,
             create_port_weights_table,
-<<<<<<< Updated upstream
             create_news_sentiment_table,
-=======
-            create_news_sentiment_table
->>>>>>> Stashed changes
         ]
 
         for stmt in statements:
