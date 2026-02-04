@@ -1,0 +1,3002 @@
+[
+    {
+        "ticker": "BTCUSD",
+        "symbol": "BTC",
+        "name": "Bitcoin",
+        "market_cap": 1527592588559
+    },
+    {
+        "ticker": "ETHUSD",
+        "symbol": "ETH",
+        "name": "Ethereum",
+        "market_cap": 274038528679
+    },
+    {
+        "ticker": "USDTUSD",
+        "symbol": "USDT",
+        "name": "Tether",
+        "market_cap": 185481619961
+    },
+    {
+        "ticker": "BNBUSD",
+        "symbol": "BNB",
+        "name": "BNB",
+        "market_cap": 103465752518
+    },
+    {
+        "ticker": "XRPUSD",
+        "symbol": "XRP",
+        "name": "XRP",
+        "market_cap": 96988084942
+    },
+    {
+        "ticker": "USDCUSD",
+        "symbol": "USDC",
+        "name": "USDC",
+        "market_cap": 70762401692
+    },
+    {
+        "ticker": "SOLUSD",
+        "symbol": "SOL",
+        "name": "Solana",
+        "market_cap": 55838815502
+    },
+    {
+        "ticker": "TRXUSD",
+        "symbol": "TRX",
+        "name": "TRON",
+        "market_cap": 27126567423
+    },
+    {
+        "ticker": "DOGEUSD",
+        "symbol": "DOGE",
+        "name": "Dogecoin",
+        "market_cap": 18280639613
+    },
+    {
+        "ticker": "FIGR_HELOCUSD",
+        "symbol": "FIGR_HELOC",
+        "name": "Figure Heloc",
+        "market_cap": 15476219914
+    },
+    {
+        "ticker": "WBTUSD",
+        "symbol": "WBT",
+        "name": "WhiteBIT Coin",
+        "market_cap": 11116889509
+    },
+    {
+        "ticker": "ADAUSD",
+        "symbol": "ADA",
+        "name": "Cardano",
+        "market_cap": 11030323121
+    },
+    {
+        "ticker": "BCHUSD",
+        "symbol": "BCH",
+        "name": "Bitcoin Cash",
+        "market_cap": 10615787038
+    },
+    {
+        "ticker": "USDSUSD",
+        "symbol": "USDS",
+        "name": "USDS",
+        "market_cap": 9359595513
+    },
+    {
+        "ticker": "LEOUSD",
+        "symbol": "LEO",
+        "name": "LEO Token",
+        "market_cap": 8152896061
+    },
+    {
+        "ticker": "HYPEUSD",
+        "symbol": "HYPE",
+        "name": "Hyperliquid",
+        "market_cap": 8014571902
+    },
+    {
+        "ticker": "XMRUSD",
+        "symbol": "XMR",
+        "name": "Monero",
+        "market_cap": 7087644609
+    },
+    {
+        "ticker": "LINKUSD",
+        "symbol": "LINK",
+        "name": "Chainlink",
+        "market_cap": 6858528587
+    },
+    {
+        "ticker": "CCUSD",
+        "symbol": "CC",
+        "name": "Canton",
+        "market_cap": 6791695620
+    },
+    {
+        "ticker": "USDEUSD",
+        "symbol": "USDE",
+        "name": "Ethena USDe",
+        "market_cap": 6523316573
+    },
+    {
+        "ticker": "XLMUSD",
+        "symbol": "XLM",
+        "name": "Stellar",
+        "market_cap": 5770800745
+    },
+    {
+        "ticker": "USD1USD",
+        "symbol": "USD1",
+        "name": "USD1",
+        "market_cap": 5126355632
+    },
+    {
+        "ticker": "LTCUSD",
+        "symbol": "LTC",
+        "name": "Litecoin",
+        "market_cap": 4657748951
+    },
+    {
+        "ticker": "ZECUSD",
+        "symbol": "ZEC",
+        "name": "Zcash",
+        "market_cap": 4599094639
+    },
+    {
+        "ticker": "SUSDSUSD",
+        "symbol": "SUSDS",
+        "name": "sUSDS",
+        "market_cap": 4399080014
+    },
+    {
+        "ticker": "AVAXUSD",
+        "symbol": "AVAX",
+        "name": "Avalanche",
+        "market_cap": 4357145394
+    },
+    {
+        "ticker": "SUIUSD",
+        "symbol": "SUI",
+        "name": "Sui",
+        "market_cap": 4331549687
+    },
+    {
+        "ticker": "DAIUSD",
+        "symbol": "DAI",
+        "name": "Dai",
+        "market_cap": 4317151218
+    },
+    {
+        "ticker": "SHIBUSD",
+        "symbol": "SHIB",
+        "name": "Shiba Inu",
+        "market_cap": 3993276388
+    },
+    {
+        "ticker": "HBARUSD",
+        "symbol": "HBAR",
+        "name": "Hedera",
+        "market_cap": 3927706217
+    },
+    {
+        "ticker": "WLFIUSD",
+        "symbol": "WLFI",
+        "name": "World Liberty Financial",
+        "market_cap": 3696526956
+    },
+    {
+        "ticker": "XAUTUSD",
+        "symbol": "XAUT",
+        "name": "Tether Gold",
+        "market_cap": 3605304619
+    },
+    {
+        "ticker": "PYUSDUSD",
+        "symbol": "PYUSD",
+        "name": "PayPal USD",
+        "market_cap": 3591617209
+    },
+    {
+        "ticker": "TONUSD",
+        "symbol": "TON",
+        "name": "Toncoin",
+        "market_cap": 3411067140
+    },
+    {
+        "ticker": "CROUSD",
+        "symbol": "CRO",
+        "name": "Cronos",
+        "market_cap": 3313693252
+    },
+    {
+        "ticker": "RAINUSD",
+        "symbol": "RAIN",
+        "name": "Rain",
+        "market_cap": 3101628958
+    },
+    {
+        "ticker": "MUSD",
+        "symbol": "M",
+        "name": "MemeCore",
+        "market_cap": 2579508769
+    },
+    {
+        "ticker": "DOTUSD",
+        "symbol": "DOT",
+        "name": "Polkadot",
+        "market_cap": 2529371785
+    },
+    {
+        "ticker": "UNIUSD",
+        "symbol": "UNI",
+        "name": "Uniswap",
+        "market_cap": 2492130535
+    },
+    {
+        "ticker": "MNTUSD",
+        "symbol": "MNT",
+        "name": "Mantle",
+        "market_cap": 2327063431
+    },
+    {
+        "ticker": "PAXGUSD",
+        "symbol": "PAXG",
+        "name": "PAX Gold",
+        "market_cap": 2287303374
+    },
+    {
+        "ticker": "BGBUSD",
+        "symbol": "BGB",
+        "name": "Bitget Token",
+        "market_cap": 2119275832
+    },
+    {
+        "ticker": "USDFUSD",
+        "symbol": "USDF",
+        "name": "Falcon USD",
+        "market_cap": 2030997984
+    },
+    {
+        "ticker": "AAVEUSD",
+        "symbol": "AAVE",
+        "name": "Aave",
+        "market_cap": 1938761665
+    },
+    {
+        "ticker": "TAOUSD",
+        "symbol": "TAO",
+        "name": "Bittensor",
+        "market_cap": 1886913625
+    },
+    {
+        "ticker": "OKBUSD",
+        "symbol": "OKB",
+        "name": "OKB",
+        "market_cap": 1809252395
+    },
+    {
+        "ticker": "PEPEUSD",
+        "symbol": "PEPE",
+        "name": "Pepe",
+        "market_cap": 1795899803
+    },
+    {
+        "ticker": "BUIDLUSD",
+        "symbol": "BUIDL",
+        "name": "BlackRock USD Institutional Digital Liquidity Fund",
+        "market_cap": 1731983325
+    },
+    {
+        "ticker": "USYCUSD",
+        "symbol": "USYC",
+        "name": "Circle USYC",
+        "market_cap": 1668473001
+    },
+    {
+        "ticker": "HTXUSD",
+        "symbol": "HTX",
+        "name": "HTX DAO",
+        "market_cap": 1603470765
+    },
+    {
+        "ticker": "SYRUPUSDCUSD",
+        "symbol": "SYRUPUSDC",
+        "name": "syrupUSDC",
+        "market_cap": 1589271539
+    },
+    {
+        "ticker": "USDGUSD",
+        "symbol": "USDG",
+        "name": "Global Dollar",
+        "market_cap": 1556137608
+    },
+    {
+        "ticker": "NEARUSD",
+        "symbol": "NEAR",
+        "name": "NEAR Protocol",
+        "market_cap": 1538552761
+    },
+    {
+        "ticker": "ETCUSD",
+        "symbol": "ETC",
+        "name": "Ethereum Classic",
+        "market_cap": 1510532004
+    },
+    {
+        "ticker": "RLUSDUSD",
+        "symbol": "RLUSD",
+        "name": "Ripple USD",
+        "market_cap": 1494323805
+    },
+    {
+        "ticker": "ICPUSD",
+        "symbol": "ICP",
+        "name": "Internet Computer",
+        "market_cap": 1472458418
+    },
+    {
+        "ticker": "SKYUSD",
+        "symbol": "SKY",
+        "name": "Sky",
+        "market_cap": 1435727454
+    },
+    {
+        "ticker": "PUMPUSD",
+        "symbol": "PUMP",
+        "name": "Pump.fun",
+        "market_cap": 1426379046
+    },
+    {
+        "ticker": "PIUSD",
+        "symbol": "PI",
+        "name": "Pi Network",
+        "market_cap": 1408882481
+    },
+    {
+        "ticker": "ASTERUSD",
+        "symbol": "ASTER",
+        "name": "Aster",
+        "market_cap": 1403272645
+    },
+    {
+        "ticker": "ONDOUSD",
+        "symbol": "ONDO",
+        "name": "Ondo",
+        "market_cap": 1382431157
+    },
+    {
+        "ticker": "BFUSDUSD",
+        "symbol": "BFUSD",
+        "name": "BFUSD",
+        "market_cap": 1317614354
+    },
+    {
+        "ticker": "HASHUSD",
+        "symbol": "HASH",
+        "name": "Provenance Blockchain",
+        "market_cap": 1276984522
+    },
+    {
+        "ticker": "KCSUSD",
+        "symbol": "KCS",
+        "name": "KuCoin",
+        "market_cap": 1220717558
+    },
+    {
+        "ticker": "MYXUSD",
+        "symbol": "MYX",
+        "name": "MYX Finance",
+        "market_cap": 1169049326
+    },
+    {
+        "ticker": "WLDUSD",
+        "symbol": "WLD",
+        "name": "Worldcoin",
+        "market_cap": 1164863207
+    },
+    {
+        "ticker": "POLUSD",
+        "symbol": "POL",
+        "name": "POL (ex-MATIC)",
+        "market_cap": 1148458375
+    },
+    {
+        "ticker": "GTUSD",
+        "symbol": "GT",
+        "name": "Gate",
+        "market_cap": 1133103428
+    },
+    {
+        "ticker": "ENAUSD",
+        "symbol": "ENA",
+        "name": "Ethena",
+        "market_cap": 1117230607
+    },
+    {
+        "ticker": "ATOMUSD",
+        "symbol": "ATOM",
+        "name": "Cosmos Hub",
+        "market_cap": 1023170674
+    },
+    {
+        "ticker": "USDDUSD",
+        "symbol": "USDD",
+        "name": "USDD",
+        "market_cap": 1017427327
+    },
+    {
+        "ticker": "TRUMPUSD",
+        "symbol": "TRUMP",
+        "name": "Official Trump",
+        "market_cap": 989275876
+    },
+    {
+        "ticker": "QNTUSD",
+        "symbol": "QNT",
+        "name": "Quant",
+        "market_cap": 984624192
+    },
+    {
+        "ticker": "APTUSD",
+        "symbol": "APT",
+        "name": "Aptos",
+        "market_cap": 970398192
+    },
+    {
+        "ticker": "ALGOUSD",
+        "symbol": "ALGO",
+        "name": "Algorand",
+        "market_cap": 966779890
+    },
+    {
+        "ticker": "RETHUSD",
+        "symbol": "RETH",
+        "name": "Rocket Pool ETH",
+        "market_cap": 943202084
+    },
+    {
+        "ticker": "USDTBUSD",
+        "symbol": "USDTB",
+        "name": "USDtb",
+        "market_cap": 890290243
+    },
+    {
+        "ticker": "KASUSD",
+        "symbol": "KAS",
+        "name": "Kaspa",
+        "market_cap": 888341817
+    },
+    {
+        "ticker": "USTBUSD",
+        "symbol": "USTB",
+        "name": "Superstate Short Duration U.S. Government Securities Fund (USTB)",
+        "market_cap": 846125322
+    },
+    {
+        "ticker": "FBTCUSD",
+        "symbol": "FBTC",
+        "name": "Function FBTC",
+        "market_cap": 838569940
+    },
+    {
+        "ticker": "FLRUSD",
+        "symbol": "FLR",
+        "name": "Flare",
+        "market_cap": 836245455
+    },
+    {
+        "ticker": "NIGHTUSD",
+        "symbol": "NIGHT",
+        "name": "Midnight",
+        "market_cap": 828755578
+    },
+    {
+        "ticker": "NEXOUSD",
+        "symbol": "NEXO",
+        "name": "NEXO",
+        "market_cap": 818895356
+    },
+    {
+        "ticker": "RENDERUSD",
+        "symbol": "RENDER",
+        "name": "Render",
+        "market_cap": 817644859
+    },
+    {
+        "ticker": "FILUSD",
+        "symbol": "FIL",
+        "name": "Filecoin",
+        "market_cap": 812059910
+    },
+    {
+        "ticker": "SYRUPUSDTUSD",
+        "symbol": "SYRUPUSDT",
+        "name": "syrupUSDT",
+        "market_cap": 802684311
+    },
+    {
+        "ticker": "ARBUSD",
+        "symbol": "ARB",
+        "name": "Arbitrum",
+        "market_cap": 781029353
+    },
+    {
+        "ticker": "VETUSD",
+        "symbol": "VET",
+        "name": "VeChain",
+        "market_cap": 746883993
+    },
+    {
+        "ticker": "JAAAUSD",
+        "symbol": "JAAA",
+        "name": "Janus Henderson Anemoy AAA CLO Fund",
+        "market_cap": 727373912
+    },
+    {
+        "ticker": "MORPHOUSD",
+        "symbol": "MORPHO",
+        "name": "Morpho",
+        "market_cap": 722928557
+    },
+    {
+        "ticker": "XDCUSD",
+        "symbol": "XDC",
+        "name": "XDC Network",
+        "market_cap": 703884092
+    },
+    {
+        "ticker": "USDYUSD",
+        "symbol": "USDY",
+        "name": "Ondo US Dollar Yield",
+        "market_cap": 692725659
+    },
+    {
+        "ticker": "OUSGUSD",
+        "symbol": "OUSG",
+        "name": "OUSG",
+        "market_cap": 687215378
+    },
+    {
+        "ticker": "EUTBLUSD",
+        "symbol": "EUTBL",
+        "name": "Spiko EU T-Bills Money Market Fund",
+        "market_cap": 664514650
+    },
+    {
+        "ticker": "BONKUSD",
+        "symbol": "BONK",
+        "name": "Bonk",
+        "market_cap": 632794492
+    },
+    {
+        "ticker": "JUPUSD",
+        "symbol": "JUP",
+        "name": "Jupiter",
+        "market_cap": 632769238
+    },
+    {
+        "ticker": "SOLVBTCUSD",
+        "symbol": "SOLVBTC",
+        "name": "Solv Protocol BTC",
+        "market_cap": 630292685
+    },
+    {
+        "ticker": "BDXUSD",
+        "symbol": "BDX",
+        "name": "Beldex",
+        "market_cap": 619836928
+    },
+    {
+        "ticker": "USDAIUSD",
+        "symbol": "USDAI",
+        "name": "USDai",
+        "market_cap": 617973293
+    },
+    {
+        "ticker": "CLBTCUSD",
+        "symbol": "CLBTC",
+        "name": "clBTC",
+        "market_cap": 594073236
+    },
+    {
+        "ticker": "USD0USD",
+        "symbol": "USD0",
+        "name": "Usual USD",
+        "market_cap": 578403312
+    },
+    {
+        "ticker": "SEIUSD",
+        "symbol": "SEI",
+        "name": "Sei",
+        "market_cap": 574429935
+    },
+    {
+        "ticker": "JTRSYUSD",
+        "symbol": "JTRSY",
+        "name": "Janus Henderson Anemoy Treasury Fund",
+        "market_cap": 566481128
+    },
+    {
+        "ticker": "STXUSD",
+        "symbol": "STX",
+        "name": "Stacks",
+        "market_cap": 532691753
+    },
+    {
+        "ticker": "CAKEUSD",
+        "symbol": "CAKE",
+        "name": "PancakeSwap",
+        "market_cap": 526559033
+    },
+    {
+        "ticker": "DASHUSD",
+        "symbol": "DASH",
+        "name": "Dash",
+        "market_cap": 526168210
+    },
+    {
+        "ticker": "OSETHUSD",
+        "symbol": "OSETH",
+        "name": "StakeWise Staked ETH",
+        "market_cap": 525613068
+    },
+    {
+        "ticker": "GHOUSD",
+        "symbol": "GHO",
+        "name": "GHO",
+        "market_cap": 520737879
+    },
+    {
+        "ticker": "XTZUSD",
+        "symbol": "XTZ",
+        "name": "Tezos",
+        "market_cap": 518741683
+    },
+    {
+        "ticker": "A7A5USD",
+        "symbol": "A7A5",
+        "name": "A7A5",
+        "market_cap": 508713147
+    },
+    {
+        "ticker": "STABLEUSD",
+        "symbol": "STABLE",
+        "name": "\u200b\u200bStable",
+        "market_cap": 494050116
+    },
+    {
+        "ticker": "TUSDUSD",
+        "symbol": "TUSD",
+        "name": "TrueUSD",
+        "market_cap": 493145339
+    },
+    {
+        "ticker": "IPUSD",
+        "symbol": "IP",
+        "name": "Story",
+        "market_cap": 484210702
+    },
+    {
+        "ticker": "PENGUUSD",
+        "symbol": "PENGU",
+        "name": "Pudgy Penguins",
+        "market_cap": 476848979
+    },
+    {
+        "ticker": "FTNUSD",
+        "symbol": "FTN",
+        "name": "Fasttoken",
+        "market_cap": 471684528
+    },
+    {
+        "ticker": "TBTCUSD",
+        "symbol": "TBTC",
+        "name": "tBTC",
+        "market_cap": 467727643
+    },
+    {
+        "ticker": "CHZUSD",
+        "symbol": "CHZ",
+        "name": "Chiliz",
+        "market_cap": 462030315
+    },
+    {
+        "ticker": "FDUSDUSD",
+        "symbol": "FDUSD",
+        "name": "First Digital USD",
+        "market_cap": 438791646
+    },
+    {
+        "ticker": "CTMUSD",
+        "symbol": "CTM",
+        "name": "c8ntinuum",
+        "market_cap": 433415931
+    },
+    {
+        "ticker": "OPUSD",
+        "symbol": "OP",
+        "name": "Optimism",
+        "market_cap": 432491137
+    },
+    {
+        "ticker": "FETUSD",
+        "symbol": "FET",
+        "name": "Artificial Superintelligence Alliance",
+        "market_cap": 424126634
+    },
+    {
+        "ticker": "VIRTUALUSD",
+        "symbol": "VIRTUAL",
+        "name": "Virtuals Protocol",
+        "market_cap": 423842729
+    },
+    {
+        "ticker": "EURCUSD",
+        "symbol": "EURC",
+        "name": "EURC",
+        "market_cap": 423538909
+    },
+    {
+        "ticker": "CRVUSD",
+        "symbol": "CRV",
+        "name": "Curve DAO",
+        "market_cap": 418124532
+    },
+    {
+        "ticker": "USDBUSD",
+        "symbol": "USDB",
+        "name": "USDB",
+        "market_cap": 412566575
+    },
+    {
+        "ticker": "USRUSD",
+        "symbol": "USR",
+        "name": "Resolv USR",
+        "market_cap": 395041681
+    },
+    {
+        "ticker": "KAUUSD",
+        "symbol": "KAU",
+        "name": "Kinesis Gold",
+        "market_cap": 390290725
+    },
+    {
+        "ticker": "WSTUSRUSD",
+        "symbol": "WSTUSR",
+        "name": "Resolv wstUSR",
+        "market_cap": 387771452
+    },
+    {
+        "ticker": "2ZUSD",
+        "symbol": "2Z",
+        "name": "DoubleZero",
+        "market_cap": 383730734
+    },
+    {
+        "ticker": "LITUSD",
+        "symbol": "LIT",
+        "name": "Lighter",
+        "market_cap": 382464937
+    },
+    {
+        "ticker": "ZROUSD",
+        "symbol": "ZRO",
+        "name": "LayerZero",
+        "market_cap": 366742025
+    },
+    {
+        "ticker": "STEAKUSDCUSD",
+        "symbol": "STEAKUSDC",
+        "name": "Steakhouse USDC Morpho Vault",
+        "market_cap": 366478237
+    },
+    {
+        "ticker": "INJUSD",
+        "symbol": "INJ",
+        "name": "Injective",
+        "market_cap": 365363313
+    },
+    {
+        "ticker": "SYRUPUSD",
+        "symbol": "SYRUP",
+        "name": "Maple Finance",
+        "market_cap": 362036541
+    },
+    {
+        "ticker": "JSTUSD",
+        "symbol": "JST",
+        "name": "JUST",
+        "market_cap": 360804441
+    },
+    {
+        "ticker": "SUNUSD",
+        "symbol": "SUN",
+        "name": "Sun Token",
+        "market_cap": 359912153
+    },
+    {
+        "ticker": "LIQUIDETHUSD",
+        "symbol": "LIQUIDETH",
+        "name": "Ether.Fi Liquid ETH",
+        "market_cap": 357694837
+    },
+    {
+        "ticker": "ETHFIUSD",
+        "symbol": "ETHFI",
+        "name": "Ether.fi",
+        "market_cap": 356019528
+    },
+    {
+        "ticker": "KAIAUSD",
+        "symbol": "KAIA",
+        "name": "Kaia",
+        "market_cap": 355268434
+    },
+    {
+        "ticker": "LDOUSD",
+        "symbol": "LDO",
+        "name": "Lido DAO",
+        "market_cap": 354613534
+    },
+    {
+        "ticker": "SBTCUSD",
+        "symbol": "SBTC",
+        "name": "sBTC",
+        "market_cap": 349808845
+    },
+    {
+        "ticker": "AEROUSD",
+        "symbol": "AERO",
+        "name": "Aerodrome Finance",
+        "market_cap": 347138445
+    },
+    {
+        "ticker": "SUSDDUSD",
+        "symbol": "SUSDD",
+        "name": "Savings USDD",
+        "market_cap": 344085551
+    },
+    {
+        "ticker": "BTTUSD",
+        "symbol": "BTT",
+        "name": "BitTorrent",
+        "market_cap": 343943292
+    },
+    {
+        "ticker": "DCRUSD",
+        "symbol": "DCR",
+        "name": "Decred",
+        "market_cap": 342358975
+    },
+    {
+        "ticker": "FLOKIUSD",
+        "symbol": "FLOKI",
+        "name": "FLOKI",
+        "market_cap": 341073318
+    },
+    {
+        "ticker": "NFTUSD",
+        "symbol": "NFT",
+        "name": "AINFT",
+        "market_cap": 337298443
+    },
+    {
+        "ticker": "MSOLUSD",
+        "symbol": "MSOL",
+        "name": "Marinade Staked SOL",
+        "market_cap": 330085468
+    },
+    {
+        "ticker": "TIAUSD",
+        "symbol": "TIA",
+        "name": "Celestia",
+        "market_cap": 327385093
+    },
+    {
+        "ticker": "KAGUSD",
+        "symbol": "KAG",
+        "name": "Kinesis Silver",
+        "market_cap": 324092021
+    },
+    {
+        "ticker": "IOTAUSD",
+        "symbol": "IOTA",
+        "name": "IOTA",
+        "market_cap": 323807630
+    },
+    {
+        "ticker": "GRTUSD",
+        "symbol": "GRT",
+        "name": "The Graph",
+        "market_cap": 320831982
+    },
+    {
+        "ticker": "STKAAVEUSD",
+        "symbol": "STKAAVE",
+        "name": "Staked Aave",
+        "market_cap": 320095190
+    },
+    {
+        "ticker": "ETHXUSD",
+        "symbol": "ETHX",
+        "name": "Stader ETHx",
+        "market_cap": 306120984
+    },
+    {
+        "ticker": "BSVUSD",
+        "symbol": "BSV",
+        "name": "Bitcoin SV",
+        "market_cap": 306047445
+    },
+    {
+        "ticker": "GNOUSD",
+        "symbol": "GNO",
+        "name": "Gnosis",
+        "market_cap": 304635313
+    },
+    {
+        "ticker": "USXUSD",
+        "symbol": "USX",
+        "name": "USX",
+        "market_cap": 302351423
+    },
+    {
+        "ticker": "JASMYUSD",
+        "symbol": "JASMY",
+        "name": "JasmyCoin",
+        "market_cap": 301886706
+    },
+    {
+        "ticker": "CRVUSDUSD",
+        "symbol": "CRVUSD",
+        "name": "crvUSD",
+        "market_cap": 301730560
+    },
+    {
+        "ticker": "STRKUSD",
+        "symbol": "STRK",
+        "name": "Starknet",
+        "market_cap": 296342776
+    },
+    {
+        "ticker": "SPXUSD",
+        "symbol": "SPX",
+        "name": "SPX6900",
+        "market_cap": 292801971
+    },
+    {
+        "ticker": "PYTHUSD",
+        "symbol": "PYTH",
+        "name": "Pyth Network",
+        "market_cap": 291194648
+    },
+    {
+        "ticker": "CFXUSD",
+        "symbol": "CFX",
+        "name": "Conflux",
+        "market_cap": 290645523
+    },
+    {
+        "ticker": "TWTUSD",
+        "symbol": "TWT",
+        "name": "Trust Wallet",
+        "market_cap": 286054568
+    },
+    {
+        "ticker": "CUSDUSD",
+        "symbol": "CUSD",
+        "name": "Cap USD",
+        "market_cap": 282984492
+    },
+    {
+        "ticker": "TELUSD",
+        "symbol": "TEL",
+        "name": "Telcoin",
+        "market_cap": 276512872
+    },
+    {
+        "ticker": "FRAXUSD",
+        "symbol": "FRAX",
+        "name": "Legacy Frax Dollar",
+        "market_cap": 273890528
+    },
+    {
+        "ticker": "ABUSD",
+        "symbol": "AB",
+        "name": "AB",
+        "market_cap": 271483667
+    },
+    {
+        "ticker": "UDSUSD",
+        "symbol": "UDS",
+        "name": "Undeads Games",
+        "market_cap": 271084795
+    },
+    {
+        "ticker": "OHMUSD",
+        "symbol": "OHM",
+        "name": "Olympus",
+        "market_cap": 269646180
+    },
+    {
+        "ticker": "RIVERUSD",
+        "symbol": "RIVER",
+        "name": "River",
+        "market_cap": 267881021
+    },
+    {
+        "ticker": "SANDUSD",
+        "symbol": "SAND",
+        "name": "The Sandbox",
+        "market_cap": 267816308
+    },
+    {
+        "ticker": "AXSUSD",
+        "symbol": "AXS",
+        "name": "Axie Infinity",
+        "market_cap": 266992705
+    },
+    {
+        "ticker": "KITEUSD",
+        "symbol": "KITE",
+        "name": "Kite",
+        "market_cap": 266018515
+    },
+    {
+        "ticker": "ENSUSD",
+        "symbol": "ENS",
+        "name": "Ethereum Name Service",
+        "market_cap": 262178866
+    },
+    {
+        "ticker": "PENDLEUSD",
+        "symbol": "PENDLE",
+        "name": "Pendle",
+        "market_cap": 254270797
+    },
+    {
+        "ticker": "WIFUSD",
+        "symbol": "WIF",
+        "name": "dogwifhat",
+        "market_cap": 251772852
+    },
+    {
+        "ticker": "ZKUSD",
+        "symbol": "ZK",
+        "name": "ZKsync",
+        "market_cap": 249026975
+    },
+    {
+        "ticker": "SENTUSD",
+        "symbol": "SENT",
+        "name": "Sentient",
+        "market_cap": 247410189
+    },
+    {
+        "ticker": "SUSDAIUSD",
+        "symbol": "SUSDAI",
+        "name": "Staked USDai",
+        "market_cap": 246906045
+    },
+    {
+        "ticker": "ADIUSD",
+        "symbol": "ADI",
+        "name": "ADI",
+        "market_cap": 242460432
+    },
+    {
+        "ticker": "MWCUSD",
+        "symbol": "MWC",
+        "name": "MimbleWimbleCoin",
+        "market_cap": 231595340
+    },
+    {
+        "ticker": "NEOUSD",
+        "symbol": "NEO",
+        "name": "NEO",
+        "market_cap": 228455768
+    },
+    {
+        "ticker": "NUSDUSD",
+        "symbol": "NUSD",
+        "name": "Neutrl USD",
+        "market_cap": 226400765
+    },
+    {
+        "ticker": "GALAUSD",
+        "symbol": "GALA",
+        "name": "GALA",
+        "market_cap": 226324891
+    },
+    {
+        "ticker": "BTSEUSD",
+        "symbol": "BTSE",
+        "name": "BTSE Token",
+        "market_cap": 222839626
+    },
+    {
+        "ticker": "THETAUSD",
+        "symbol": "THETA",
+        "name": "Theta Network",
+        "market_cap": 221890865
+    },
+    {
+        "ticker": "FARTCOINUSD",
+        "symbol": "FARTCOIN",
+        "name": "Fartcoin",
+        "market_cap": 220603103
+    },
+    {
+        "ticker": "YLDSUSD",
+        "symbol": "YLDS",
+        "name": "YLDS",
+        "market_cap": 219244438
+    },
+    {
+        "ticker": "ULTIMAUSD",
+        "symbol": "ULTIMA",
+        "name": "Ultima",
+        "market_cap": 218317448
+    },
+    {
+        "ticker": "USDAUSD",
+        "symbol": "USDA",
+        "name": "USDa",
+        "market_cap": 217922544
+    },
+    {
+        "ticker": "MANAUSD",
+        "symbol": "MANA",
+        "name": "Decentraland",
+        "market_cap": 217347704
+    },
+    {
+        "ticker": "AUSDUSD",
+        "symbol": "AUSD",
+        "name": "AUSD",
+        "market_cap": 216410125
+    },
+    {
+        "ticker": "GLMUSD",
+        "symbol": "GLM",
+        "name": "Golem",
+        "market_cap": 216094356
+    },
+    {
+        "ticker": "WYLDSUSD",
+        "symbol": "WYLDS",
+        "name": "Hastra Wrapped YLDS",
+        "market_cap": 215459146
+    },
+    {
+        "ticker": "PRIMEUSD",
+        "symbol": "PRIME",
+        "name": "PRIME",
+        "market_cap": 213105571
+    },
+    {
+        "ticker": "APEPEUSD",
+        "symbol": "APEPE",
+        "name": "Ape and Pepe",
+        "market_cap": 212175868
+    },
+    {
+        "ticker": "XPLUSD",
+        "symbol": "XPL",
+        "name": "Plasma",
+        "market_cap": 208396258
+    },
+    {
+        "ticker": "LUNCUSD",
+        "symbol": "LUNC",
+        "name": "Terra Luna Classic",
+        "market_cap": 207512842
+    },
+    {
+        "ticker": "USTBLUSD",
+        "symbol": "USTBL",
+        "name": "Spiko US T-Bills Money Market Fund",
+        "market_cap": 205663294
+    },
+    {
+        "ticker": "XCNUSD",
+        "symbol": "XCN",
+        "name": "Onyxcoin",
+        "market_cap": 204813560
+    },
+    {
+        "ticker": "BCAPUSD",
+        "symbol": "BCAP",
+        "name": "Blockchain Capital",
+        "market_cap": 204566892
+    },
+    {
+        "ticker": "FLUIDUSD",
+        "symbol": "FLUID",
+        "name": "Fluid",
+        "market_cap": 204237091
+    },
+    {
+        "ticker": "BORGUSD",
+        "symbol": "BORG",
+        "name": "SwissBorg",
+        "market_cap": 201136821
+    },
+    {
+        "ticker": "HUSD",
+        "symbol": "H",
+        "name": "Humanity",
+        "market_cap": 199023304
+    },
+    {
+        "ticker": "ZBCNUSD",
+        "symbol": "ZBCN",
+        "name": "Zebec Network",
+        "market_cap": 198441398
+    },
+    {
+        "ticker": "SUSD",
+        "symbol": "S",
+        "name": "Sonic",
+        "market_cap": 197286966
+    },
+    {
+        "ticker": "MONUSD",
+        "symbol": "MON",
+        "name": "Monad",
+        "market_cap": 194191152
+    },
+    {
+        "ticker": "COMPUSD",
+        "symbol": "COMP",
+        "name": "Compound",
+        "market_cap": 194175119
+    },
+    {
+        "ticker": "VSNUSD",
+        "symbol": "VSN",
+        "name": "Vision",
+        "market_cap": 190445417
+    },
+    {
+        "ticker": "PC0000031USD",
+        "symbol": "PC0000031",
+        "name": "Tradable NA Rent Financing Platform SSTN",
+        "market_cap": 189500000
+    },
+    {
+        "ticker": "SDAIUSD",
+        "symbol": "SDAI",
+        "name": "Savings Dai",
+        "market_cap": 188915764
+    },
+    {
+        "ticker": "WFIUSD",
+        "symbol": "WFI",
+        "name": "WeFi",
+        "market_cap": 186997997
+    },
+    {
+        "ticker": "RAYUSD",
+        "symbol": "RAY",
+        "name": "Raydium",
+        "market_cap": 185130710
+    },
+    {
+        "ticker": "BATUSD",
+        "symbol": "BAT",
+        "name": "Basic Attention",
+        "market_cap": 183904671
+    },
+    {
+        "ticker": "FFUSD",
+        "symbol": "FF",
+        "name": "Falcon Finance",
+        "market_cap": 182512258
+    },
+    {
+        "ticker": "CVXUSD",
+        "symbol": "CVX",
+        "name": "Convex Finance",
+        "market_cap": 182387876
+    },
+    {
+        "ticker": "REALUSD",
+        "symbol": "REAL",
+        "name": "RealLink",
+        "market_cap": 182217720
+    },
+    {
+        "ticker": "PIPPINUSD",
+        "symbol": "PIPPIN",
+        "name": "pippin",
+        "market_cap": 180111057
+    },
+    {
+        "ticker": "XECUSD",
+        "symbol": "XEC",
+        "name": "eCash",
+        "market_cap": 180007545
+    },
+    {
+        "ticker": "FRXETHUSD",
+        "symbol": "FRXETH",
+        "name": "Frax Ether",
+        "market_cap": 179926837
+    },
+    {
+        "ticker": "QRLUSD",
+        "symbol": "QRL",
+        "name": "Quantum Resistant Ledger",
+        "market_cap": 179358396
+    },
+    {
+        "ticker": "BUSD",
+        "symbol": "B",
+        "name": "BUILDon",
+        "market_cap": 176304588
+    },
+    {
+        "ticker": "SHMEEGUSUSD",
+        "symbol": "SHMEEGUS",
+        "name": "Shmeegus",
+        "market_cap": 175075968
+    },
+    {
+        "ticker": "THBILLUSD",
+        "symbol": "THBILL",
+        "name": "Theo Short Duration US Treasury Fund",
+        "market_cap": 175054905
+    },
+    {
+        "ticker": "MXUSD",
+        "symbol": "MX",
+        "name": "MX",
+        "market_cap": 174730780
+    },
+    {
+        "ticker": "IUSDUSD",
+        "symbol": "IUSD",
+        "name": "InfiniFi USD",
+        "market_cap": 173825511
+    },
+    {
+        "ticker": "USDFUSD",
+        "symbol": "USDF",
+        "name": "Aster USDF",
+        "market_cap": 170016917
+    },
+    {
+        "ticker": "ARUSD",
+        "symbol": "AR",
+        "name": "Arweave",
+        "market_cap": 168772009
+    },
+    {
+        "ticker": "HNTUSD",
+        "symbol": "HNT",
+        "name": "Helium",
+        "market_cap": 168254071
+    },
+    {
+        "ticker": "BARDUSD",
+        "symbol": "BARD",
+        "name": "Lombard",
+        "market_cap": 164306631
+    },
+    {
+        "ticker": "RLPUSD",
+        "symbol": "RLP",
+        "name": "Resolv Liquidity Provider Token",
+        "market_cap": 163044335
+    },
+    {
+        "ticker": "KOGEUSD",
+        "symbol": "KOGE",
+        "name": "KOGE",
+        "market_cap": 162047755
+    },
+    {
+        "ticker": "RUNEUSD",
+        "symbol": "RUNE",
+        "name": "THORChain",
+        "market_cap": 161764346
+    },
+    {
+        "ticker": "1INCHUSD",
+        "symbol": "1INCH",
+        "name": "1INCH",
+        "market_cap": 161149047
+    },
+    {
+        "ticker": "FDITUSD",
+        "symbol": "FDIT",
+        "name": "Fidelity Digital Interest Token",
+        "market_cap": 161010506
+    },
+    {
+        "ticker": "SATUSDUSD",
+        "symbol": "SATUSD",
+        "name": "Satoshi Stablecoin",
+        "market_cap": 158480959
+    },
+    {
+        "ticker": "TRACUSD",
+        "symbol": "TRAC",
+        "name": "OriginTrail",
+        "market_cap": 158212543
+    },
+    {
+        "ticker": "TETHUSD",
+        "symbol": "TETH",
+        "name": "Treehouse ETH",
+        "market_cap": 156794212
+    },
+    {
+        "ticker": "IMXUSD",
+        "symbol": "IMX",
+        "name": "Immutable",
+        "market_cap": 155360847
+    },
+    {
+        "ticker": "AUSD",
+        "symbol": "A",
+        "name": "Vaulta",
+        "market_cap": 152696813
+    },
+    {
+        "ticker": "EURSUSD",
+        "symbol": "EURS",
+        "name": "STASIS EURO",
+        "market_cap": 152666345
+    },
+    {
+        "ticker": "WEMIXUSD",
+        "symbol": "WEMIX",
+        "name": "WEMIX",
+        "market_cap": 152536802
+    },
+    {
+        "ticker": "WALUSD",
+        "symbol": "WAL",
+        "name": "Walrus",
+        "market_cap": 152293626
+    },
+    {
+        "ticker": "LIONUSD",
+        "symbol": "LION",
+        "name": "Loaded Lions",
+        "market_cap": 150117880
+    },
+    {
+        "ticker": "EIGENUSD",
+        "symbol": "EIGEN",
+        "name": "EigenCloud (prev. EigenLayer)",
+        "market_cap": 149607879
+    },
+    {
+        "ticker": "GUSDUSD",
+        "symbol": "GUSD",
+        "name": "GUSD",
+        "market_cap": 149588457
+    },
+    {
+        "ticker": "SFPUSD",
+        "symbol": "SFP",
+        "name": "SafePal",
+        "market_cap": 146992545
+    },
+    {
+        "ticker": "EGLDUSD",
+        "symbol": "EGLD",
+        "name": "MultiversX",
+        "market_cap": 145151544
+    },
+    {
+        "ticker": "SOSOUSD",
+        "symbol": "SOSO",
+        "name": "SoSoValue",
+        "market_cap": 144925500
+    },
+    {
+        "ticker": "\u5e01\u5b89\u4eba\u751fUSD",
+        "symbol": "\u5e01\u5b89\u4eba\u751f",
+        "name": "\u5e01\u5b89\u4eba\u751f (BinanceLife)",
+        "market_cap": 141792194
+    },
+    {
+        "ticker": "RLBUSD",
+        "symbol": "RLB",
+        "name": "Rollbit Coin",
+        "market_cap": 139676885
+    },
+    {
+        "ticker": "EDUUSD",
+        "symbol": "EDU",
+        "name": "Open Campus",
+        "market_cap": 139149932
+    },
+    {
+        "ticker": "PSTUSDCUSD",
+        "symbol": "PSTUSDC",
+        "name": "PayFi Strategy Token USDC",
+        "market_cap": 139026644
+    },
+    {
+        "ticker": "AMPUSD",
+        "symbol": "AMP",
+        "name": "Amp",
+        "market_cap": 138781412
+    },
+    {
+        "ticker": "DUSDUSD",
+        "symbol": "DUSD",
+        "name": "StandX DUSD",
+        "market_cap": 138579333
+    },
+    {
+        "ticker": "ZANOUSD",
+        "symbol": "ZANO",
+        "name": "Zano",
+        "market_cap": 138429785
+    },
+    {
+        "ticker": "GOMININGUSD",
+        "symbol": "GOMINING",
+        "name": "GoMining Token",
+        "market_cap": 137915378
+    },
+    {
+        "ticker": "GTUSDCUSD",
+        "symbol": "GTUSDC",
+        "name": "Gauntlet USDC Prime Morpho Vault",
+        "market_cap": 136158884
+    },
+    {
+        "ticker": "APEUSD",
+        "symbol": "APE",
+        "name": "ApeCoin",
+        "market_cap": 135952866
+    },
+    {
+        "ticker": "ACREDUSD",
+        "symbol": "ACRED",
+        "name": "Apollo Diversified Credit Securitize Fund",
+        "market_cap": 135781702
+    },
+    {
+        "ticker": "KTAUSD",
+        "symbol": "KTA",
+        "name": "Keeta",
+        "market_cap": 134695852
+    },
+    {
+        "ticker": "XSOLVBTCUSD",
+        "symbol": "XSOLVBTC",
+        "name": "Solv Protocol Staked BTC",
+        "market_cap": 133661542
+    },
+    {
+        "ticker": "BRBTCUSD",
+        "symbol": "BRBTC",
+        "name": "Bedrock BTC",
+        "market_cap": 133327617
+    },
+    {
+        "ticker": "KMNOUSD",
+        "symbol": "KMNO",
+        "name": "Kamino",
+        "market_cap": 132629917
+    },
+    {
+        "ticker": "BEAMUSD",
+        "symbol": "BEAM",
+        "name": "Beam",
+        "market_cap": 132329592
+    },
+    {
+        "ticker": "LPTUSD",
+        "symbol": "LPT",
+        "name": "Livepeer",
+        "market_cap": 132024477
+    },
+    {
+        "ticker": "0GUSD",
+        "symbol": "0G",
+        "name": "0G",
+        "market_cap": 131835638
+    },
+    {
+        "ticker": "BMXUSD",
+        "symbol": "BMX",
+        "name": "BitMart",
+        "market_cap": 130653775
+    },
+    {
+        "ticker": "WUSD",
+        "symbol": "W",
+        "name": "Wormhole",
+        "market_cap": 130505689
+    },
+    {
+        "ticker": "JTOUSD",
+        "symbol": "JTO",
+        "name": "Jito",
+        "market_cap": 130424682
+    },
+    {
+        "ticker": "CHEEMSUSD",
+        "symbol": "CHEEMS",
+        "name": "Cheems Token",
+        "market_cap": 128560169
+    },
+    {
+        "ticker": "GASUSD",
+        "symbol": "GAS",
+        "name": "Gas",
+        "market_cap": 125098504
+    },
+    {
+        "ticker": "TIBBIRUSD",
+        "symbol": "TIBBIR",
+        "name": "Ribbita by Virtuals",
+        "market_cap": 124688589
+    },
+    {
+        "ticker": "AVUSDUSD",
+        "symbol": "AVUSD",
+        "name": "Avant USD",
+        "market_cap": 124108526
+    },
+    {
+        "ticker": "ROSEUSD",
+        "symbol": "ROSE",
+        "name": "Oasis",
+        "market_cap": 123598053
+    },
+    {
+        "ticker": "ZENUSD",
+        "symbol": "ZEN",
+        "name": "Horizen",
+        "market_cap": 123541751
+    },
+    {
+        "ticker": "OZOUSD",
+        "symbol": "OZO",
+        "name": "Ozone Chain",
+        "market_cap": 122885977
+    },
+    {
+        "ticker": "JSOLUSD",
+        "symbol": "JSOL",
+        "name": "JPool Staked SOL",
+        "market_cap": 122670823
+    },
+    {
+        "ticker": "MELANIAUSD",
+        "symbol": "MELANIA",
+        "name": "Melania Meme",
+        "market_cap": 122598218
+    },
+    {
+        "ticker": "ZILUSD",
+        "symbol": "ZIL",
+        "name": "Zilliqa",
+        "market_cap": 121254595
+    },
+    {
+        "ticker": "MF-ONEUSD",
+        "symbol": "MF-ONE",
+        "name": "Midas mF-ONE",
+        "market_cap": 121004173
+    },
+    {
+        "ticker": "METUSD",
+        "symbol": "MET",
+        "name": "Meteora",
+        "market_cap": 120402881
+    },
+    {
+        "ticker": "DOLAUSD",
+        "symbol": "DOLA",
+        "name": "DOLA",
+        "market_cap": 119659951
+    },
+    {
+        "ticker": "PUSDUSD",
+        "symbol": "PUSD",
+        "name": "Pleasing USD",
+        "market_cap": 119209203
+    },
+    {
+        "ticker": "ZORAUSD",
+        "symbol": "ZORA",
+        "name": "Zora",
+        "market_cap": 119023951
+    },
+    {
+        "ticker": "AWEUSD",
+        "symbol": "AWE",
+        "name": "AWE Network",
+        "market_cap": 117933814
+    },
+    {
+        "ticker": "RSRUSD",
+        "symbol": "RSR",
+        "name": "Reserve Rights",
+        "market_cap": 117772799
+    },
+    {
+        "ticker": "SNXUSD",
+        "symbol": "SNX",
+        "name": "Synthetix",
+        "market_cap": 116836766
+    },
+    {
+        "ticker": "FRXUSDUSD",
+        "symbol": "FRXUSD",
+        "name": "Frax USD",
+        "market_cap": 116611537
+    },
+    {
+        "ticker": "QTUMUSD",
+        "symbol": "QTUM",
+        "name": "Qtum",
+        "market_cap": 115491150
+    },
+    {
+        "ticker": "TKXUSD",
+        "symbol": "TKX",
+        "name": "Tokenize Xchange",
+        "market_cap": 114671361
+    },
+    {
+        "ticker": "AIDAUSDCUSD",
+        "symbol": "AIDAUSDC",
+        "name": "Gaib AI Dollar Alpha USDC",
+        "market_cap": 114595062
+    },
+    {
+        "ticker": "TFUELUSD",
+        "symbol": "TFUEL",
+        "name": "Theta Fuel",
+        "market_cap": 114180878
+    },
+    {
+        "ticker": "CCDUSD",
+        "symbol": "CCD",
+        "name": "Concordium",
+        "market_cap": 114118467
+    },
+    {
+        "ticker": "ATHUSD",
+        "symbol": "ATH",
+        "name": "Aethir",
+        "market_cap": 112178421
+    },
+    {
+        "ticker": "UNIBTCUSD",
+        "symbol": "UNIBTC",
+        "name": "Universal BTC",
+        "market_cap": 111319940
+    },
+    {
+        "ticker": "COCOUSD",
+        "symbol": "COCO",
+        "name": "coco",
+        "market_cap": 111210658
+    },
+    {
+        "ticker": "REUSDUSD",
+        "symbol": "REUSD",
+        "name": "Re Protocol reUSD",
+        "market_cap": 109726888
+    },
+    {
+        "ticker": "DYDXUSD",
+        "symbol": "DYDX",
+        "name": "dYdX",
+        "market_cap": 108799128
+    },
+    {
+        "ticker": "DEXEUSD",
+        "symbol": "DEXE",
+        "name": "DeXe",
+        "market_cap": 107698866
+    },
+    {
+        "ticker": "FOGOUSD",
+        "symbol": "FOGO",
+        "name": "Fogo",
+        "market_cap": 107607719
+    },
+    {
+        "ticker": "SKRUSD",
+        "symbol": "SKR",
+        "name": "Seeker",
+        "market_cap": 107192066
+    },
+    {
+        "ticker": "NXMUSD",
+        "symbol": "NXM",
+        "name": "Nexus Mutual",
+        "market_cap": 107035703
+    },
+    {
+        "ticker": "STACUSD",
+        "symbol": "STAC",
+        "name": "Securitize Tokenized AAA CLO Fund",
+        "market_cap": 106732044
+    },
+    {
+        "ticker": "RVNUSD",
+        "symbol": "RVN",
+        "name": "Ravencoin",
+        "market_cap": 106087766
+    },
+    {
+        "ticker": "AKTUSD",
+        "symbol": "AKT",
+        "name": "Akash Network",
+        "market_cap": 105959639
+    },
+    {
+        "ticker": "DOGUSD",
+        "symbol": "DOG",
+        "name": "Dog (Bitcoin)",
+        "market_cap": 105120981
+    },
+    {
+        "ticker": "CASHUSD",
+        "symbol": "CASH",
+        "name": "CASH",
+        "market_cap": 103182681
+    },
+    {
+        "ticker": "GRASSUSD",
+        "symbol": "GRASS",
+        "name": "Grass",
+        "market_cap": 103053055
+    },
+    {
+        "ticker": "USDZUSD",
+        "symbol": "USDZ",
+        "name": "Anzen USDz",
+        "market_cap": 102669346
+    },
+    {
+        "ticker": "YFIUSD",
+        "symbol": "YFI",
+        "name": "yearn.finance",
+        "market_cap": 102127620
+    },
+    {
+        "ticker": "REKTUSD",
+        "symbol": "REKT",
+        "name": "Rekt",
+        "market_cap": 101810511
+    },
+    {
+        "ticker": "KUBUSD",
+        "symbol": "KUB",
+        "name": "KUB Coin",
+        "market_cap": 100987894
+    },
+    {
+        "ticker": "MNEEUSD",
+        "symbol": "MNEE",
+        "name": "MNEE USD Stablecoin",
+        "market_cap": 100898355
+    },
+    {
+        "ticker": "PC0000023USD",
+        "symbol": "PC0000023",
+        "name": "Tradable Singapore Fintech SSL",
+        "market_cap": 100846154
+    },
+    {
+        "ticker": "USDRUSD",
+        "symbol": "USDR",
+        "name": "Ring USD",
+        "market_cap": 100306407
+    },
+    {
+        "ticker": "OETHUSD",
+        "symbol": "OETH",
+        "name": "Origin Ether",
+        "market_cap": 99506934
+    },
+    {
+        "ticker": "IRYSUSD",
+        "symbol": "IRYS",
+        "name": "Irys",
+        "market_cap": 98900927
+    },
+    {
+        "ticker": "ZRXUSD",
+        "symbol": "ZRX",
+        "name": "0x Protocol",
+        "market_cap": 98751668
+    },
+    {
+        "ticker": "HOMEUSD",
+        "symbol": "HOME",
+        "name": "HOME",
+        "market_cap": 98290550
+    },
+    {
+        "ticker": "METAUSD",
+        "symbol": "META",
+        "name": "MetaDAO",
+        "market_cap": 98246061
+    },
+    {
+        "ticker": "PGOLDUSD",
+        "symbol": "PGOLD",
+        "name": "Pleasing Gold",
+        "market_cap": 98162215
+    },
+    {
+        "ticker": "CKBUSD",
+        "symbol": "CKB",
+        "name": "Nervos Network",
+        "market_cap": 97540775
+    },
+    {
+        "ticker": "ICNTUSD",
+        "symbol": "ICNT",
+        "name": "Impossible Cloud Network Token",
+        "market_cap": 97257531
+    },
+    {
+        "ticker": "XDAIUSD",
+        "symbol": "XDAI",
+        "name": "XDAI",
+        "market_cap": 96816730
+    },
+    {
+        "ticker": "FORMUSD",
+        "symbol": "FORM",
+        "name": "Four",
+        "market_cap": 96713977
+    },
+    {
+        "ticker": "VVVUSD",
+        "symbol": "VVV",
+        "name": "Venice Token",
+        "market_cap": 96355903
+    },
+    {
+        "ticker": "XVGUSD",
+        "symbol": "XVG",
+        "name": "Verge",
+        "market_cap": 95684157
+    },
+    {
+        "ticker": "MAG7.SSIUSD",
+        "symbol": "MAG7.SSI",
+        "name": "MAG7.ssi",
+        "market_cap": 94729649
+    },
+    {
+        "ticker": "USDUUSD",
+        "symbol": "USDU",
+        "name": "USDu",
+        "market_cap": 93814986
+    },
+    {
+        "ticker": "COWUSD",
+        "symbol": "COW",
+        "name": "CoW Protocol",
+        "market_cap": 93560520
+    },
+    {
+        "ticker": "SUPERUSD",
+        "symbol": "SUPER",
+        "name": "SuperVerse",
+        "market_cap": 93276177
+    },
+    {
+        "ticker": "COREUSD",
+        "symbol": "CORE",
+        "name": "Core",
+        "market_cap": 92845113
+    },
+    {
+        "ticker": "CTCUSD",
+        "symbol": "CTC",
+        "name": "Creditcoin",
+        "market_cap": 92646788
+    },
+    {
+        "ticker": "ONYCUSD",
+        "symbol": "ONYC",
+        "name": "Onchain Yield Coin",
+        "market_cap": 92373405
+    },
+    {
+        "ticker": "BRETTUSD",
+        "symbol": "BRETT",
+        "name": "Brett",
+        "market_cap": 92188298
+    },
+    {
+        "ticker": "USDAUSD",
+        "symbol": "USDA",
+        "name": "USDA",
+        "market_cap": 91935308
+    },
+    {
+        "ticker": "RAILUSD",
+        "symbol": "RAIL",
+        "name": "Railgun",
+        "market_cap": 91775400
+    },
+    {
+        "ticker": "MINAUSD",
+        "symbol": "MINA",
+        "name": "Mina Protocol",
+        "market_cap": 91664165
+    },
+    {
+        "ticker": "NXPCUSD",
+        "symbol": "NXPC",
+        "name": "Nexpace",
+        "market_cap": 91414046
+    },
+    {
+        "ticker": "KSMUSD",
+        "symbol": "KSM",
+        "name": "Kusama",
+        "market_cap": 91410624
+    },
+    {
+        "ticker": "TUSD",
+        "symbol": "T",
+        "name": "Threshold Network",
+        "market_cap": 90839390
+    },
+    {
+        "ticker": "WHITEWHALEUSD",
+        "symbol": "WHITEWHALE",
+        "name": "The White Whale",
+        "market_cap": 90574297
+    },
+    {
+        "ticker": "KAITOUSD",
+        "symbol": "KAITO",
+        "name": "KAITO",
+        "market_cap": 89659215
+    },
+    {
+        "ticker": "DGBUSD",
+        "symbol": "DGB",
+        "name": "DigiByte",
+        "market_cap": 89288557
+    },
+    {
+        "ticker": "LUXUSD",
+        "symbol": "LUX",
+        "name": "Luxxcoin",
+        "market_cap": 88524051
+    },
+    {
+        "ticker": "SDAIUSD",
+        "symbol": "SDAI",
+        "name": "Savings xDAI",
+        "market_cap": 88225973
+    },
+    {
+        "ticker": "TOSHIUSD",
+        "symbol": "TOSHI",
+        "name": "Toshi",
+        "market_cap": 87104278
+    },
+    {
+        "ticker": "TURBOUSD",
+        "symbol": "TURBO",
+        "name": "Turbo",
+        "market_cap": 86422258
+    },
+    {
+        "ticker": "RAVEUSD",
+        "symbol": "RAVE",
+        "name": "RaveDAO",
+        "market_cap": 86095433
+    },
+    {
+        "ticker": "BABYDOGEUSD",
+        "symbol": "BABYDOGE",
+        "name": "Baby Doge Coin",
+        "market_cap": 86082851
+    },
+    {
+        "ticker": "SRUSDEUSD",
+        "symbol": "SRUSDE",
+        "name": "Strata Senior USDe",
+        "market_cap": 85794049
+    },
+    {
+        "ticker": "UBUSD",
+        "symbol": "UB",
+        "name": "Unibase",
+        "market_cap": 85761239
+    },
+    {
+        "ticker": "XNOUSD",
+        "symbol": "XNO",
+        "name": "Nano",
+        "market_cap": 85239072
+    },
+    {
+        "ticker": "VCNTUSD",
+        "symbol": "VCNT",
+        "name": "ViciCoin",
+        "market_cap": 85158445
+    },
+    {
+        "ticker": "INIUSD",
+        "symbol": "INI",
+        "name": "INI",
+        "market_cap": 84778326
+    },
+    {
+        "ticker": "PIEVERSEUSD",
+        "symbol": "PIEVERSE",
+        "name": "Pieverse",
+        "market_cap": 84319900
+    },
+    {
+        "ticker": "SWOPUSD",
+        "symbol": "SWOP",
+        "name": "Swop",
+        "market_cap": 84143827
+    },
+    {
+        "ticker": "SUPEROETHUSD",
+        "symbol": "SUPEROETH",
+        "name": "Super OETH",
+        "market_cap": 83878499
+    },
+    {
+        "ticker": "XAUMUSD",
+        "symbol": "XAUM",
+        "name": "Matrixdock Gold",
+        "market_cap": 83817882
+    },
+    {
+        "ticker": "MOVEUSD",
+        "symbol": "MOVE",
+        "name": "Movement",
+        "market_cap": 83673739
+    },
+    {
+        "ticker": "TEMPLEUSD",
+        "symbol": "TEMPLE",
+        "name": "TempleDAO",
+        "market_cap": 82706651
+    },
+    {
+        "ticker": "ALEOUSD",
+        "symbol": "ALEO",
+        "name": "ALEO",
+        "market_cap": 82467697
+    },
+    {
+        "ticker": "SAFEUSD",
+        "symbol": "SAFE",
+        "name": "Safe",
+        "market_cap": 82455733
+    },
+    {
+        "ticker": "STEAKETHUSD",
+        "symbol": "STEAKETH",
+        "name": "Steakhouse ETH Morpho Vault",
+        "market_cap": 82404636
+    },
+    {
+        "ticker": "FLOWUSD",
+        "symbol": "FLOW",
+        "name": "Flow",
+        "market_cap": 82245658
+    },
+    {
+        "ticker": "SHFLUSD",
+        "symbol": "SHFL",
+        "name": "Shuffle",
+        "market_cap": 82204684
+    },
+    {
+        "ticker": "ALCHUSD",
+        "symbol": "ALCH",
+        "name": "Alchemist AI",
+        "market_cap": 81832453
+    },
+    {
+        "ticker": "BIRBUSD",
+        "symbol": "BIRB",
+        "name": "Moonbirds",
+        "market_cap": 81799508
+    },
+    {
+        "ticker": "AGENTFUNUSD",
+        "symbol": "AGENTFUN",
+        "name": "AgentFun.AI",
+        "market_cap": 81541615
+    },
+    {
+        "ticker": "CONSCIOUSUSD",
+        "symbol": "CONSCIOUS",
+        "name": "Conscious Token",
+        "market_cap": 80728131
+    },
+    {
+        "ticker": "FRAXUSD",
+        "symbol": "FRAX",
+        "name": "Frax (prev. FXS)",
+        "market_cap": 80462460
+    },
+    {
+        "ticker": "AIOZUSD",
+        "symbol": "AIOZ",
+        "name": "AIOZ Network",
+        "market_cap": 80272650
+    },
+    {
+        "ticker": "VELOUSD",
+        "symbol": "VELO",
+        "name": "Velo",
+        "market_cap": 80208210
+    },
+    {
+        "ticker": "ARKMUSD",
+        "symbol": "ARKM",
+        "name": "Arkham",
+        "market_cap": 79953861
+    },
+    {
+        "ticker": "ETH+USD",
+        "symbol": "ETH+",
+        "name": "ETHPlus",
+        "market_cap": 79532833
+    },
+    {
+        "ticker": "DBRUSD",
+        "symbol": "DBR",
+        "name": "deBridge",
+        "market_cap": 79431713
+    },
+    {
+        "ticker": "VBILLUSD",
+        "symbol": "VBILL",
+        "name": "VanEck Treasury Fund",
+        "market_cap": 78793867
+    },
+    {
+        "ticker": "RONUSD",
+        "symbol": "RON",
+        "name": "Ronin",
+        "market_cap": 78697647
+    },
+    {
+        "ticker": "SOONUSD",
+        "symbol": "SOON",
+        "name": "SOON",
+        "market_cap": 78654327
+    },
+    {
+        "ticker": "NMRUSD",
+        "symbol": "NMR",
+        "name": "Numeraire",
+        "market_cap": 78273426
+    },
+    {
+        "ticker": "EURCVUSD",
+        "symbol": "EURCV",
+        "name": "EUR CoinVertible",
+        "market_cap": 77692290
+    },
+    {
+        "ticker": "LINEAUSD",
+        "symbol": "LINEA",
+        "name": "Linea",
+        "market_cap": 77496603
+    },
+    {
+        "ticker": "UPUMPUSD",
+        "symbol": "UPUMP",
+        "name": "Unit Pump",
+        "market_cap": 77279700
+    },
+    {
+        "ticker": "ZETAUSD",
+        "symbol": "ZETA",
+        "name": "ZetaChain",
+        "market_cap": 77180763
+    },
+    {
+        "ticker": "ARCUSD",
+        "symbol": "ARC",
+        "name": "AI Rig Complex",
+        "market_cap": 76708423
+    },
+    {
+        "ticker": "GAMAUSD",
+        "symbol": "GAMA",
+        "name": "Gama Token",
+        "market_cap": 76460662
+    },
+    {
+        "ticker": "TDCCPUSD",
+        "symbol": "TDCCP",
+        "name": "TDCCP",
+        "market_cap": 76212843
+    },
+    {
+        "ticker": "BANUSD",
+        "symbol": "BAN",
+        "name": "Comedian",
+        "market_cap": 75930543
+    },
+    {
+        "ticker": "SUSDAUSD",
+        "symbol": "SUSDA",
+        "name": "sUSDa",
+        "market_cap": 75927074
+    },
+    {
+        "ticker": "SCUSD",
+        "symbol": "SC",
+        "name": "Siacoin",
+        "market_cap": 75628866
+    },
+    {
+        "ticker": "ARRRUSD",
+        "symbol": "ARRR",
+        "name": "Pirate Chain",
+        "market_cap": 75590538
+    },
+    {
+        "ticker": "HOTUSD",
+        "symbol": "HOT",
+        "name": "Holo",
+        "market_cap": 75515601
+    },
+    {
+        "ticker": "AXLUSD",
+        "symbol": "AXL",
+        "name": "Axelar",
+        "market_cap": 75483545
+    },
+    {
+        "ticker": "FEUSDUSD",
+        "symbol": "FEUSD",
+        "name": "Felix feUSD",
+        "market_cap": 74850678
+    },
+    {
+        "ticker": "CGUSDUSD",
+        "symbol": "CGUSD",
+        "name": "Cygnus Finance Global USD",
+        "market_cap": 74649621
+    },
+    {
+        "ticker": "DEEPUSD",
+        "symbol": "DEEP",
+        "name": "DeepBook",
+        "market_cap": 74541888
+    },
+    {
+        "ticker": "SN64USD",
+        "symbol": "SN64",
+        "name": "Chutes",
+        "market_cap": 73815920
+    },
+    {
+        "ticker": "MOGUSD",
+        "symbol": "MOG",
+        "name": "Mog Coin",
+        "market_cap": 73661275
+    },
+    {
+        "ticker": "USDOUSD",
+        "symbol": "USDO",
+        "name": "OpenEden OpenDollar",
+        "market_cap": 73617073
+    },
+    {
+        "ticker": "XPRUSD",
+        "symbol": "XPR",
+        "name": "XPR Network",
+        "market_cap": 73574874
+    },
+    {
+        "ticker": "MWETHUSD",
+        "symbol": "MWETH",
+        "name": "Moonwell Flagship ETH (Morpho Vault)",
+        "market_cap": 73074666
+    },
+    {
+        "ticker": "UCNUSD",
+        "symbol": "UCN",
+        "name": "UCHAIN",
+        "market_cap": 73049893
+    },
+    {
+        "ticker": "QUBICUSD",
+        "symbol": "QUBIC",
+        "name": "Qubic",
+        "market_cap": 72986562
+    },
+    {
+        "ticker": "ASTRUSD",
+        "symbol": "ASTR",
+        "name": "Astar",
+        "market_cap": 72682771
+    },
+    {
+        "ticker": "OFTUSD",
+        "symbol": "OFT",
+        "name": "ONFA",
+        "market_cap": 71734500
+    },
+    {
+        "ticker": "VVSUSD",
+        "symbol": "VVS",
+        "name": "VVS Finance",
+        "market_cap": 71704755
+    },
+    {
+        "ticker": "MBGUSD",
+        "symbol": "MBG",
+        "name": "MBG By Multibank Group",
+        "market_cap": 71106080
+    },
+    {
+        "ticker": "SXTUSD",
+        "symbol": "SXT",
+        "name": "Space and Time",
+        "market_cap": 71059580
+    },
+    {
+        "ticker": "PUFFUSD",
+        "symbol": "PUFF",
+        "name": "Puff The Dragon",
+        "market_cap": 70089286
+    },
+    {
+        "ticker": "KAVAUSD",
+        "symbol": "KAVA",
+        "name": "Kava",
+        "market_cap": 70055477
+    },
+    {
+        "ticker": "VRSCUSD",
+        "symbol": "VRSC",
+        "name": "Verus",
+        "market_cap": 69903308
+    },
+    {
+        "ticker": "EARNAUSDUSD",
+        "symbol": "EARNAUSD",
+        "name": "earnAUSD",
+        "market_cap": 69673987
+    },
+    {
+        "ticker": "ELFUSD",
+        "symbol": "ELF",
+        "name": "aelf",
+        "market_cap": 69428853
+    },
+    {
+        "ticker": "BCUSD",
+        "symbol": "BC",
+        "name": "BCGame Coin",
+        "market_cap": 69346725
+    },
+    {
+        "ticker": "MEUSD",
+        "symbol": "ME",
+        "name": "Magic Eden",
+        "market_cap": 69180076
+    },
+    {
+        "ticker": "REQUSD",
+        "symbol": "REQ",
+        "name": "Request",
+        "market_cap": 69106497
+    },
+    {
+        "ticker": "DESOUSD",
+        "symbol": "DESO",
+        "name": "Decentralized Social",
+        "market_cap": 68845038
+    },
+    {
+        "ticker": "MOCAUSD",
+        "symbol": "MOCA",
+        "name": "Moca Network",
+        "market_cap": 68629300
+    },
+    {
+        "ticker": "NILAUSD",
+        "symbol": "NILA",
+        "name": "MindWaveDAO",
+        "market_cap": 68435666
+    },
+    {
+        "ticker": "ORDIUSD",
+        "symbol": "ORDI",
+        "name": "ORDI",
+        "market_cap": 67908435
+    },
+    {
+        "ticker": "SIRENUSD",
+        "symbol": "SIREN",
+        "name": "Siren",
+        "market_cap": 67587334
+    },
+    {
+        "ticker": "GOOGLONUSD",
+        "symbol": "GOOGLON",
+        "name": "Alphabet Class A (Ondo Tokenized Stock)",
+        "market_cap": 67171896
+    },
+    {
+        "ticker": "XYOUSD",
+        "symbol": "XYO",
+        "name": "XYO Network",
+        "market_cap": 66942770
+    },
+    {
+        "ticker": "GMXUSD",
+        "symbol": "GMX",
+        "name": "GMX",
+        "market_cap": 66696258
+    },
+    {
+        "ticker": "WMTXUSD",
+        "symbol": "WMTX",
+        "name": "World Mobile Token",
+        "market_cap": 66632082
+    },
+    {
+        "ticker": "BERAUSD",
+        "symbol": "BERA",
+        "name": "Berachain",
+        "market_cap": 66376073
+    },
+    {
+        "ticker": "CETUSD",
+        "symbol": "CET",
+        "name": "CoinEx",
+        "market_cap": 66273773
+    },
+    {
+        "ticker": "ZAMAUSD",
+        "symbol": "ZAMA",
+        "name": "Zama",
+        "market_cap": 66076139
+    },
+    {
+        "ticker": "PCIUSD",
+        "symbol": "PCI",
+        "name": "Paycoin",
+        "market_cap": 65961226
+    },
+    {
+        "ticker": "VTHOUSD",
+        "symbol": "VTHO",
+        "name": "VeThor",
+        "market_cap": 65658843
+    },
+    {
+        "ticker": "SUSHIUSD",
+        "symbol": "SUSHI",
+        "name": "Sushi",
+        "market_cap": 65599299
+    },
+    {
+        "ticker": "REDUSD",
+        "symbol": "RED",
+        "name": "RedStone",
+        "market_cap": 65358279
+    },
+    {
+        "ticker": "PROVEUSD",
+        "symbol": "PROVE",
+        "name": "Succinct",
+        "market_cap": 65356612
+    },
+    {
+        "ticker": "MERLUSD",
+        "symbol": "MERL",
+        "name": "Merlin Chain",
+        "market_cap": 64789483
+    },
+    {
+        "ticker": "COAIUSD",
+        "symbol": "COAI",
+        "name": "ChainOpera AI",
+        "market_cap": 63601606
+    },
+    {
+        "ticker": "BLURUSD",
+        "symbol": "BLUR",
+        "name": "Blur",
+        "market_cap": 63404155
+    },
+    {
+        "ticker": "IOTXUSD",
+        "symbol": "IOTX",
+        "name": "IoTeX",
+        "market_cap": 63097853
+    },
+    {
+        "ticker": "YZUSDUSD",
+        "symbol": "YZUSD",
+        "name": "Yuzu USD",
+        "market_cap": 62909645
+    },
+    {
+        "ticker": "ESPORTSUSD",
+        "symbol": "ESPORTS",
+        "name": "Yooldo Games",
+        "market_cap": 62903876
+    },
+    {
+        "ticker": "MIMUSD",
+        "symbol": "MIM",
+        "name": "Magic Internet Money (Arbitrum)",
+        "market_cap": 62670734
+    },
+    {
+        "ticker": "MEWUSD",
+        "symbol": "MEW",
+        "name": "cat in a dogs world",
+        "market_cap": 62233809
+    },
+    {
+        "ticker": "VENOMUSD",
+        "symbol": "VENOM",
+        "name": "Venom",
+        "market_cap": 62047796
+    },
+    {
+        "ticker": "SIGNUSD",
+        "symbol": "SIGN",
+        "name": "Sign",
+        "market_cap": 61934878
+    },
+    {
+        "ticker": "METALUSD",
+        "symbol": "METAL",
+        "name": "Metal Blockchain",
+        "market_cap": 61795822
+    },
+    {
+        "ticker": "INCUSD",
+        "symbol": "INC",
+        "name": "WorldAssets",
+        "market_cap": 61690678
+    },
+    {
+        "ticker": "WAVESUSD",
+        "symbol": "WAVES",
+        "name": "Waves",
+        "market_cap": 61051091
+    },
+    {
+        "ticker": "XVSUSD",
+        "symbol": "XVS",
+        "name": "Venus",
+        "market_cap": 61012276
+    },
+    {
+        "ticker": "XCHUSD",
+        "symbol": "XCH",
+        "name": "Chia",
+        "market_cap": 60551900
+    },
+    {
+        "ticker": "VKHYPEUSD",
+        "symbol": "VKHYPE",
+        "name": "Kinetiq Earn Vault",
+        "market_cap": 60181910
+    },
+    {
+        "ticker": "AVNTUSD",
+        "symbol": "AVNT",
+        "name": "Avantis",
+        "market_cap": 60052458
+    },
+    {
+        "ticker": "GEODUSD",
+        "symbol": "GEOD",
+        "name": "Geodnet",
+        "market_cap": 59906794
+    },
+    {
+        "ticker": "POLYXUSD",
+        "symbol": "POLYX",
+        "name": "Polymesh",
+        "market_cap": 59831692
+    },
+    {
+        "ticker": "PLUMEUSD",
+        "symbol": "PLUME",
+        "name": "Plume",
+        "market_cap": 59563818
+    },
+    {
+        "ticker": "DRIFTUSD",
+        "symbol": "DRIFT",
+        "name": "Drift Protocol",
+        "market_cap": 59229653
+    },
+    {
+        "ticker": "OMUSD",
+        "symbol": "OM",
+        "name": "MANTRA",
+        "market_cap": 59203446
+    },
+    {
+        "ticker": "SSVUSD",
+        "symbol": "SSV",
+        "name": "SSV Network",
+        "market_cap": 59109383
+    },
+    {
+        "ticker": "CRWDXUSD",
+        "symbol": "CRWDX",
+        "name": "CrowdStrike xStock",
+        "market_cap": 58911932
+    },
+    {
+        "ticker": "BNKRUSD",
+        "symbol": "BNKR",
+        "name": "BankrCoin",
+        "market_cap": 58862405
+    },
+    {
+        "ticker": "BICOUSD",
+        "symbol": "BICO",
+        "name": "Biconomy",
+        "market_cap": 58604830
+    },
+    {
+        "ticker": "DAGUSD",
+        "symbol": "DAG",
+        "name": "Constellation",
+        "market_cap": 58580245
+    },
+    {
+        "ticker": "USDONUSD",
+        "symbol": "USDON",
+        "name": "Ondo U.S. Dollar Token",
+        "market_cap": 58305349
+    },
+    {
+        "ticker": "QUAIUSD",
+        "symbol": "QUAI",
+        "name": "Quai Network",
+        "market_cap": 57857072
+    },
+    {
+        "ticker": "DAIUSD",
+        "symbol": "DAI",
+        "name": "DAI on PulseChain",
+        "market_cap": 57567161
+    },
+    {
+        "ticker": "ZIGUSD",
+        "symbol": "ZIG",
+        "name": "ZIGChain",
+        "market_cap": 57559788
+    },
+    {
+        "ticker": "HSKUSD",
+        "symbol": "HSK",
+        "name": "HashKey Platform Token",
+        "market_cap": 57279339
+    },
+    {
+        "ticker": "PNUTUSD",
+        "symbol": "PNUT",
+        "name": "Peanut the Squirrel",
+        "market_cap": 56986140
+    },
+    {
+        "ticker": "STGUSD",
+        "symbol": "STG",
+        "name": "Stargate Finance",
+        "market_cap": 56980083
+    },
+    {
+        "ticker": "CETHUSD",
+        "symbol": "CETH",
+        "name": "cETH",
+        "market_cap": 56977750
+    },
+    {
+        "ticker": "NPCUSD",
+        "symbol": "NPC",
+        "name": "Non-Playable Coin",
+        "market_cap": 56781631
+    },
+    {
+        "ticker": "ANKRUSD",
+        "symbol": "ANKR",
+        "name": "Ankr Network",
+        "market_cap": 56618175
+    },
+    {
+        "ticker": "SQDUSD",
+        "symbol": "SQD",
+        "name": "SQD",
+        "market_cap": 56502226
+    },
+    {
+        "ticker": "NIZAUSD",
+        "symbol": "NIZA",
+        "name": "Niza Global",
+        "market_cap": 56416305
+    },
+    {
+        "ticker": "AEURUSD",
+        "symbol": "AEUR",
+        "name": "Anchored Coins AEUR",
+        "market_cap": 56237054
+    },
+    {
+        "ticker": "CUSDOUSD",
+        "symbol": "CUSDO",
+        "name": "Compounding OpenDollar",
+        "market_cap": 56197711
+    },
+    {
+        "ticker": "POPCATUSD",
+        "symbol": "POPCAT",
+        "name": "Popcat",
+        "market_cap": 56133039
+    },
+    {
+        "ticker": "VRUSD",
+        "symbol": "VR",
+        "name": "Victoria VR",
+        "market_cap": 55497870
+    },
+    {
+        "ticker": "MIMUSD",
+        "symbol": "MIM",
+        "name": "Magic Internet Money (Ethereum)",
+        "market_cap": 55479845
+    },
+    {
+        "ticker": "ISLMUSD",
+        "symbol": "ISLM",
+        "name": "Islamic Coin",
+        "market_cap": 55469913
+    },
+    {
+        "ticker": "BDCAUSD",
+        "symbol": "BDCA",
+        "name": "BitDCA",
+        "market_cap": 55462409
+    },
+    {
+        "ticker": "VANAUSD",
+        "symbol": "VANA",
+        "name": "Vana",
+        "market_cap": 55461746
+    },
+    {
+        "ticker": "OMNIUSD",
+        "symbol": "OMNI",
+        "name": "Omni Network [Old]",
+        "market_cap": 55326170
+    },
+    {
+        "ticker": "MEYUSD",
+        "symbol": "MEY",
+        "name": "Mey Network",
+        "market_cap": 55290800
+    },
+    {
+        "ticker": "CELOUSD",
+        "symbol": "CELO",
+        "name": "Celo",
+        "market_cap": 55233474
+    },
+    {
+        "ticker": "USDXUSD",
+        "symbol": "USDX",
+        "name": "USDX",
+        "market_cap": 55166345
+    },
+    {
+        "ticker": "UAIUSD",
+        "symbol": "UAI",
+        "name": "UnifAI Network",
+        "market_cap": 55065971
+    },
+    {
+        "ticker": "BIOUSD",
+        "symbol": "BIO",
+        "name": "Bio Protocol",
+        "market_cap": 54984358
+    },
+    {
+        "ticker": "TSLAXUSD",
+        "symbol": "TSLAX",
+        "name": "Tesla xStock",
+        "market_cap": 54675647
+    },
+    {
+        "ticker": "QUSD",
+        "symbol": "Q",
+        "name": "Quack AI",
+        "market_cap": 54605094
+    },
+    {
+        "ticker": "CYSUSD",
+        "symbol": "CYS",
+        "name": "Cysic",
+        "market_cap": 54553160
+    },
+    {
+        "ticker": "LCXUSD",
+        "symbol": "LCX",
+        "name": "LCX",
+        "market_cap": 54417832
+    },
+    {
+        "ticker": "MOODENGUSD",
+        "symbol": "MOODENG",
+        "name": "Moo Deng",
+        "market_cap": 54042509
+    },
+    {
+        "ticker": "ORCAUSD",
+        "symbol": "ORCA",
+        "name": "Orca",
+        "market_cap": 53970410
+    },
+    {
+        "ticker": "MHYPERUSD",
+        "symbol": "MHYPER",
+        "name": "Midas mHYPER",
+        "market_cap": 53917634
+    },
+    {
+        "ticker": "MASKUSD",
+        "symbol": "MASK",
+        "name": "Mask Network",
+        "market_cap": 53860479
+    },
+    {
+        "ticker": "QAIUSD",
+        "symbol": "QAI",
+        "name": "QuantixAI",
+        "market_cap": 53790885
+    },
+    {
+        "ticker": "ELGUSD",
+        "symbol": "ELG",
+        "name": "Escoin",
+        "market_cap": 53666864
+    },
+    {
+        "ticker": "ARDRUSD",
+        "symbol": "ARDR",
+        "name": "Ardor",
+        "market_cap": 52664707
+    },
+    {
+        "ticker": "JELLYJELLYUSD",
+        "symbol": "JELLYJELLY",
+        "name": "Jelly-My-Jelly",
+        "market_cap": 52271184
+    }
+]
