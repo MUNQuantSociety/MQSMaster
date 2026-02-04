@@ -22,6 +22,10 @@ Before you begin, ensure you have the following software installed on your syste
 2. Python 3.12+: To run the application.
 3. PgAdmin4 (Not mandatory, will work fine without).
 
+Install guides (Windows/macOS/Linux):
+- Python: https://www.python.org/downloads/ (official)
+- Git: https://git-scm.com/downloads (official) [Select the platform Windows/MacOS/Linux and follow the steps]
+
 ## Installation Steps
 
 Follow these steps precisely to set up your environment.
