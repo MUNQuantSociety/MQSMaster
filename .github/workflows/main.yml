@@ -11,33 +11,51 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  #ci begins here
   ci:
-    # PR trigger → CI job.
+    # CI job: validate PRs to main.
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
     
     steps:
-      # CI steps
-      # [Task] Steps: Checkout code
-      # Pull the repository code into the runner.
-      #code here should be sth like "-name: Checkout"
+      # Checkout repository
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
 
+      # Setup Python runtime
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # Install dependencies for lint/tests
       - name: Install dependencies
-        # Install project + Python packages used by lint/tests.
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e .
           python -m pip install --no-cache-dir --only-binary :all: -r requirements.txt
+          python -m pip install -e .
           python -m pip install ruff pytest
     
+      # Lint (fast checks)
       - name: Lint (ruff)
-        # Quick syntax-level lint checks to catch obvious errors.
         run: |
           python -m ruff check src tests scripts --select E9,F63,F7,F82 
 
+      # Gate tests on DB secrets
       - name: Check DB secrets
-        # Tests use a database; only run them if secrets are available.
         id: db
         env:
           DB_HOST: ${{ secrets.DB_HOST }}
@@ -52,17 +70,25 @@ jobs:
           else
             echo "available=false" >> $GITHUB_OUTPUT
           fi
-      # [Task] Steps: Run tests
+
+      # Run tests if DB secrets exist
       - name: Run tests
-        #  # Run test only when DB credentials exist.
+        if: steps.db.outputs.available == 'true'
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_SSLMODE: ${{ secrets.DB_SSLMODE }}
+        run: |
+          python -m pytest -q
 
-
+      # Skip tests if DB secrets are missing
       - name: Skip tests (missing DB secrets)
-        # Safety message so CI doesn't fail when secrets aren't set.
-        
-        if: #Should check with the DB and block run if false
-        # Print a message to the console to indicate that DB secrets are not configured.
-        # We doing this to prevent pytest from running and failing due to missing secrets.echo "DB secrets not configured. Skipping pytest."
+        if: steps.db.outputs.available != 'true'
+        run: |
+          echo "DB secrets not configured. Skipping pytest."
 
 
 
@@ -77,6 +103,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+    timeout-minutes: 30
 
     steps:
       # Pull repository code for Docker build.
