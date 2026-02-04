@@ -7,6 +7,12 @@ This repository uses GitHub Actions to run CI on pull requests to main and CD on
 - Pull requests to main: runs CI checks.
 - Pushes to main: runs CI checks, then builds and publishes the Docker image if a Dockerfile is present.
 
+## End-to-end flow
+
+PR to main → CI (lint + tests)
+Push to main → CI → CD (if CI passes)
+Docker image built and pushed (only on push to main with Dockerfile)
+
 ## CI workflow (job: ci)
 
 Steps:
@@ -33,6 +39,12 @@ If secrets are missing, the workflow skips pytest to avoid failing CI.
 - Runs only on pushes to main.
 - Builds and publishes a Docker image to GitHub Container Registry (GHCR).
 - Skips publishing if Dockerfile is not found.
+
+Steps:
+1. Check for Dockerfile at repo root.
+2. Log in to GHCR.
+3. Build and push the image.
+4. Tags include `latest` and the commit SHA via metadata action.
 
 ## How to run tests locally
 
