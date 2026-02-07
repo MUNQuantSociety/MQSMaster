@@ -1,8 +1,8 @@
 requests>=2.31.0
 python-dotenv>=1.0.0
-pandas>=2.2.3
+pandas>=2.0.0,<2.3
 psycopg2-binary>=2.9.10
-numpy>=2.2.3
+numpy>=1.26.0,<2.1
 urllib3>=2.3.0
 plotly>=5.24.1
 nbformat>=5.10.0
@@ -11,9 +11,9 @@ tqdm>=4.67.1
 datasets>=2.21.0
 scikit-learn>=1.5.2
 torch>=2.2.2
-matplotlib==3.10.5
+matplotlib>=3.7.0,<3.10
 seaborn==0.13.1
 transformers
 scipy>=1.13.0
-statsmodels>=0.14.6
+statsmodels>=0.14.0
 pytz>=2024.1

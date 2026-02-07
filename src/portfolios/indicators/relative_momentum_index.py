@@ -1,6 +1,7 @@
 import logging
 from collections import deque
 from datetime import datetime
+from typing import Optional
 import numpy as np
 
 try:
@@ -37,8 +38,8 @@ class RelativeMomentumIndex(Indicator):
         # We only need to store momentum_period + 1 prices to calculate momentum
         self._prices = deque(maxlen=self.momentum_period + 1)
         
-        self._avg_gain: float | None = None
-        self._avg_loss: float | None = None
+        self._avg_gain: Optional[float] = None
+        self._avg_loss: Optional[float] = None
         
         # --- Using deques for seeding to simplify logic ---
         self._seed_gains = deque(maxlen=self.period)

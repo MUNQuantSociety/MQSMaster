@@ -1,6 +1,7 @@
 # src/portfolios/strategy_api.py
 import logging
 from datetime import datetime
+from typing import Optional
 import pandas as pd
 import pytz as pytz 
 # This import registers the .toolkit accessor globally
@@ -18,7 +19,7 @@ class AssetData:
     """
     Represents the market data for a single asset at a specific point in time.
     """
-    def __init__(self, ticker: str, asset_specific_df: pd.DataFrame, current_time: datetime | None):
+    def __init__(self, ticker: str, asset_specific_df: pd.DataFrame, current_time: Optional[datetime]):
         self._ticker = ticker
         self._df = asset_specific_df
         self._time = current_time

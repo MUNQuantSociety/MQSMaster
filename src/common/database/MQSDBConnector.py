@@ -3,6 +3,7 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.pool
 from dotenv import load_dotenv
+from typing import Dict, List, Optional
 import time
 import logging
 
@@ -25,7 +26,7 @@ class MQSDBConnector:
         self.db_name = os.getenv('database')
         self.db_user = os.getenv('db_user')
         self.db_password = os.getenv('password')
-        self.sslmode = os.getenv('sslmode', 'require')
+        self.sslmode = os.getenv('sslmode', 'disable')
 
         # Initialize the connection pool.
         try:
@@ -116,7 +117,7 @@ class MQSDBConnector:
         sql = f"INSERT INTO {schema_str}{table} ({columns}) VALUES ({placeholders})"
         return self.execute_query(sql, tuple(data.values()))
 
-    def bulk_inject_to_db(self, table, data: list[dict], conflict_columns: list[str] = None, schema=None):
+    def bulk_inject_to_db(self, table, data: List[Dict], conflict_columns: List[str] = None, schema=None):
         """
         Efficiently inserts multiple rows into a table using execute_values.
         Leverages 'ON CONFLICT DO NOTHING' if conflict_columns are provided.

@@ -9,7 +9,7 @@ import os
 import time
 from backtest import data
 import pandas as pd
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from src.orchestrator.marketData.fmpMarketData import FMPMarketData
 import logging
@@ -73,8 +73,8 @@ def backfill_data(
     start_date,
     end_date,
     interval: int,
-    exchange: str | None = None,
-    output_filename: str | None = "backfilled_data.csv",
+    exchange: Optional[str] = None,
+    output_filename: Optional[str] = "backfilled_data.csv",
 ):
     """
     Pulls intraday data from FMP for each ticker from start_date to end_date,
