@@ -1,13 +1,22 @@
 import logging
 import os
 from datetime import datetime
+import sys
 
 import pandas as pd
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+#insert project root into your path (1)
+proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..")) 
+if proj_root not in sys.path: 
+    sys.path.insert(0, proj_root)
+
+from src.common.articles_gateway import ArticlesGateway
+gateway = ArticlesGateway()
+
+
 load_dotenv()
-ALPHA_KEY = os.getenv("ALPHA_KEY")
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 }
@@ -248,15 +257,10 @@ class ArticleScraper:
         ticker=["AAPL"],
         time_from="20251201T1200",
         time_to="20251231T1200",
-        apikey=ALPHA_KEY,
     ):
         """Scrape news articles from Alpha Vantage for given tickers and time range."""
-        import requests
+        news = gateway.fetch_alpha_news(ticker, time_from, time_to)
 
-        url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={','.join(ticker)}&time_from={time_from}&time_to={time_to}&apikey={apikey}"
-
-        r = requests.get(url)
-        news = r.json()
         for news in tqdm(
             news.get("feed", []),
             desc="Scraping Alpha Vantage News articles...",

@@ -13,11 +13,10 @@ proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if proj_root not in sys.path:
     sys.path.insert(0, proj_root)
 
-from src.common.auth.apiAuth import APIAuth
+from src.common.articles_gateway import ArticlesGateway
+gateway = ArticlesGateway()
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
-api = APIAuth()
-API_KEY = api.get_fmp_api_key()  # ← CALL the method!
 MAX_PAGES_PER_RUN = 50  # Max pages to fetch in a single cycle
 RATE_LIMIT = 0.2  # Seconds to wait between API calls
 
@@ -56,17 +55,12 @@ def fetch_news(symbol, start_date, end_date, start_page=0):
     reached_start_date = False
 
     while page < start_page + MAX_PAGES_PER_RUN:
-        url = (
-            f"https://financialmodelingprep.com/api/v3/stock_news"
-            f"?tickers={symbol}&page={page}&apikey={API_KEY}"
-        )
         try:
-            resp = requests.get(url, timeout=15)
-            resp.raise_for_status()
-            news = resp.json()
+            news = gateway.fetch_fmp_news(symbol, page)
         except requests.RequestException as e:
             print(f"[{symbol}] Request error on page {page}: {e}")
             break
+
 
         if not news:
             print(f"[{symbol}] No more articles found from API.")
