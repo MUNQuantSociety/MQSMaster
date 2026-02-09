@@ -85,8 +85,15 @@ class RegimeAdaptiveStrategy(BasePortfolio):
 
         self.RegisterIndicatorSet(indicator_definitions)
 
+        # VIX EMA for adaptive regime detection (replaces hardcoded VIX > 18)
+        self.vix_ema = self.AddIndicator(
+            "ExponentialMovingAverage",
+            "^VIX",
+            period=20
+        )
+
         self.logger.info("RegimeAdaptiveStrategy initialized for OnData framework.")
-        self.logger.info(f"Registered indicators: {list(indicator_definitions.keys())}")
+        self.logger.info(f"Registered indicators: {list(indicator_definitions.keys())} + VIX EMA(20)")
 
     def OnData(self, context: StrategyContext):
         """
@@ -163,8 +170,11 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                     <= timedelta(hours=time_of_day.hour, minutes=time_of_day.minute)
                     <= self.market_open_end
                 )
-                # VIX threshold
-                is_high_vol = is_market_open or (vix_value > 18)
+                # VIX vs EMA threshold (adaptive instead of fixed 18)
+                if self.vix_ema.IsReady:
+                    is_high_vol = is_market_open or (vix_value > self.vix_ema.Current)
+                else:
+                    is_high_vol = is_market_open or (vix_value > 18)
                 # *---------------------------------------------------
                 # * INLINED: fade_signal() and momentum_signal()
                 # *---------------------------------------------------
