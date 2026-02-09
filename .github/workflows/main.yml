@@ -36,10 +36,20 @@ jobs:
 
       # Setup Python runtime
       - name: Set up Python
+        id: python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
+
+      - name: Cache pytest
+        uses: actions/cache@v4
+        with:
+          path: .pytest_cache
+          key: ${{ runner.os }}-pytest-${{ steps.python.outputs.python-version }}-${{ hashFiles('pytest.ini', 'pyproject.toml', 'requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pytest-${{ steps.python.outputs.python-version }}-
+            ${{ runner.os }}-pytest-
 
       # Install dependencies for lint/tests
       - name: Install dependencies
@@ -73,6 +83,8 @@ jobs:
 
       # Run unit tests (always)
       - name: Run unit tests
+        env:
+          PYTHONWARNINGS: error
         run: |
           python -m pytest -q -m "not db" \
             --cov=. \
@@ -89,6 +101,7 @@ jobs:
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_SSLMODE: ${{ secrets.DB_SSLMODE }}
+          PYTHONWARNINGS: error
         run: |
           python -m pytest -q -m "db" \
             --cov=. \

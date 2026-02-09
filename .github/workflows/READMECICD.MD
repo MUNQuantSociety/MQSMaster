@@ -20,7 +20,10 @@ Steps:
 2. Set up Python 3.11 with pip caching.
 3. Install dependencies (project + test/lint tools).
 4. Lint with Ruff (fast error checks).
-5. Check DB secrets and run tests only if DB credentials are available.
+5. Check DB secrets and run unit tests with coverage.
+6. Run DB-gated integration tests when credentials are available.
+7. Enforce per-file coverage minimum (50%).
+8. Fail on warnings and deprecations in CI.
 
 ### Database-gated tests
 
@@ -32,7 +35,17 @@ Tests that require the database only run when all required secrets are present:
 - DB_PASSWORD
 - DB_SSLMODE (optional but supported)
 
-If secrets are missing, the workflow skips pytest to avoid failing CI.
+If secrets are missing, the workflow only runs unit tests; DB tests are skipped.
+
+### Coverage and per-file enforcement
+
+CI generates coverage reports and fails if any file drops below 50% coverage.
+The check runs against the coverage JSON produced by pytest-cov.
+
+### Warnings and deprecations
+
+CI treats warnings as errors to keep signal clean. Locally, deprecation warnings
+are also treated as errors via pytest configuration.
 
 ## CD workflow (job: build-and-publish)
 
@@ -52,10 +65,20 @@ Steps:
 2. Install dependencies:
    - pip install -r requirements.txt
    - pip install -e .
-   - pip install ruff pytest
+   - pip install ruff pytest pytest-cov
 3. Export the same DB_* environment variables used in CI if your tests need database access.
 4. Run tests:
-   - python -m pytest -q
+   - python -m pytest -q -m "not db" --cov=. --cov-report=term-missing --cov-report=json
+   - python scripts/check_per_file_coverage.py --min 50 --coverage-file coverage.json
+
+If you have DB credentials and want to run DB-gated tests too:
+   - python -m pytest -q -m "db" --cov=. --cov-append --cov-report=term-missing --cov-report=json
+   - python scripts/check_per_file_coverage.py --min 50 --coverage-file coverage.json
+
+### Cache behavior
+
+CI caches pip and pytest to speed up repeated runs. Locally, pytest writes cache
+to `.pytest_cache` automatically.
 
 ## Lint locally
 
