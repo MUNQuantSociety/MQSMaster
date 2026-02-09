@@ -76,7 +76,8 @@ jobs:
         run: |
           python -m pytest -q -m "not db" \
             --cov=. \
-            --cov-report=term-missing
+            --cov-report=term-missing \
+            --cov-report=json
 
       # Run integration tests if DB secrets exist
       - name: Run integration tests
@@ -92,7 +93,12 @@ jobs:
           python -m pytest -q -m "db" \
             --cov=. \
             --cov-append \
-            --cov-report=term-missing
+            --cov-report=term-missing \
+            --cov-report=json
+
+      - name: Enforce per-file coverage
+        run: |
+          python scripts/check_per_file_coverage.py --min 50 --coverage-file coverage.json
 
 
 
