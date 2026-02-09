@@ -47,7 +47,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --no-cache-dir --only-binary :all: -r requirements.txt
           python -m pip install -e .
-          python -m pip install ruff pytest
+          python -m pip install ruff pytest pytest-cov
     
       # Lint (fast checks)
       - name: Lint (ruff)
@@ -71,8 +71,15 @@ jobs:
             echo "available=false" >> $GITHUB_OUTPUT
           fi
 
-      # Run tests if DB secrets exist
-      - name: Run tests
+      # Run unit tests (always)
+      - name: Run unit tests
+        run: |
+          python -m pytest -q -m "not db" \
+            --cov=. \
+            --cov-report=term-missing
+
+      # Run integration tests if DB secrets exist
+      - name: Run integration tests
         if: steps.db.outputs.available == 'true'
         env:
           DB_HOST: ${{ secrets.DB_HOST }}
@@ -82,13 +89,10 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_SSLMODE: ${{ secrets.DB_SSLMODE }}
         run: |
-          python -m pytest -q
-
-      # Skip tests if DB secrets are missing
-      - name: Skip tests (missing DB secrets)
-        if: steps.db.outputs.available != 'true'
-        run: |
-          echo "DB secrets not configured. Skipping pytest."
+          python -m pytest -q -m "db" \
+            --cov=. \
+            --cov-append \
+            --cov-report=term-missing
 
 
 

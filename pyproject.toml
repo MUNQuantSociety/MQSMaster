@@ -12,3 +12,14 @@ description = "A quantitative trading bot."
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+  "MQS/*",
+  "*/.venv/*",
+  "*/site-packages/*",
+  "*/__pycache__/*",
+  "*/build/*",
+  "*/dist/*",
+]
