@@ -3,26 +3,15 @@ import logging
 try:
     from common.database.MQSDBConnector import MQSDBConnector
 except ImportError:
-    logging.warning(
-        "MQSDBConnector relative import failed; using absolute import."
-    )
+    logging.warning("MQSDBConnector relative import failed; using absolute import.")
     from src.common.database.MQSDBConnector import MQSDBConnector
 
 
 class SchemaDefinitions:
-    """
-    Encapsulates methods to create or drop tables in the MQS PostgreSQL database.
-    Adjust the CREATE TABLE statements to match your real schema needs.
-    """
-
     def __init__(self):
         self.db = MQSDBConnector()
 
     def create_all_tables(self):
-        """
-        Create all necessary tables (if they do not already exist).
-        """
-        # Test connection by executing a simple query
         res = self.db.execute_query("SELECT 1", fetch=True)
         if res["status"] == "error":
             print("Error connecting to DB:", res["message"])
@@ -36,11 +25,12 @@ class SchemaDefinitions:
         );
         """
 
+        # MATCHES SERVER: column name is `timestamp`
         create_market_data_table = """
         CREATE TABLE IF NOT EXISTS market_data (
             id SERIAL PRIMARY KEY,
             ticker VARCHAR(10) NOT NULL,
-            timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+            timestamp TIMESTAMPTZ NOT NULL,
             date DATE NOT NULL,
             exchange VARCHAR(50) NOT NULL,
             open_price NUMERIC,
@@ -48,88 +38,94 @@ class SchemaDefinitions:
             low_price NUMERIC,
             close_price NUMERIC,
             volume BIGINT,
-            created_at TIMESTAMP DEFAULT NOW()
+            created_at TIMESTAMPTZ DEFAULT NOW()
         );
         """
 
+        # MATCHES SERVER: column name is `exec_timestamp`
         create_trade_logs_table = """
         CREATE TABLE IF NOT EXISTS trade_execution_logs (
             trade_id SERIAL PRIMARY KEY,
             portfolio_id VARCHAR(50),
             ticker VARCHAR(10),
-            exec_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
-            side VARCHAR(4) NOT NULL,  -- e.g. 'BUY' or 'SELL'
+            exec_timestamp TIMESTAMPTZ NOT NULL,
+            side VARCHAR(4) NOT NULL,
             quantity NUMERIC NOT NULL,
-            arrival_price NUMERIC NOT NULL, -- Price at the time of order arrival
-            exec_price NUMERIC NOT NULL, -- Average execution price for the order
-            slippage_bps NUMERIC, -- Slippage in basis points
+            arrival_price NUMERIC NOT NULL,
+            exec_price NUMERIC NOT NULL,
+            slippage_bps NUMERIC,
             notional NUMERIC,
             notional_local NUMERIC,
             currency VARCHAR(10),
             fx_rate NUMERIC,
-            created_at TIMESTAMP DEFAULT NOW()
+            created_at TIMESTAMPTZ DEFAULT NOW()
         );
         """
 
+        # MATCHES SERVER: column name is `timestamp`
         create_pnl_book_table = """
         CREATE TABLE IF NOT EXISTS pnl_book (
             pnl_id SERIAL PRIMARY KEY,
             portfolio_id VARCHAR(50),
-            timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+            timestamp TIMESTAMPTZ NOT NULL,
             date DATE NOT NULL,
             realized_pnl NUMERIC,
             unrealized_pnl NUMERIC,
             fx_rate NUMERIC,
             currency VARCHAR(10),
             notional NUMERIC,
-            created_at TIMESTAMP DEFAULT NOW()
+            created_at TIMESTAMPTZ DEFAULT NOW()
         );
         """
 
+        # MATCHES SERVER: column name is `timestamp`
         create_risk_book_table = """
         CREATE TABLE IF NOT EXISTS risk_book (
             risk_id SERIAL PRIMARY KEY,
             portfolio_id VARCHAR(50),
             date DATE NOT NULL,
-            timestamp TIMESTAMP DEFAULT NOW(),
+            timestamp TIMESTAMPTZ NOT NULL,
             risk_metric VARCHAR(100),
             value NUMERIC,
-            created_at TIMESTAMP DEFAULT NOW()
+            created_at TIMESTAMPTZ DEFAULT NOW()
         );
         """
 
+        # MATCHES SERVER: column name is `timestamp`
         create_cash_equity_book_table = """
         CREATE TABLE IF NOT EXISTS cash_equity_book (
             id SERIAL PRIMARY KEY,
-            timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+            timestamp TIMESTAMPTZ NOT NULL,
             date DATE NOT NULL,
             portfolio_id VARCHAR(50) NOT NULL,
             currency VARCHAR(10) NOT NULL,
             notional NUMERIC NOT NULL,
-            created_at TIMESTAMP DEFAULT NOW()
+            created_at TIMESTAMPTZ DEFAULT NOW()
         );
         """
+
         create_positions_table = """
         CREATE TABLE IF NOT EXISTS positions_book (
             position_id SERIAL PRIMARY KEY,
             portfolio_id VARCHAR(50) NOT NULL,
             ticker VARCHAR(10) NOT NULL,
             quantity NUMERIC NOT NULL,
-            updated_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW(),
             UNIQUE (portfolio_id, ticker)
         );
         """
+
         create_port_weights_table = """
-            CREATE TABLE IF NOT EXISTS portfolio_weights (
+        CREATE TABLE IF NOT EXISTS portfolio_weights (
             weights_id SERIAL PRIMARY KEY,
             portfolio_id VARCHAR(50) NOT NULL,
             ticker VARCHAR(10) NOT NULL,
-            weight NUMERIC NOT NULL, 
-            model VARCHAR(50), -- version or name of the model used to calculate the weight
+            weight NUMERIC NOT NULL,
+            model VARCHAR(50),
             date DATE NOT NULL,
-            updated_at TIMESTAMP DEFAULT NOW(),
-            UNIQUE (portfolio_id, ticker, date, model) -- Ensures one weight per asset, per portfolio, per day, per model
-            );
+            updated_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE (portfolio_id, ticker, date, model)
+        );
         """
 
         statements = [
@@ -147,4 +143,6 @@ class SchemaDefinitions:
             result = self.db.execute_query(stmt)
             if result["status"] == "error":
                 print("Error creating table:", result["message"])
+                return
+
         print("All tables created or confirmed to exist.")
