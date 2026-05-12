@@ -1,3 +1,4 @@
+# [Incomplete: going to implement V2] module for vectorized backtesting. This class provides a way to run fast backtests on OHLCV data using vectorized operations with pandas and numpy. It includes methods to generate signals based on a simple SMA crossover strategy with a z-score filter, calculate returns with transaction costs, compute performance metrics, and run Monte Carlo simulations. Additionally, it has functionality to run the same calendar window across multiple years for seasonal analysis, and to save results for downstream visualization. The design emphasizes efficiency and flexibility while maintaining clarity in the backtesting process.
 from __future__ import annotations
 
 from dataclasses import dataclass

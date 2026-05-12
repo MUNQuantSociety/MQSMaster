@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from src.main_backtest import init_backtest
+from src.main_backtest import _init_backtest
 from src.portfolios.portfolio_1.strategy import VolMomentum
 from src.portfolios.portfolio_2.strategy import MomentumStrategy
 from src.portfolios.portfolio_3.strategy import RegimeAdaptiveStrategy
@@ -41,7 +41,7 @@ def test_init_backtest_preserves_all_inputs(
         slippage,
         backtest_mode,
         resolved_fast_config,
-    ) = init_backtest(
+    ) = _init_backtest(
         portfolio_classes=[portfolio_class],
         start_date=start_date,
         end_date=end_date,

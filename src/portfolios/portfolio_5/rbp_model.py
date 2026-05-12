@@ -61,6 +61,14 @@ class RBPModel:
           - target_return_21d: 1-month future return
         """
         data = df.copy()
+        if "timestamp" not in data.columns:
+            if data.index.name == "timestamp":
+                data = data.reset_index()
+            else:
+                data = data.reset_index().rename(columns={"index": "timestamp"})
+        elif data.index.name == "timestamp":
+        # Column already exists; drop the index label to prevent ambiguity
+            data = data.reset_index(drop=True)
         data.sort_values(["ticker", "timestamp"], inplace=True)
 
         daily_returns = data.groupby("ticker")["close_price"].pct_change()
@@ -95,7 +103,14 @@ class RBPModel:
         X: pd.DataFrame,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Computes mean vector and inverse covariance matrix for Mahalanobis distance."""
-        x_mean = X.mean().values
+        # inside def _compute_training_statistics(X: pd.DataFrame):
+        if X.shape[0] < 2:
+        # not enough rows to compute covariance reliably
+            x_mean = X.mean().fillna(0.0).values
+            inv_cov = np.eye(X.shape[1]) * 1.0  
+            # conservative identity covariance inverse
+            return x_mean, inv_cov
+
         cov_matrix = X.cov().values
 
         try:
@@ -105,6 +120,7 @@ class RBPModel:
             cov_matrix += np.eye(cov_matrix.shape[0]) * 1e-6
             inv_cov = np.linalg.inv(cov_matrix)
 
+        x_mean = X.mean().values
         return x_mean, inv_cov
 
     # ── Relevance Calculations ───────────────────────────────────────
@@ -322,8 +338,9 @@ class RBPModel:
         Fits the model on training data (before split_date).
         processed_data should already have features engineered.
         """
-        split_ts = pd.to_datetime(split_date)
-        train = processed_data[processed_data["timestamp"] < split_ts]
+        split_ts = pd.to_datetime(split_date, utc=True)
+        data_ts = pd.to_datetime(processed_data["timestamp"], utc=True)
+        train = processed_data[data_ts < split_ts]
 
         self._X_train = train[self.feature_cols]
         self._y_train = train[self.target_col]

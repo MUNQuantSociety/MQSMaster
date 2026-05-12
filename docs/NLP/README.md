@@ -2,15 +2,32 @@
 
 This guide documents the NLP article scraping and sentiment pipeline in detail. The matching quick command reference lives in [NLP/README.md](../../NLP/README.md).
 
+## Prerequisite: Download the FinBERT Model
+
+Before running any sentiment scoring path, download the fine-tuned FinBERT model and place it inside the `NLP/` directory. The model is **not** committed to the repo.
+
+1. Download from: <https://drive.google.com/drive/folders/1v7NjSuyFq4CTIctrw1bSv13JzkkMg1l8?usp=sharing>
+2. Place the folder so the final path is `NLP/finbert-combined-final/`.
+3. The directory must contain the model weights and tokenizer files (`config.json`, `tokenizer.json`, `model.safetensors`, etc.).
+
+`NLP/sentiment/scorer.py` (re-exported from `NLP/sentiment_processor.py`) resolves the default model directory as `NLP/finbert-combined-final`. If that folder is missing, the pipeline falls back to `ProsusAI/finbert` on HuggingFace, which is **not** the production fine-tuned model and will produce different scores.
+
 ## Overview
 
 The NLP system has three main entrypoints:
 
 - `NLP/daemon.py` for continuous batched scraping and processing
-- `NLP/fetch_articles.py` for one-off article fetches
+- `NLP/fetch_articles.py` for one-off article fetches (multi-source merge)
 - `NLP/process_sentiment_pipeline.py` for sentiment scoring and database writes
 
 A separate synthetic health-check path lives in `NLP/monitor_daemon.py`.
+
+> The five top-level CLI modules above (`fetch_articles`, `fetch_alt_articles`,
+> `process_sentiment_pipeline`, `update_database`, `sentiment_processor`,
+> `test_pipeline`) are thin **backwards-compat shims**. The implementation
+> lives in subpackages - see [Package Layout](#package-layout). External
+> imports such as `from NLP import fetch_articles` and the daemon's
+> `subprocess.run([..., "-m", "NLP.fetch_articles", ...])` calls keep working.
 
 ## Runtime Model
 
@@ -60,22 +77,59 @@ python -m NLP.update_database --query AAPL MSFT
 python NLP/monitor_daemon.py --synthetic --max-log-age-hours 72
 ```
 
-## Key Files
+## Package Layout
 
-### Core pipeline
+The package is organised by responsibility. Top-level modules are thin
+back-compat shims; the canonical implementations live in subpackages.
 
-- `daemon.py` - portfolio-driven scraper and sentiment daemon
-- `fetch_articles.py` - article scraping and per-ticker CSV generation
-- `process_sentiment_pipeline.py` - sentiment scoring and persistence
-- `sentiment_processor.py` - FinBERT sentiment scoring helpers
-- `update_database.py` - database integration and query helpers
+```
+NLP/
+├── daemon.py                    # entrypoint - NLPDaemon + TickerBatchProcessor
+├── monitor_daemon.py            # entrypoint - DaemonMonitor / DaemonHealthCheck
+├── fetch_articles.py            # shim -> scrapers.fmp + scrapers.aggregator
+├── fetch_alt_articles.py        # shim -> ArticleScraper facade
+├── sentiment_processor.py       # shim -> sentiment.scorer (SentimentProcessor)
+├── process_sentiment_pipeline.py# shim -> sentiment.pipeline (SentimentPipeline)
+├── update_database.py           # shim -> persistence.repository
+├── test_pipeline.py             # shim -> sentiment.pipeline smoke run
+├── core/                        # shared helpers
+│   ├── paths.py                 # NLP_DIR, ARTICLES_DIR, SCORES_DIR, MODEL_DIR
+│   ├── timestamps.py            # normalize_timestamp / normalize_published_date_column
+│   └── logging_config.py        # get_logger + rotating-file logger
+├── scrapers/
+│   ├── base.py                  # BaseNewsScraper ABC, ArticleRecord
+│   ├── fmp.py                   # FmpNewsScraper, FmpFetchStateStore
+│   ├── yahoo.py                 # YahooNewsScraper (yfinance + retry)
+│   ├── finviz.py                # FinvizNewsScraper (async aiohttp)
+│   ├── alpha_vantage.py         # AlphaVantageNewsScraper
+│   ├── truth_social.py          # TruthSocialScraper (Apify)
+│   └── aggregator.py            # ArticleAggregator (multi-source merge + dedup)
+├── sentiment/
+│   ├── scorer.py                # FinBertSentimentScorer
+│   └── pipeline.py              # SentimentPipeline
+├── persistence/
+│   └── repository.py            # NewsSentimentRepository
+└── orchestration/
+    └── ticker_universe.py       # TickerUniverse (load + batch tickers)
+```
 
-### Monitoring and utilities
+### Class map (canonical names)
 
-- `monitor_daemon.py` - synthetic checks for external health
-- `test_pipeline.py` - end-to-end pipeline validation
-- `fetch_alt_articles.py` - alternate article fetch path
-- `news_scraper.py` - scraper helpers for individual sources
+| Concern              | Class                          | Module                              | Legacy alias                |
+|----------------------|--------------------------------|-------------------------------------|-----------------------------|
+| FMP paged scraper    | `FmpNewsScraper`               | `NLP.scrapers.fmp`                  | -                           |
+| FMP fetch state      | `FmpFetchStateStore`           | `NLP.scrapers.fmp`                  | -                           |
+| Yahoo scraper        | `YahooNewsScraper`             | `NLP.scrapers.yahoo`                | `ArticleScraper.scrape_yahoo`  |
+| Finviz scraper       | `FinvizNewsScraper`            | `NLP.scrapers.finviz`               | `ArticleScraper.scrape_finviz` |
+| Alpha Vantage        | `AlphaVantageNewsScraper`      | `NLP.scrapers.alpha_vantage`        | `ArticleScraper.scrape_alpha`  |
+| Truth Social         | `TruthSocialScraper`           | `NLP.scrapers.truth_social`         | `ArticleScraper.trump_tracker` |
+| Multi-source merge   | `ArticleAggregator`            | `NLP.scrapers.aggregator`           | `merge_all_sources`         |
+| Sentiment scorer     | `FinBertSentimentScorer`       | `NLP.sentiment.scorer`              | `SentimentProcessor`        |
+| Pipeline orchestrator| `SentimentPipeline`            | `NLP.sentiment.pipeline`            | -                           |
+| DB repository        | `NewsSentimentRepository`      | `NLP.persistence.repository`        | `SentimentDatabaseUpdater`  |
+| Ticker loader        | `TickerUniverse`               | `NLP.orchestration.ticker_universe` | -                           |
+| Daemon loop          | `NLPDaemon`                    | `NLP.daemon`                        | `start_daemon` / `run_scraping_cycle` |
+| Daemon health check  | `DaemonHealthCheck`            | `NLP.monitor_daemon`                | `run_synthetic_check`       |
 
 ## Data Layout
 
@@ -100,7 +154,7 @@ Examples:
 
 ### Model assets
 
-The FinBERT model lives in `NLP/finbert-combined-final/`.
+The FinBERT model lives in `NLP/finbert-combined-final/`. This folder is **not** in the repo — download it from the Google Drive link in [Prerequisite: Download the FinBERT Model](#prerequisite-download-the-finbert-model) and place it under `NLP/` before running the pipeline.
 
 ## Portfolio-Driven Batching
 

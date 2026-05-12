@@ -7,6 +7,8 @@ then issues BUY/SELL signals based on configurable thresholds.
 
 import logging
 
+import pandas as pd
+
 try:
     from portfolios.portfolio_BASE.strategy import BasePortfolio
     from portfolios.strategy_api import StrategyContext
@@ -39,11 +41,16 @@ class RBPStrategy(BasePortfolio):
         )
 
         rbp_cfg = config_dict.get("RBP_CONFIG", {})
-        self.feature_cols = rbp_cfg.get("FEATURE_COLS", [
-            "past_return_21d", "past_vol_21d",
-            "past_return_63d", "past_vol_63d",
-            "past_return_252d",
-        ])
+        self.feature_cols = rbp_cfg.get(
+            "FEATURE_COLS",
+            [
+                "past_return_21d",
+                "past_vol_21d",
+                "past_return_63d",
+                "past_vol_63d",
+                "past_return_252d",
+            ],
+        )
         self.target_col = rbp_cfg.get("TARGET_COL", "target_return_21d")
         self.split_date = rbp_cfg.get("SPLIT_DATE", "2020-01-01")
         self.buy_threshold = rbp_cfg.get("BUY_THRESHOLD", 0.005)
@@ -70,7 +77,8 @@ class RBPStrategy(BasePortfolio):
                 continue
             hist = hist.copy()
             hist["ticker"] = ticker
-            hist["timestamp"] = hist.index
+            if "timestamp" in hist.columns:
+                hist = hist.drop(columns=["timestamp"])
             market_df = hist if market_df is None else pd.concat([market_df, hist])
 
         if market_df is None or market_df.empty:
@@ -116,13 +124,15 @@ class RBPStrategy(BasePortfolio):
             close = hist["close_price"]
             daily_ret = close.pct_change()
 
-            x_t = pd.Series({
-                "past_return_21d": close.pct_change(21).iloc[-1],
-                "past_vol_21d": daily_ret.rolling(21).std().iloc[-1],
-                "past_return_63d": close.pct_change(63).iloc[-1],
-                "past_vol_63d": daily_ret.rolling(63).std().iloc[-1],
-                "past_return_252d": close.pct_change(252).iloc[-1],
-            })
+            x_t = pd.Series(
+                {
+                    "past_return_21d": close.pct_change(21).iloc[-1],
+                    "past_vol_21d": daily_ret.rolling(21).std().iloc[-1],
+                    "past_return_63d": close.pct_change(63).iloc[-1],
+                    "past_vol_63d": daily_ret.rolling(63).std().iloc[-1],
+                    "past_return_252d": close.pct_change(252).iloc[-1],
+                }
+            )
 
             if x_t.isna().any():
                 continue

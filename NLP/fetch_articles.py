@@ -1,45 +1,44 @@
+"""Backwards-compatible module for ``python -m NLP.fetch_articles``.
+
+The implementation moved to :mod:`NLP.scrapers.fmp` (FMP scraping +
+fetch state) and :mod:`NLP.scrapers.aggregator` (multi-source merge).
+This module re-exports the public surface and keeps the legacy CLI
+entrypoint so external callers, tests, and the daemon's
+``subprocess.run([..., "-m", "NLP.fetch_articles", ...])`` keep working.
+"""
+
+from __future__ import annotations
+
 import argparse
-import json
-import os
-import sys
-import time
 from datetime import datetime
 
 import pandas as pd
-import requests
 
-# insert project root into your path
-proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if proj_root not in sys.path:
-    sys.path.insert(0, proj_root)
+from NLP.core import (
+    ARTICLES_DIR,
+    STATE_DIR,
+    ensure_project_root_on_path,
+    get_logger,
+)
+from NLP.core.timestamps import normalize_published_date
+from NLP.scrapers.aggregator import ArticleAggregator, remove_duplicate_articles
+from NLP.scrapers.fmp import FmpFetchStateStore, FmpNewsScraper
 
-from src.common.articles_gateway import ArticlesGateway
+ensure_project_root_on_path()
+from src.common.articles_gateway import ArticlesGateway  # noqa: E402
+
+logger = get_logger(__name__)
+
+# Legacy module-level constants kept for callers that imported them.
+MAX_PAGES_PER_RUN = FmpNewsScraper.MAX_PAGES_PER_RUN
+RATE_LIMIT = FmpNewsScraper.RATE_LIMIT_SECONDS
+OUTPUT_DIR = str(ARTICLES_DIR)
 
 gateway = ArticlesGateway()
 
-# ─── CONFIG ───────────────────────────────────────────────────────────────────
-MAX_PAGES_PER_RUN = 50  # Max pages to fetch in a single cycle
-RATE_LIMIT = 0.2  # Seconds to wait between API calls
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-OUTPUT_DIR = os.path.join(BASE_DIR, "articles")
-STATE_DIR = os.path.join(BASE_DIR, "fetch_state")
-
-
-def normalize_published_date(df):
-    """Coerce publishedDate to pandas datetime and drop invalid rows."""
-    if df is None or df.empty or "publishedDate" not in df.columns:
-        return df
-
-    out = df.copy()
-    out["publishedDate"] = pd.to_datetime(out["publishedDate"], errors="coerce")
-    out = out.dropna(subset=["publishedDate"])
-    return out
-
-
-# ─── ARGPARSE TO PICK UP COMMAND‐LINE ARGUMENTS ───────────────────────────────
-def parse_args():
-    """Parse command-line arguments for ticker and date range."""
+def parse_args() -> argparse.Namespace:
+    """Argparse entrypoint preserved for tests and the legacy CLI."""
     p = argparse.ArgumentParser(
         description="Fetch and update stock-news CSVs for a ticker within a date range."
     )
@@ -60,325 +59,70 @@ def parse_args():
     return p.parse_args()
 
 
-# ─── FUNCTIONS ────────────────────────────────────────────────────────────────
-# TODO: Implement content scraping if needed
-def scrape_article_content(symbol):
-    """
-    Scrape the full article content from the given URL using Selenium and BeautifulSoup.
-    Returns the article text or an empty string if scraping fails.
-    """
-
-    url = f"https://finance.yahoo.com/quote/{symbol}/news"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
-    }
-
-    try:
-        import requests
-        from bs4 import BeautifulSoup
-    except ImportError as e:
-        print(f"{e.name} is not installed. Cannot scrape article content.")
-        return ""
-
-    try:
-        resp = requests.get(url, headers=headers, timeout=30)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
-
-        articles = soup.find_all("li", {"class": "js-stream-content"})
-        article_texts = []
-        for article in articles:
-            title_tag = article.find("h3")
-            content_tag = article.find("p")
-            title = title_tag.get_text(strip=True) if title_tag else ""
-            content = content_tag.get_text(strip=True) if content_tag else ""
-            article_texts.append(f"{title}\n{content}")
-        return "\n\n".join(article_texts)
-    except Exception as e:
-        print(f"Error scraping {url}: {e}")
-    return ""
+def remove_duplicates(*frames: pd.DataFrame) -> pd.DataFrame:
+    """Back-compat alias for :func:`NLP.scrapers.aggregator.remove_duplicate_articles`."""
+    return remove_duplicate_articles(*frames)
 
 
-#############################################################################
-def fetch_news(symbol, start_date, end_date, start_page=0):
-    """
-    Fetch stock news from FMP for a symbol within a date range.
-    Returns articles found, flag if page limit was hit, and next start page.
-    """
-    print(f"[{symbol}] Fetching articles from page {start_page}...")
-    all_articles = []
-    page = start_page
-    reached_start_date = False
-
-    while page < start_page + MAX_PAGES_PER_RUN:
-        try:
-            news = gateway.fetch_fmp_news(symbol, page)
-        except requests.RequestException as e:
-            print(f"[{symbol}] Request error on page {page}: {e}")
-            break
-
-        if not news:
-            print(f"[{symbol}] No more articles found from API.")
-            break
-
-        for art in news:
-            pd_str = art.get("publishedDate")
-            try:
-                art_date = datetime.strptime(pd_str, "%Y-%m-%d %H:%M:%S")
-            except (ValueError, TypeError):
-                continue
-
-            if art_date < start_date:
-                reached_start_date = True
-                break
-
-            if art_date <= end_date:
-                # ⬇️ FIX APPLIED HERE ⬇️
-                all_articles.append(
-                    {
-                        "publishedDate": art_date,
-                        "title": (art.get("title") or "").strip(),
-                        "content": (
-                            art.get("text") or art.get("content") or ""
-                        ).strip(),
-                        "site": (art.get("url") or "").strip(),
-                    }
-                )
-
-        if reached_start_date:
-            print(f"[{symbol}] Reached the start date boundary.")
-            break
-
-        page += 1
-        time.sleep(RATE_LIMIT)
-
-    hit_max_pages = page == start_page + MAX_PAGES_PER_RUN
-    next_start_page = page
-
-    if hit_max_pages:
-        print(
-            f"[{symbol}] Reached page limit for this run. Next start page: {next_start_page}"
-        )
-    else:
-        print(
-            f"[{symbol}] Finished fetching available pages. Total pages: {page - start_page}"
-        )
-
-    return all_articles, hit_max_pages, next_start_page
+def fetch_news(symbol: str, start_date: datetime, end_date: datetime, start_page: int = 0):
+    """Back-compat wrapper around :meth:`FmpNewsScraper.fetch_page_window`."""
+    return FmpNewsScraper(symbol).fetch_page_window(start_date, end_date, start_page)
 
 
-def save_fetch_state(ticker, next_start_page, start_date, end_date):
-    """Save fetch state to JSON file"""
-    os.makedirs(STATE_DIR, exist_ok=True)
-    state_path = os.path.join(STATE_DIR, f"{ticker}_state.json")
-
-    state = {
-        "next_start_page": next_start_page,
-        "start_date": start_date.strftime("%Y-%m-%d"),
-        "end_date": end_date.strftime("%Y-%m-%d"),
-    }
-
-    with open(state_path, "w") as f:
-        json.dump(state, f)
+def save_fetch_state(ticker: str, next_start_page: int, start_date: datetime, end_date: datetime) -> None:
+    FmpFetchStateStore().save(ticker, next_start_page, start_date, end_date)
 
 
-def load_fetch_state(ticker, user_start, user_end):
-    """Load fetch state from JSON file if dates match"""
-    state_path = os.path.join(STATE_DIR, f"{ticker}_state.json")
-
-    if not os.path.exists(state_path):
-        return 0  # Start from page 0 if no state
-
-    try:
-        with open(state_path, "r") as f:
-            state = json.load(f)
-
-        # Reset state if date range changed
-        if state["start_date"] != user_start.strftime("%Y-%m-%d") or state[
-            "end_date"
-        ] != user_end.strftime("%Y-%m-%d"):
-            return 0
-
-        return state["next_start_page"]
-    except Exception:
-        return 0
+def load_fetch_state(ticker: str, user_start: datetime, user_end: datetime) -> int:
+    return FmpFetchStateStore().load(ticker, user_start, user_end)
 
 
-def update_ticker_csv(symbol, start_date_str, end_date_str):
-    """
-    Fetch articles incrementally by tracking last fetched page in state file
-    """
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    csv_path = os.path.join(OUTPUT_DIR, f"{symbol}.csv")
-
-    try:
-        user_start = datetime.strptime(start_date_str, "%Y-%m-%d")
-        user_end = datetime.strptime(end_date_str, "%Y-%m-%d").replace(
-            hour=23, minute=59, second=59
-        )
-    except ValueError:
-        print("Error: Dates must be in YYYY-MM-DD format.")
-        return
-
-    # Load or initialize fetch state
-    start_page = load_fetch_state(symbol, user_start, user_end)
-    has_more_pages = True
-    run_count = 1
-
-    while has_more_pages:
-        print(
-            f"\n--- Starting fetch cycle #{run_count} (starting page: {start_page}) ---"
-        )
-
-        # Fetch articles from current start page
-        articles, hit_max_pages, next_page = fetch_news(
-            symbol, user_start, user_end, start_page
-        )
-
-        # Update CSV if we found articles
-        if articles:
-            new_df = normalize_published_date(pd.DataFrame(articles))
-
-            if os.path.exists(csv_path):
-                try:
-                    old_df = pd.read_csv(csv_path, parse_dates=["publishedDate"])
-                    old_df = normalize_published_date(old_df)
-                    combined = pd.concat([old_df, new_df], ignore_index=True)
-                except pd.errors.EmptyDataError:
-                    combined = new_df
-            else:
-                combined = new_df
-
-            combined = normalize_published_date(combined)
-
-            # Remove duplicates and sort
-            initial_count = len(combined)
-            combined.drop_duplicates(
-                subset=["publishedDate", "title"], keep="first", inplace=True
-            )
-            combined.sort_values("publishedDate", ascending=False, inplace=True)
-            combined.to_csv(csv_path, index=False, date_format="%Y-%m-%d %H:%M:%S")
-
-            added = len(combined) - (initial_count - len(new_df))
-            duplicates_removed = initial_count - len(combined)
-            print(
-                f"[{symbol}] Added {added} new articles, removed {duplicates_removed} duplicates"
-            )
-        else:
-            print(f"[{symbol}] No new articles found in this batch")
-
-        # Update state and determine if we should continue
-        start_page = next_page
-        has_more_pages = hit_max_pages
-        save_fetch_state(symbol, start_page, user_start, user_end)
-
-        run_count += 1
-
-    print(f"\n[{symbol}] Fetching completed successfully!")
-
-
-def remove_duplicates(*kwargs):
-    """Remove duplicates based on title and publishedDate."""
-    normalized = [normalize_published_date(df) for df in kwargs if df is not None]
-    combined = pd.concat(normalized, ignore_index=True)
-    combined = normalize_published_date(combined)
-    before_dedup = len(combined)
-    combined.drop_duplicates(
-        subset=["publishedDate", "title"], keep="first", inplace=True
-    )
-    after_dedup = len(combined)
-    print(
-        f"Removed {before_dedup - after_dedup} duplicates; {after_dedup} unique articles remain."
-    )
-    return combined
+def update_ticker_csv(symbol: str, start_date_str: str, end_date_str: str) -> None:
+    FmpNewsScraper(symbol).update_csv(start_date_str, end_date_str)
 
 
 def merge_all_sources(args, yahoo_news_df, finviz_news_df, alpha_news_df, tmnt_news_df):
-    """Merge all article sources into a single CSV file per ticker."""
-    path = os.path.dirname(__file__) + "/articles"
-    fmp_path = f"{path}/{args.ticker.upper()}.csv"
+    """Back-compat shim that mirrors the old free-function path.
 
-    # Load existing FMP data if it exists
-    try:
-        fmp_df = pd.read_csv(fmp_path, parse_dates=["publishedDate"])
-        fmp_df = normalize_published_date(fmp_df)
-        print(f"Loaded existing FMP data: {len(fmp_df)} articles")
-    except FileNotFoundError:
-        print(f"No existing FMP data found for {args.ticker.upper()}")
-        fmp_df = pd.DataFrame()
-
-    # Combine all sources
-    all_dataframes = []
-
-    if not fmp_df.empty:
-        all_dataframes.append(fmp_df)
-        print(f"FMP articles: {len(fmp_df)}")
-
-    if not yahoo_news_df.empty:
-        all_dataframes.append(yahoo_news_df)
-        print(f"Yahoo articles: {len(yahoo_news_df)}")
-
-    if not finviz_news_df.empty:
-        all_dataframes.append(finviz_news_df)
-        print(f"Finviz articles: {len(finviz_news_df)}")
-
-    if not alpha_news_df.empty:
-        all_dataframes.append(alpha_news_df)
-        print(f"Alpha Vantage articles: {len(alpha_news_df)}")
-    if not tmnt_news_df.empty and args.trump_tracker:
-        all_dataframes.append(tmnt_news_df)
-        print(f"Trump Tracker articles: {len(tmnt_news_df)}")
-    if not all_dataframes:
-        print(f"No articles found for {args.ticker.upper()}")
-        return fmp_path
-
-    # Merge all sources
-    combined_df = remove_duplicates(*all_dataframes)
-
-    # Save the merged file
-    combined_df.to_csv(fmp_path, index=False, date_format="%Y-%m-%d %H:%M:%S")
-    print(f"Saved merged articles to {fmp_path}: {len(combined_df)} total articles")
-
-    return fmp_path
+    Defers to :class:`ArticleAggregator` for the FMP load + dedup +
+    save logic.
+    """
+    aggregator = ArticleAggregator(
+        args.ticker.upper(),
+        include_trump_tracker=bool(getattr(args, "trump_tracker", False)),
+    )
+    return aggregator._merge(yahoo_news_df, finviz_news_df, alpha_news_df, tmnt_news_df)
 
 
-def main():
-    """Main function to parse arguments and initiate the fetch."""
+def main() -> None:
     args = parse_args()
-    update_ticker_csv(args.ticker.upper(), args.start_date, args.end_date)
-
-    from NLP.fetch_alt_articles import ArticleScraper
-
-    scraper = ArticleScraper(args.ticker.upper())
-    # Alpha Vantage expects format YYYYMMDDTHHmm (no seconds)
-    start = datetime.strptime(args.start_date, "%Y-%m-%d").strftime("%Y%m%dT%H%M")
-    end = (
-        datetime.strptime(args.end_date, "%Y-%m-%d")
-        .replace(hour=23, minute=59)
-        .strftime("%Y%m%dT%H%M")
+    aggregator = ArticleAggregator(
+        args.ticker.upper(),
+        include_trump_tracker=bool(args.trump_tracker),
     )
-    yahoo = scraper.scrape_yahoo()
-    finviz = scraper.scrape_finviz()
-    alpha = scraper.scrape_alpha(
-        ticker=[args.ticker.upper()], time_from=start, time_to=end
-    )
-    tmnt = scraper.trump_tracker()
-    print("--------------------\n")
-    print(f"Fetching additional articles for {args.ticker.upper()}.")
-
-    # Convert to DataFrame for further analysis if needed
-    yahoo_news_df = pd.DataFrame(yahoo)
-    finviz_news_df = pd.DataFrame(finviz)
-    alpha_news_df = pd.DataFrame(alpha)
-    tmnt_news_df = pd.DataFrame(tmnt)
-    # Merge all sources into single file
-    final_path = merge_all_sources(
-        args, yahoo_news_df, finviz_news_df, alpha_news_df, tmnt_news_df
-    )
-    # Trump tracker is skipped on default until we decide how to handle it in the pipeline, so we can ignore the fact that it is not being merged in the default case
+    final_path = aggregator.run(args.start_date, args.end_date)
     print(f"All articles merged into single file: {final_path}")
     print(f"Processing completed for {args.ticker.upper()}")
 
 
 if __name__ == "__main__":
     main()
+
+
+__all__ = [
+    "ArticlesGateway",
+    "MAX_PAGES_PER_RUN",
+    "OUTPUT_DIR",
+    "RATE_LIMIT",
+    "STATE_DIR",
+    "fetch_news",
+    "gateway",
+    "load_fetch_state",
+    "main",
+    "merge_all_sources",
+    "normalize_published_date",
+    "parse_args",
+    "remove_duplicates",
+    "save_fetch_state",
+    "update_ticker_csv",
+]

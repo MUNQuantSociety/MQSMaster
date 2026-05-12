@@ -51,7 +51,7 @@ flowchart LR
 - [Database schema](workflows/database-schema.md) — tables, ER, atomic state queries
 
 ### Subsystems
-- [NLP sentiment pipeline](NLP/README.md) — daemon, FinBERT scoring, `news_sentiment` table
+- [NLP sentiment pipeline](NLP/README.md) — daemon, FinBERT scoring, `news_sentiment` table. **Requires the fine-tuned FinBERT model** to be downloaded into `NLP/finbert-combined-final/` before use — see [NLP setup](NLP/README.md#prerequisite-download-the-finbert-model).
 - [Backfill CLI](BackFill/Readme.md) — `backfill_cli` commands and arguments
 - [Backfill / refresh script](BackFill/refresh_README.md) — `refresh.py` ticker universe updater
 - [Order Management System (proposed)](OMS/OMS_DESIGN.md) — VWAP/TWAP design doc, not yet implemented

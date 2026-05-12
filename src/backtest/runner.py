@@ -259,7 +259,7 @@ class BacktestRunner:
             return None
         try:
             perf_df = pd.DataFrame(self.perf_records)
-            perf_df["timestamp"] = pd.to_datetime(perf_df["timestamp"])
+            perf_df["timestamp"] = pd.to_datetime(perf_df["timestamp"], utc=True, errors="coerce")
             perf_df.sort_values("timestamp", inplace=True)
             perf_df.reset_index(drop=True, inplace=True)
 

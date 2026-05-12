@@ -24,8 +24,6 @@ TEMP_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../../data/backfill_cache")
 )
 
-os.makedirs(TEMP_DIR, exist_ok=True)  # Ensure the directory exists
-
 
 def convert_to_date(date_value):
     """Converts a string or datetime to a date object."""
@@ -144,6 +142,8 @@ def backfill_data(
     ]
 
     # 5) Generate the output path if output_filename is provided
+    os.makedirs(TEMP_DIR, exist_ok=True)
+    # Ensure the directory exists
     #    (or auto-generate one if it's the default)
     output_path = None
     if output_filename is not None:

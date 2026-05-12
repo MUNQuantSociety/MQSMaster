@@ -7,8 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- !! ACTION REQUIRED !! ---
 # Define the absolute path to the Python executable in your virtual environment.
-# Based on your 'ls' command, this should be the correct path.
-PYTHON_VENV="/app/MQSMaster/MQS/bin/python" #docker deployment path
+# Defaults to the Docker image venv path and can be overridden via PYTHON_VENV.
+PYTHON_VENV="${PYTHON_VENV:-/app/MQS/bin/python}"
 
 # Load environment variables (like FMP_API_KEY) from the .env file.
 # The .env file should be in the same directory as this script.
