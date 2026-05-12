@@ -112,7 +112,7 @@ class FMPMarketData:
                 )
                 time.sleep(wait_time)
             else:
-                time.sleep(0)
+                return
 
     def _wait_for_internet(self, max_wait_seconds=None):
         """
@@ -163,6 +163,8 @@ class FMPMarketData:
                 )
 
                 if response.status_code == 200:
+                    with self._lock:
+                        self.request_timestamps.append(time.time())
                     return response.json()
 
                 self.logger.warning(

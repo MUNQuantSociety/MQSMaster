@@ -75,7 +75,10 @@ def _compute_annual_return(perf_df: pd.DataFrame) -> float:
     if elapsed_days <= 0:
         return 0.0
 
-    annual_return = (end_value / start_value) ** (365.25 / elapsed_days) - 1.0
+    ratio = end_value / start_value
+    if ratio <= 0:
+        return -1.0
+    annual_return = ratio ** (365.25 / elapsed_days) - 1.0
     if not np.isfinite(annual_return):
         return 0.0
     return float(annual_return)

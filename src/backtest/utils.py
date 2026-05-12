@@ -10,34 +10,25 @@ from src.portfolios.portfolio_BASE.strategy import BasePortfolio
 
 def _fetch_from_db(portfolio, tickers: List[str], start, end) -> pd.DataFrame:
     """
-    Fetches market data for the specified ticker(s) within the specified date range.
-
-    sql logic:
-    SELECT for specified tickers:
-        timestamps for all tickers, sorted by newest, take newest for each, gives last timestamp of the day
-        all open prices sorted by timestamp, take first (oldest) -> market open price
-        fetch highest price seen that day
-        fetch lowest price seen that day
-        fetch closing price (first point when ordered by timestamp descending, opposite order to open_price)
-    group ticker date and order by ascending timestamp
+    Fetches raw intraday market data for the specified ticker(s) within the
+    specified date range. Returns one row per bar (no daily aggregation).
     """
     logger = portfolio.logger
     placeholders = ", ".join(["%s"] * len(tickers))
     sql = f"""
         SELECT
             ticker,
-            (ARRAY_AGG(timestamp   ORDER BY timestamp DESC))[1] AS timestamp,
-            (ARRAY_AGG(open_price  ORDER BY timestamp ASC ))[1] AS open_price,
-            MAX(high_price)                                      AS high_price,
-            MIN(low_price)                                       AS low_price,
-            (ARRAY_AGG(close_price ORDER BY timestamp DESC))[1] AS close_price,
-            SUM(volume)                                          AS volume
+            timestamp,
+            open_price,
+            high_price,
+            low_price,
+            close_price,
+            volume
           FROM market_data
          WHERE ticker IN ({placeholders})
            AND timestamp BETWEEN %s AND %s
            AND (timestamp AT TIME ZONE 'America/New_York')::time
                BETWEEN '09:30' AND '16:00'
-         GROUP BY ticker, DATE(timestamp AT TIME ZONE 'America/New_York')
          ORDER BY timestamp ASC
     """
     params = tickers + [start, end]

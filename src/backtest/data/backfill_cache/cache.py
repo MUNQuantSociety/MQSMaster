@@ -6,7 +6,6 @@ date-range-aware: only date sub-ranges not already stored are fetched from
 the DB, so re-running a backtest with the same (or overlapping) dates
 skips the query entirely and loads from disk instead.
 """
-
 import logging
 from pathlib import Path
 from typing import List, Tuple
@@ -32,7 +31,7 @@ def _path(ticker: str) -> Path:
 
 def load(ticker: str) -> pd.DataFrame:
     """
-    Load cached data for a single ticker.
+    Load cached data for a single ticker. 
     Returns empty DataFrame on miss.
     """
     path = _path(ticker)
@@ -42,10 +41,7 @@ def load(ticker: str) -> pd.DataFrame:
         df = pd.read_parquet(path)
         logger.debug(
             "[%s] Cache hit: %d rows (%s -> %s)",
-            ticker,
-            len(df),
-            df["timestamp"].min(),
-            df["timestamp"].max(),
+            ticker, len(df), df["timestamp"].min(), df["timestamp"].max(),
         )
         return df
     except Exception as e:
@@ -62,9 +58,7 @@ def save(ticker: str, df: pd.DataFrame) -> None:
         return
     try:
         # Sort values, save to parquet
-        df.sort_values("timestamp").reset_index(drop=True).to_parquet(
-            _path(ticker), index=False
-        )
+        df.sort_values("timestamp").reset_index(drop=True).to_parquet(_path(ticker), index=False)
         logger.debug("[%s] Cache saved: %d rows", ticker, len(df))
     except Exception as e:
         # Error occured while sorting or saving
@@ -72,14 +66,14 @@ def save(ticker: str, df: pd.DataFrame) -> None:
 
 
 def missing_ranges(
-    cached: pd.DataFrame,  # cached data passed as element of a list (can be an empty df)
+    cached: pd.DataFrame,   # cached data passed as element of a list (can be an empty df)
     start: pd.Timestamp,
-    end: pd.Timestamp,
-) -> List[Tuple[pd.Timestamp, pd.Timestamp]]:
+    end: pd.Timestamp
+    ) -> List[Tuple[pd.Timestamp, pd.Timestamp]]:
     """
-    Return the sub-ranges within [start, end] not covered by the cache to be used
+    Return the sub-ranges within [start, end] not covered by the cache to be used 
     in db query. Return up to 2 subranges, depending on whether data missing
-    before and/or after.
+    before and/or after. 
 
     Return entire [start,end] range if no cached data.
     Return empty list gaps [] if data already exists.
@@ -87,13 +81,9 @@ def missing_ranges(
     if cached.empty:
         return [(start, end)]
 
-    cached["timestamp"] = pd.to_datetime(cached["timestamp"], utc=True)
     cached_min = cached["timestamp"].min()
     cached_max = cached["timestamp"].max()
 
-    start = pd.to_datetime(start, utc=True)
-    end = pd.to_datetime(end, utc=True)
-    
     gaps = []
     if start < cached_min:
         gaps.append((start, cached_min))
@@ -102,17 +92,13 @@ def missing_ranges(
     return gaps
 
 
-def merge_and_save(
-    ticker: str, cached: pd.DataFrame, new: pd.DataFrame
-) -> pd.DataFrame:
+def merge_and_save(ticker: str, cached: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
     """
     Merge new rows into cached data, deduplicate on timestamp, sort, save, return.
     """
     if new.empty:
         return cached
-    combined = (
-        pd.concat([cached, new], ignore_index=True) if not cached.empty else new.copy()
-    )
+    combined = pd.concat([cached, new], ignore_index=True) if not cached.empty else new.copy()
     combined.drop_duplicates(subset=["timestamp"], inplace=True)
     combined.sort_values("timestamp", inplace=True)
     combined.reset_index(drop=True, inplace=True)

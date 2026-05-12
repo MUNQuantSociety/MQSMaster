@@ -17,7 +17,7 @@ from src.orchestrator.marketData.fmpMarketData import FMPMarketData
 logger = logging.getLogger(__name__)
 
 # Batch size: number of days per API call (e.g., 2 means requesting 2 days at once)
-BATCH_DAYS = 3
+BATCH_DAYS = 30
 
 # Directory for storing temporary CSVs
 TEMP_DIR = os.path.abspath(
