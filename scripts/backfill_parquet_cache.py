@@ -20,19 +20,19 @@ from src.orchestrator.marketData.fmpMarketData import FMPMarketData
 
 CACHE_DIR = Path("src/backtest/data/backfill_cache")
 
-FROM_DATE = "2015-01-01"
+FROM_DATE = "2010-01-01"
 TO_DATE   = "2025-12-31"
 
 TICKERS = [
     "TSLA", "AMZN", "MSFT", "NVDA",
     "JPM",  "XOM",  "UNH",  "CAT",  "WMT",
-    "TLT",  "GLD", "SPY",
+    "TLT",  "GLD", "SPY", "^VIX"
 ]
 
 # Delete and fully rebuild — switching to intraday means all existing daily parquets
 # are incompatible and must be replaced
 REPLACE_ENTIRELY = {"TSLA", "AMZN", "MSFT", "NVDA", "JPM", "XOM",
-                    "UNH", "CAT", "WMT", "TLT", "GLD", "SPY"}
+                    "UNH", "CAT", "WMT", "TLT", "GLD", "SPY", "^VIX"}
 
 
 INTERVAL    = 30          # bar size in minutes

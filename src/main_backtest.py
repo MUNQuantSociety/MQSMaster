@@ -43,28 +43,28 @@ Backtest configuration parameters:
 - AVAILABLE_PORTFOLIO_CLASSES: A list of all available portfolio strategy classes that can be used in the backtest.
 - BACKTEST_NUM_BATCHES: An optional integer specifying the number of batches to use for parallel backtest execution. If set to None, the batch count will be automatically determined based on the number of CPU cores and the number of portfolios.
 """
-START_DATE = "2025-01-01"
+START_DATE = "2011-01-01"
 END_DATE = "2025-09-05"
 INITIAL_CAPITAL = 1000000.0
 SLIPPAGE = 0.000001  # 0.1 basis point
 BACKTEST_MODE = ""  # or "fast"
 BACKTEST_NUM_BATCHES = None  # Set to an integer to override auto batch(for best results use the number of cores on your machine).
 DEFAULT_PORTFOLIO_CLASSES = [
-    VolMomentum,
-    MomentumStrategy,
+   # VolMomentum,
+    #MomentumStrategy,
     RegimeAdaptiveStrategy,
-    TrendRotateStrategy,
-    CrossoverRmiStrategy,
-    RBPStrategy,
+   # TrendRotateStrategy,
+  #  CrossoverRmiStrategy,
+   # RBPStrategy,
 ]
 
 AVAILABLE_PORTFOLIO_CLASSES = [
-    VolMomentum,
-    MomentumStrategy,
+ #   VolMomentum,
+  #  MomentumStrategy,
     RegimeAdaptiveStrategy,
-    TrendRotateStrategy,
-    CrossoverRmiStrategy,
-    RBPStrategy,
+   # TrendRotateStrategy,
+   # CrossoverRmiStrategy,
+  #  RBPStrategy,
 ]
 
 # Adapters for external vectorized backtest approximations of the above strategies.

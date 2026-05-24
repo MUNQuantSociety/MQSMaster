@@ -1,0 +1,145 @@
+{
+  "AAPL": {
+    "ATR_BAND_MULT": 0.6,
+    "MOMENTUM_THRESHOLD": 2.7,
+    "BASE_CONF": 0.9,
+    "STOP_LOSS_ATR_MULT": 3.0,
+    "REVERSAL_THRESHOLD": 4,
+    "sharpe_validation": 8.808,
+    "optimized_at": "2026-05-24",
+    "train_period": "2015-01-01/2022-12-31",
+    "validation_period": "2023-01-01/2023-12-31"
+  },
+  "TSLA": {
+    "ATR_BAND_MULT": 2.5,
+    "MOMENTUM_THRESHOLD": 2.3,
+    "BASE_CONF": 0.55,
+    "STOP_LOSS_ATR_MULT": 1.0,
+    "REVERSAL_THRESHOLD": 5,
+    "sharpe_validation": 2.4658,
+    "optimized_at": "2026-05-24",
+    "train_period": "2015-01-01/2022-12-31",
+    "validation_period": "2023-01-01/2023-12-31"
+  },
+  "AMZN": {
+    "ATR_BAND_MULT": 2.3,
+    "MOMENTUM_THRESHOLD": 2.5,
+    "BASE_CONF": 0.7,
+    "STOP_LOSS_ATR_MULT": 5.5,
+    "REVERSAL_THRESHOLD": 3,
+    "sharpe_validation": 2.1894,
+    "optimized_at": "2026-05-24",
+    "train_period": "2015-01-01/2022-12-31",
+    "validation_period": "2023-01-01/2023-12-31"
+  },
+  "MSFT": {
+    "ATR_BAND_MULT": 1.6,
+    "MOMENTUM_THRESHOLD": 2.2,
+    "BASE_CONF": 0.35,
+    "STOP_LOSS_ATR_MULT": 5.5,
+    "REVERSAL_THRESHOLD": 4,
+    "sharpe_validation": 1.5108,
+    "optimized_at": "2026-05-24",
+    "train_period": "2015-01-01/2022-12-31",
+    "validation_period": "2023-01-01/2023-12-31"
+  },
+  "NVDA": {
+    "ATR_BAND_MULT": 0.5,
+    "MOMENTUM_THRESHOLD": 0.5,
+    "BASE_CONF": 0.4,
+    "STOP_LOSS_ATR_MULT": 1.5,
+    "REVERSAL_THRESHOLD": 1,
+    "sharpe_validation": 3.8245,
+    "optimized_at": "2026-05-24",
+    "train_period": "2015-01-01/2022-12-31",
+    "validation_period": "2023-01-01/2023-12-31"
+  },
+  "JPM": {
+    "ATR_BAND_MULT": 2.5,
+    "MOMENTUM_THRESHOLD": 2.7,
+    "BASE_CONF": 0.4,
+    "STOP_LOSS_ATR_MULT": 2.0,
+    "REVERSAL_THRESHOLD": 5,
+    "sharpe_validation": 3.1415,
+    "optimized_at": "2026-05-24",
+    "train_period": "2015-01-01/2022-12-31",
+    "validation_period": "2023-01-01/2023-12-31"
+  },
+  "XOM": {
+    "ATR_BAND_MULT": 2.2,
+    "MOMENTUM_THRESHOLD": 0.5,
+    "BASE_CONF": 0.55,
+    "STOP_LOSS_ATR_MULT": 5.0,
+    "REVERSAL_THRESHOLD": 2,
+    "sharpe_validation": 0.2594,
+    "optimized_at": "2026-05-24",
+    "train_period": "2015-01-01/2022-12-31",
+    "validation_period": "2023-01-01/2023-12-31"
+  },
+  "UNH": {
+    "ATR_BAND_MULT": 1.7000000000000002,
+    "MOMENTUM_THRESHOLD": 2.1,
+    "BASE_CONF": 0.5,
+    "STOP_LOSS_ATR_MULT": 1.0,
+    "REVERSAL_THRESHOLD": 4,
+    "sharpe_validation": 2.3428,
+    "optimized_at": "2026-05-24",
+    "train_period": "2015-01-01/2022-12-31",
+    "validation_period": "2023-01-01/2023-12-31"
+  },
+  "CAT": {
+    "ATR_BAND_MULT": 2.8000000000000003,
+    "MOMENTUM_THRESHOLD": 0.9000000000000001,
+    "BASE_CONF": 0.65,
+    "STOP_LOSS_ATR_MULT": 1.0,
+    "REVERSAL_THRESHOLD": 1,
+    "sharpe_validation": 2.0794,
+    "optimized_at": "2026-05-24",
+    "train_period": "2015-01-01/2022-12-31",
+    "validation_period": "2023-01-01/2023-12-31"
+  },
+  "WMT": {
+    "ATR_BAND_MULT": 0.8,
+    "MOMENTUM_THRESHOLD": 2.6,
+    "BASE_CONF": 0.9,
+    "STOP_LOSS_ATR_MULT": 6.0,
+    "REVERSAL_THRESHOLD": 2,
+    "sharpe_validation": 1.4924,
+    "optimized_at": "2026-05-24",
+    "train_period": "2015-01-01/2022-12-31",
+    "validation_period": "2023-01-01/2023-12-31"
+  },
+  "TLT": {
+    "ATR_BAND_MULT": 0.8,
+    "MOMENTUM_THRESHOLD": 1.2,
+    "BASE_CONF": 0.35,
+    "STOP_LOSS_ATR_MULT": 5.5,
+    "REVERSAL_THRESHOLD": 2,
+    "sharpe_validation": 1.0724,
+    "optimized_at": "2026-05-24",
+    "train_period": "2015-01-01/2022-12-31",
+    "validation_period": "2023-01-01/2023-12-31"
+  },
+  "GLD": {
+    "ATR_BAND_MULT": 2.8000000000000003,
+    "MOMENTUM_THRESHOLD": 0.4,
+    "BASE_CONF": 0.35,
+    "STOP_LOSS_ATR_MULT": 2.0,
+    "REVERSAL_THRESHOLD": 1,
+    "sharpe_validation": 1.1701,
+    "optimized_at": "2026-05-24",
+    "train_period": "2015-01-01/2022-12-31",
+    "validation_period": "2023-01-01/2023-12-31"
+  },
+  "^VIX": {
+    "ATR_BAND_MULT": 2.3,
+    "MOMENTUM_THRESHOLD": 2.1,
+    "BASE_CONF": 0.3,
+    "STOP_LOSS_ATR_MULT": 3.0,
+    "REVERSAL_THRESHOLD": 3,
+    "sharpe_validation": -999.0,
+    "optimized_at": "2026-05-24",
+    "train_period": "2015-01-01/2022-12-31",
+    "validation_period": "2023-01-01/2023-12-31"
+  }
+}

@@ -47,6 +47,12 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                 raise FileNotFoundError(f"Config file not found at {config_path}")
             with open(config_path, "r") as f:
                 config_dict = json.load(f)
+        
+        # loading parameters from optimizer
+        params_path = os.path.join(os.path.dirname(__file__), "ticker_params.json")
+        with open(params_path) as file:
+            self.ticker_params = json.load(file)
+        
 
         super().__init__(
             db_connector, executor, debug, config_dict, backtest_start_date
@@ -305,6 +311,16 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                 continue
 
             try:
+                # set params, if not found in ticker_params.json then revert to hardcoded values
+                p = self.ticker_params.get(ticker, {})
+                ATR_BAND_MULT = p.get('ATR_BAND_MULT', self.ATR_BAND_MULT)
+                MOMENTUM_THRESHOLD = p.get('MOMENTUM_THRESHOLD', self.MOMENTUM_THRESHOLD)
+                BASE_CONF = p.get('BASE_CONF', self.BASE_CONF)
+                STOP_LOSS_ATR_MULT = p.get('STOP_LOSS_ATR_MULT', self.STOP_LOSS_ATR_MULT)
+                REVERSAL_THRESHOLD = int(p.get('REVERSAL_THRESHOLD', self.REVERSAL_THRESHOLD))
+
+
+
                 # Check cooldown time -> skip iteration if last decision for ticker was made to recently
                 last_decision = self.last_decision_time.get(ticker)
                 if last_decision and (trade_ts - last_decision) < timedelta(
@@ -353,8 +369,8 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                     is_high_vol = vix_value > 20
 
                 # Upper and lower bands WITH multiplier param
-                upper_band = vwap_v + atr_v * self.ATR_BAND_MULT
-                lower_band = vwap_v - atr_v * self.ATR_BAND_MULT
+                upper_band = vwap_v + atr_v * ATR_BAND_MULT
+                lower_band = vwap_v - atr_v * ATR_BAND_MULT
 
                 # Initialize regime bools
                 signal = "HOLD"
@@ -365,12 +381,12 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                 # Checked first so it overrides any BUY signal that would average into a loss.
                 if quantity > 0 and ticker in self.entry_price:
                     entry = self.entry_price[ticker]
-                    if latest_price <= entry - self.STOP_LOSS_ATR_MULT * atr_v:
+                    if latest_price <= entry - STOP_LOSS_ATR_MULT * atr_v:
                         signal = "SELL"
                         is_stop_loss_exit = True
                         self.logger.debug(
                             f"[{ticker}] Stop-loss triggered: price {latest_price:.2f} "
-                            f"<= entry {entry:.2f} - {self.STOP_LOSS_ATR_MULT}*ATR({atr_v:.2f})"
+                            f"<= entry {entry:.2f} - {STOP_LOSS_ATR_MULT}*ATR({atr_v:.2f})"
                         )
 
                 if not is_stop_loss_exit:
@@ -395,9 +411,9 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                     else:
                         # Regime: Low Volatility -> Momentum
                         # Require price above SMA(50) to confirm the trend before buying.
-                        if momentum_v > self.MOMENTUM_THRESHOLD and latest_price > sma50_v:
+                        if momentum_v > MOMENTUM_THRESHOLD and latest_price > sma50_v:
                             signal = "BUY"
-                        elif momentum_v < -self.MOMENTUM_THRESHOLD:
+                        elif momentum_v < -MOMENTUM_THRESHOLD:
                             signal = "SELL"
 
                 # Fix issue of sell creating shorts -> sell signals only
@@ -422,11 +438,11 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                     and last_exec is not None
                     and last_exec != "HOLD"
                     and signal != last_exec
-                    and streak_count < self.REVERSAL_THRESHOLD
+                    and streak_count < REVERSAL_THRESHOLD
                 ):
                     self.logger.debug(
                         f"[{ticker}] Reversal {last_exec}->{signal} suppressed "
-                        f"(streak={streak_count}/{self.REVERSAL_THRESHOLD})"
+                        f"(streak={streak_count}/{REVERSAL_THRESHOLD})"
                     )
                     continue
 
@@ -480,7 +496,7 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                         strength_factor = min(1.0 + deviation * 0.5, 1.5)
                     else:
                         strength_factor = min(
-                            1.0 + abs(momentum_v) / self.MOMENTUM_THRESHOLD * 0.5, 1.5
+                            1.0 + abs(momentum_v) / MOMENTUM_THRESHOLD * 0.5, 1.5
                         )
 
                     # History factor
@@ -498,7 +514,7 @@ class RegimeAdaptiveStrategy(BasePortfolio):
                             1.0,
                             max(
                                 0.05,
-                                (self.BASE_CONF + streak_bonus)
+                                (BASE_CONF + streak_bonus)
                                 * reversal_factor
                                 * strength_factor
                                 * history_factor,
