@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 from src.backtest.optimizer import TickerParamOptim
 
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
 """
 Subclass of src/backtest/optimizer.py for portfolio_3
 
@@ -209,16 +212,47 @@ class Portfolio3Optimizer(TickerParamOptim):
         return pd.Series(returns, index=df.index)
 
 
+def _optimize_ticker_workers(args):
+    """
+    Helper method for multithreading. Runs optimizer without saving to JSON (avoid corruption).
+    Returns best params to call point, stored in main func until ready to save all tickers.
+    """
+    ticker, n_trials = args
+    opt = Portfolio3Optimizer()
+    return opt.run(ticker, n_trials=n_trials, save=False)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Optimize per-ticker parameters for Portfolio 3")
     parser.add_argument("--tickers",  nargs="+", required=True, help="One or more ticker symbols to optimize")
     parser.add_argument("--n-trials", type=int,  default=150,   help="Number of Optuna trials per ticker")
+    parser.add_argument("--workers", type=int, default=None)
     args = parser.parse_args()
 
-    optimizer = Portfolio3Optimizer()
-    for ticker in args.tickers:
-        print(f"\n{'='*50}\nOptimizing {ticker} ({args.n_trials} trials)\n{'='*50}")
-        optimizer.run(ticker, n_trials=args.n_trials)
+    # Multithreading #
+    # construct optimizer once, all params will be saved using this one instance
+    saver = Portfolio3Optimizer()
+
+    # number of workers is either the specified number or the smallest of available threads vs number of tickers specified.
+    n_workers = args.workers or min(len(args.tickers), os.cpu_count())
+
+    work = [(t, args.n_trials) for t in args.tickers] # define work as a (ticker, n_trials) tuple for each ticker
+
+    #processpoolexecutor runs each future as a separate child process.
+    with ProcessPoolExecutor(max_workers=n_workers) as executor:
+
+        # for each (ticker, trials) tuple, run the optimizer for that ticker trial pair
+        futures = {executor.submit(_optimize_ticker_workers, w): w[0] for w in work}
+
+        #When a future completes, collect the best params and save
+        for future in as_completed(futures):
+            ticker = futures[future]
+            try: 
+                ticker_out, params, sharpe = future.result()
+                saver.save_results(ticker_out, params, sharpe)  # saves ticker params as if optimizer was ran with only 1 ticker -> does not overwrite other ticker params
+                print(f'[{ticker_out}] Done: Sharpe={sharpe:.4f} | Params: {params}')
+            except Exception as e:
+                print(f'[{ticker}] Failed: {e}')
 
 
 if __name__ == "__main__":

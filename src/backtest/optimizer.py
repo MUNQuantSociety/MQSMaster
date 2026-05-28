@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 from datetime import date
 from pathlib import Path
 
+import concurrent.futures
+
 """
 12 May 2026
 Base class for ticker parameter optimization. Each strategy (portfolio) has its own subclass of this.
@@ -64,7 +66,8 @@ class TickerParamOptim(ABC):
         bars_per_year = 252 * 13 # 13 30-min bars per ticker per day in cache
         return float(returns.mean() / returns.std() * np.sqrt(bars_per_year))
 
-    def run(self, ticker: str, n_trials: int=150) -> dict:
+    def run(self, ticker: str, n_trials: int=150, save: bool=True) -> dict:
+
 
         ticker_df, self.vix_df = self.load_data(ticker)
 
@@ -81,9 +84,10 @@ class TickerParamOptim(ABC):
         )
 
         best = study.best_params
-        self.save_results(ticker, best, study.best_value)
+        if save:
+            self.save_results(ticker, best, study.best_value)
         print(f"[{ticker}] Best Sharpe: {study.best_value:.4f} | Params: {best}")
-        return best
+        return ticker, best, study.best_value
 
     def _objective(self, trial, ticker_df: pd.DataFrame) -> float:
         """
