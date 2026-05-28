@@ -1,11 +1,12 @@
 """
-Backfills historical daily OHLCV directly into local parquet cache using FMP.
-No database writes required — works around the read-only DB credentials.
+Backfills historical daily OHLCV directly into local parquet cache using FMP
 
-- All tickers: fetches 2015-01-01 to 2025-12-31 from FMP and merges into
-  existing parquet (deduplicates on timestamp, so re-running is safe).
-- GLD and SPY: existing parquets are deleted and rebuilt entirely to fix
-  their incorrect 14:29 ET timestamps (FMP returns correct 15:59 ET data).
+HOW TO USE:
+    - TICKERS{} -> Add all tickers you want to backfill.
+    - REPLACE_ENTIRELY{} -> Add any tickers that were filled with different time spacing or something
+        that you want to delete and overwrite.
+    - DAILY_TICKERS{} -> some tickers only have daily values in FMP (e.g., VIX before a certain date, GLD). 
+        Optimizer will NOT work for a daily-only ticker if not included in this dict.
 
 Usage:
     python -m scripts.backfill_parquet_cache
@@ -67,7 +68,7 @@ def _parse_rows(records: list, ticker: str) -> list:
 
 # VIX has no intraday history on FMP before 2023 — fetch daily instead so
 # regime detection works across the full 2015-2025 training window.
-DAILY_TICKERS = {"^VIX"}
+DAILY_TICKERS = {"^VIX", "GLD"}
 
 
 def _fetch_daily(fmp: FMPMarketData, ticker: str) -> list:
