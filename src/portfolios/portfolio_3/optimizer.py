@@ -6,6 +6,16 @@ from src.backtest.optimizer import TickerParamOptim
 """
 Subclass of src/backtest/optimizer.py for portfolio_3
 
+HOW TO RUN:
+    - python -m src.portfolios.portfolio_3.optimizer --tickers TICKER NAMES --n-trials NUMBEROFTRIALS
+
+Saves best params found to ticker_params.json. 
+
+Before running, check the params{} dict in suggest_params. To run all possible tests, will need
+LOTS of time and a shit load of trials. Consider trimming the optuna suggestions and running all 
+tickers, then fine-tuning the suggestions for each ticker if it maxes out a parameter, run for
+all trials.
+
 NOTE THIS OPTIMIZER DOES NOT INPUT VALUES FROM strategy.py, therefore:
     - indicator periods are hardcoded
     - assumes 1 bar per day of VIX
@@ -22,11 +32,26 @@ class Portfolio3Optimizer(TickerParamOptim):
         """
         Just returns a dict of params to be optimized in the form of optuna suggestions
         """
+        # params = {
+        #     'ATR_BAND_MULT': trial.suggest_float('ATR_BAND_MULT', 0.5, 3.0, step=0.1),
+        #     'MOMENTUM_THRESHOLD': trial.suggest_float('MOMENTUM_THRESHOLD', 0.3, 3.0, step=0.1),
+        #     'BASE_CONF': trial.suggest_float('BASE_CONF', 0.3, 0.9, step=0.05),
+        #     'STOP_LOSS_ATR_MULT': trial.suggest_float('STOP_LOSS_ATR_MULT', 1.0, 6.0, step=0.5),
+        #     'REVERSAL_THRESHOLD': trial.suggest_int('REVERSAL_THRESHOLD', 1, 5)
+        # }
+        
+        # params = {
+        #     'ATR_BAND_MULT': trial.suggest_float('ATR_BAND_MULT', 0.2, 3.0, step=0.1),
+        #     'MOMENTUM_THRESHOLD': trial.suggest_float('MOMENTUM_THRESHOLD', 0.1, 3.0, step=0.1),
+        #     'BASE_CONF': trial.suggest_float('BASE_CONF', 0.1, 1.0, step=0.05),
+        #     'STOP_LOSS_ATR_MULT': trial.suggest_float('STOP_LOSS_ATR_MULT', 0.5, 7.0, step=0.5),
+        #     'REVERSAL_THRESHOLD': trial.suggest_int('REVERSAL_THRESHOLD', 1, 5)
+        # }
         params = {
             'ATR_BAND_MULT': trial.suggest_float('ATR_BAND_MULT', 0.5, 3.0, step=0.1),
             'MOMENTUM_THRESHOLD': trial.suggest_float('MOMENTUM_THRESHOLD', 0.3, 3.0, step=0.1),
-            'BASE_CONF': trial.suggest_float('BASE_CONF', 0.3, 0.9, step=0.05),
-            'STOP_LOSS_ATR_MULT': trial.suggest_float('STOP_LOSS_ATR_MULT', 1.0, 6.0, step=0.5),
+            'BASE_CONF': trial.suggest_float('BASE_CONF', 0.9, 1.0, step=0.05),
+            'STOP_LOSS_ATR_MULT': trial.suggest_float('STOP_LOSS_ATR_MULT', 6.0, 8.0, step=0.5),
             'REVERSAL_THRESHOLD': trial.suggest_int('REVERSAL_THRESHOLD', 1, 5)
         }
         return params

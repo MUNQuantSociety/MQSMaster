@@ -125,8 +125,8 @@ class TickerParamOptim(ABC):
             **params,                               # store best params from optimizer 
             'sharpe_validation': round(sharpe, 4),  # Store risk-adjusted performance on validation set
             'optimized_at': str(date.today()),      # store date of this optimization
-            'train_period': f'2015-01-01/{self.train_end}',         # store training data used, will be useful in the future when more data is used
-            'validation_period': f'{self.val_start}/{self.val_end}' # store validation period used
+            'train_period': '2010-01-01/2022-12-31 (5-fold CV)',
+            'validation_period': '2015,2017,2019,2021,2023'
         }
         with open(self.params_path, 'w') as file:
             json.dump(existing, file, indent=2)
