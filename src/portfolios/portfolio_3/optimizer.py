@@ -1,5 +1,6 @@
 import argparse
 import numpy as np
+import math
 import pandas as pd
 from src.backtest.optimizer import TickerParamOptim
 
@@ -28,13 +29,44 @@ NOTE THIS OPTIMIZER DOES NOT INPUT VALUES FROM strategy.py, therefore:
 PARAMS_PATH = 'src/portfolios/portfolio_3/ticker_params.json'
 
 class Portfolio3Optimizer(TickerParamOptim):
+
+    # Default param ranges to be used for optuna suggestions and tuning limited ticker params.
+    DEFAULT_PARAM_RANGES = {
+        'ATR_BAND_MULT': (0.5, 3.0, 0.1),
+        'MOMENTUM_THRESHOLD': (0.3, 3.0, 0.1),
+        'BASE_CONF': (0.3, 0.9, 0.05),
+        'STOP_LOSS_ATR_MULT': (1.0, 6.0, 0.5),
+        'REVERSAL_THRESHOLD': (1, 5)
+    }
+    PARAMS_TO_OPTIMIZE = [
+        'ATR_BAND_MULT',
+        'MOMENTUM_THRESHOLD',
+        'BASE_CONF',
+        'STOP_LOSS_ATR_MULT',
+        'REVERSAL_THRESHOLD'
+    ]
+
     def __init__(self, **kwargs):
         super().__init__(params_path=PARAMS_PATH, **kwargs)
     
-    def suggest_params(self, trial):
+    def suggest_params(self, trial, param_ranges=None):
         """
-        Just returns a dict of params to be optimized in the form of optuna suggestions
+        Returns a dict of optuna suggestions (parameter ranges and step sizes) for optimizer.
+
+        Uses default values for first run. If a parameter is rerun due to maxing out a value,
+        it will use an updated range.
         """
+
+        param_ranges = self._active_param_ranges if hasattr(self, '_active_param_ranges') and self._active_param_ranges is not None else Portfolio3Optimizer.DEFAULT_PARAM_RANGES
+
+        params = {}
+        for t in Portfolio3Optimizer.PARAMS_TO_OPTIMIZE:
+            vals = param_ranges[t]
+            if len(vals) == 2:
+                params[t] = trial.suggest_int(t, int(vals[0]), int(vals[1]))
+            else:
+                params[t] = trial.suggest_float(t, vals[0], vals[1], step=vals[2])
+
         # params = {
         #     'ATR_BAND_MULT': trial.suggest_float('ATR_BAND_MULT', 0.5, 3.0, step=0.1),
         #     'MOMENTUM_THRESHOLD': trial.suggest_float('MOMENTUM_THRESHOLD', 0.3, 3.0, step=0.1),
@@ -50,14 +82,55 @@ class Portfolio3Optimizer(TickerParamOptim):
         #     'STOP_LOSS_ATR_MULT': trial.suggest_float('STOP_LOSS_ATR_MULT', 0.5, 7.0, step=0.5),
         #     'REVERSAL_THRESHOLD': trial.suggest_int('REVERSAL_THRESHOLD', 1, 5)
         # }
-        params = {
-            'ATR_BAND_MULT': trial.suggest_float('ATR_BAND_MULT', 0.5, 3.0, step=0.1),
-            'MOMENTUM_THRESHOLD': trial.suggest_float('MOMENTUM_THRESHOLD', 0.3, 3.0, step=0.1),
-            'BASE_CONF': trial.suggest_float('BASE_CONF', 0.9, 1.0, step=0.05),
-            'STOP_LOSS_ATR_MULT': trial.suggest_float('STOP_LOSS_ATR_MULT', 6.0, 8.0, step=0.5),
-            'REVERSAL_THRESHOLD': trial.suggest_int('REVERSAL_THRESHOLD', 1, 5)
-        }
+        # params = {
+        #     'ATR_BAND_MULT': trial.suggest_float('ATR_BAND_MULT', 0.5, 3.0, step=0.1),
+        #     'MOMENTUM_THRESHOLD': trial.suggest_float('MOMENTUM_THRESHOLD', 0.3, 3.0, step=0.1),
+        #     'BASE_CONF': trial.suggest_float('BASE_CONF', 0.9, 1.0, step=0.05),
+        #     'STOP_LOSS_ATR_MULT': trial.suggest_float('STOP_LOSS_ATR_MULT', 6.0, 8.0, step=0.5),
+        #     'REVERSAL_THRESHOLD': trial.suggest_int('REVERSAL_THRESHOLD', 1, 5)
+        # }
         return params
+
+    def check_boundaries(self, params, ranges):
+        """
+        Checks if an optimized parameter value for a ticker is at a max or min value.
+
+        Returns a dict for each maxed parameter, 0 indicates min, 1 indicates max
+        """
+        lims = {}
+        for p in params:
+            if abs(params[p] - ranges[p][0]) < 0.001:
+                lims[p] = 0
+            if abs(params[p] - ranges[p][1]) < 0.001:
+                lims[p] = 1
+        return lims
+
+    def build_rerun_ranges(self, best_params, boundary_params, ranges):
+        """
+        If a ticker was optimized and has a param at a max or min value of the range used,
+        this method will re-run the optimizer using a range starting at and exceeding the 
+        limit reached for the limited tickers and a 30% tighter range for non-limited tickers.
+        """
+        new_ranges = {}
+        for p in best_params:
+            if p in boundary_params:
+                if boundary_params[p] == 0:
+                    new_max = ranges[p][0]
+                    new_min = ranges[p][0] - 1.0
+                else:
+                    new_min = ranges[p][1]
+                    new_max = ranges[p][1] + 1.0
+            else:
+                old_range = ranges[p]
+                best = best_params[p]
+                new_min = old_range[0] + round( ((best - old_range[0]) * 0.3), 1)
+                new_max = old_range[1] - round( ((old_range[1] - best) * 0.3), 1)
+            if len(ranges[p]) > 2:
+                new_ranges[p] = (new_min, new_max, ranges[p][2])
+            else:
+                new_ranges[p] = (new_min, new_max)
+        return new_ranges
+
     
     def compute_indicators(self, df, vix_df):
         """
@@ -216,10 +289,25 @@ def _optimize_ticker_workers(args):
     """
     Helper method for multithreading. Runs optimizer without saving to JSON (avoid corruption).
     Returns best params to call point, stored in main func until ready to save all tickers.
+    If best params hit a boundary, re-runs with widened ranges for boundary params and
+    tightened ranges for non-boundary params, warm-started from the initial best.
     """
     ticker, n_trials = args
     opt = Portfolio3Optimizer()
-    return opt.run(ticker, n_trials=n_trials, save=False)
+    ticker, params, sharpe = opt.run(ticker, n_trials=n_trials, save=False)
+
+    boundary_hits = opt.check_boundaries(params, Portfolio3Optimizer.DEFAULT_PARAM_RANGES)
+    if boundary_hits:
+        print(f"[{ticker}] Boundary hit on {list(boundary_hits.keys())}, re-running...")
+        new_ranges = opt.build_rerun_ranges(params, boundary_hits, Portfolio3Optimizer.DEFAULT_PARAM_RANGES)
+        _, rerun_params, rerun_sharpe = opt.run(ticker, n_trials=n_trials, save=False, param_ranges=new_ranges, warm_start=params)
+        if rerun_sharpe > sharpe:
+            print(f"[{ticker}] Re-run improved Sharpe: {sharpe:.4f} -> {rerun_sharpe:.4f}")
+            params, sharpe = rerun_params, rerun_sharpe
+        else:
+            print(f"[{ticker}] Re-run did not improve (rerun={rerun_sharpe:.4f} vs original={sharpe:.4f}), keeping original")
+
+    return ticker, params, sharpe
 
 
 def main():

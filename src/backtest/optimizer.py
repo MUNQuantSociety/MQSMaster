@@ -66,7 +66,7 @@ class TickerParamOptim(ABC):
         bars_per_year = 252 * 13 # 13 30-min bars per ticker per day in cache
         return float(returns.mean() / returns.std() * np.sqrt(bars_per_year))
 
-    def run(self, ticker: str, n_trials: int=150, save: bool=True) -> dict:
+    def run(self, ticker: str, n_trials: int=150, save: bool=True, param_ranges=None, warm_start=None) -> dict:
 
 
         ticker_df, self.vix_df = self.load_data(ticker)
@@ -77,6 +77,10 @@ class TickerParamOptim(ABC):
             direction='maximize', # maximizing return
         )
 
+        self._active_param_ranges = param_ranges
+
+        if warm_start is not None:
+            study.enqueue_trial(warm_start)
         study.optimize(
             lambda trial: self._objective(trial, ticker_df),
             n_trials=n_trials,
