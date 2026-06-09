@@ -1,0 +1,6 @@
+{"event": "start", "tickers": 1920, "start_date": "2026-01-01", "end_date": "2026-05-21", "threads": 6, "interval": 1, "exchange_mix": {"crypto": 485, "commodity": 39, "sp500": 503, "nasdaq": 893}, "ts": "2026-05-21T04:25:32.438540Z"}
+{"event": "start", "tickers": 1920, "start_date": "2026-01-01", "end_date": "2026-05-21", "threads": 6, "interval": 1, "exchange_mix": {"crypto": 485, "commodity": 39, "sp500": 503, "nasdaq": 893}, "ts": "2026-05-21T04:45:13.652442Z"}
+{"event": "start", "tickers": 1920, "start_date": "2026-01-01", "end_date": "2026-05-21", "threads": 6, "interval": 1, "exchange_mix": {"crypto": 485, "commodity": 39, "sp500": 503, "nasdaq": 893}, "ts": "2026-05-21T04:53:26.614817Z"}
+{"event": "start", "tickers": 1920, "start_date": "2026-01-01", "end_date": "2026-05-21", "threads": 6, "interval": 1, "exchange_mix": {"crypto": 485, "commodity": 39, "sp500": 503, "nasdaq": 893}, "ts": "2026-05-21T04:57:46.224138Z"}
+{"event": "start", "tickers": 1920, "start_date": "2026-01-01", "end_date": "2026-05-21", "threads": 6, "interval": 1, "exchange_mix": {"crypto": 485, "commodity": 39, "sp500": 503, "nasdaq": 893}, "ts": "2026-05-21T04:59:18.131703Z"}
+{"event": "complete", "elapsed_seconds": 12150.073649, "ts": "2026-05-21T08:21:48.205642Z"}

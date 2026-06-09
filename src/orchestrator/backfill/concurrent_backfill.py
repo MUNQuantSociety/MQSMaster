@@ -73,6 +73,7 @@ def backfill_single_ticker(
     """
     conn = None
     effective_exchange = (exchange_map or {}).get(ticker.upper(), exchange or "nasdaq")
+
     try:
         # Fetch the data in-memory (output_filename=None => returns DataFrame)
         df = backfill_data(
@@ -128,6 +129,12 @@ def backfill_single_ticker(
 
         if insert_data and not dry_run:
             with conn.cursor() as cursor:
+                # Bound waits so a stuck server-side lock surfaces as an
+                # error instead of wedging the worker (and the pool) forever.
+                # The error path in this function rolls back, so the
+                # connection is safe to reuse.
+                cursor.execute("SET LOCAL lock_timeout = '30s'")
+                cursor.execute("SET LOCAL statement_timeout = '120s'")
                 execute_values(cursor, insert_sql, insert_data)
             conn.commit()
             print(f"[{ticker}] Inserted {len(insert_data)} rows into DB.")
@@ -138,6 +145,18 @@ def backfill_single_ticker(
 
     except Exception as e:
         print(f"[{ticker}] Error during backfill or insert: {e}")
+        # Roll back any aborted transaction so the pooled connection
+        # is not poisoned for the next worker that picks it up.
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception as rb_ex:
+                print(f"[{ticker}] Rollback failed: {rb_ex}")
+                # Mark connection bad so the pool drops it instead of reusing.
+                try:
+                    conn.close()
+                except Exception:
+                    pass
     finally:
         # Release the connection back to the pool
         if conn:

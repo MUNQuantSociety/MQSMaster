@@ -80,8 +80,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--model-dir",
-        default=HUGGINGFACE_FALLBACK,
-        help="Directory containing the FinBERT model or HuggingFace model name",
+        default=DEFAULT_LOCAL_MODEL_DIR,
+        help="Directory containing the fine-tuned FinBERT model. Missing dir = hard failure (no HuggingFace fallback).",
     )
     parser.add_argument(
         "--chunk-size", type=int, default=32, help="Batch size for processing articles"

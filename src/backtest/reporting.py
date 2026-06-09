@@ -1,7 +1,6 @@
 import logging
 import os
 from datetime import datetime
-from typing import Dict, List
 
 import numpy as np
 import pandas as pd
@@ -69,9 +68,7 @@ def _compute_annual_return(perf_df: pd.DataFrame) -> float:
     if not np.isfinite(start_value) or not np.isfinite(end_value) or start_value <= 0:
         return 0.0
 
-    elapsed_days = (
-        df["timestamp"].iloc[-1] - df["timestamp"].iloc[0]
-    ).total_seconds() / 86400.0
+    elapsed_days: float = ((df["timestamp"].iloc[-1] - df["timestamp"].iloc[0]).total_seconds() / 86400.0)
     if elapsed_days <= 0:
         return 0.0
 
@@ -81,7 +78,7 @@ def _compute_annual_return(perf_df: pd.DataFrame) -> float:
     annual_return = ratio ** (365.25 / elapsed_days) - 1.0
     if not np.isfinite(annual_return):
         return 0.0
-    return float(annual_return)
+    return annual_return
 
 
 def aggregate_final_metrics(perf_df: pd.DataFrame) -> pd.DataFrame:
@@ -114,11 +111,23 @@ def aggregate_final_metrics(perf_df: pd.DataFrame) -> pd.DataFrame:
 # --- OPTIMIZED High-Frequency and Benchmark Reporting Helpers (Unchanged) ---
 
 
+MINUTE_RESAMPLE_CELL_LIMIT = 5_000_000
+
+
+def _minute_resample_too_large(price_pivot: pd.DataFrame) -> bool:
+    if price_pivot.empty:
+        return False
+    span_minutes = int(
+        (price_pivot.index.max() - price_pivot.index.min()).total_seconds() // 60
+    )
+    return span_minutes * len(price_pivot.columns) > MINUTE_RESAMPLE_CELL_LIMIT
+
+
 def _generate_minute_by_minute_performance(
-    trade_log: List[Dict],
+    trade_log: list[dict],
     full_historical_data: pd.DataFrame,
     initial_capital: float,
-    tickers: List[str],
+    tickers: list[str],
 ) -> pd.DataFrame:
     """
     Generates a minute-by-minute performance report using vectorized operations.
@@ -131,6 +140,14 @@ def _generate_minute_by_minute_performance(
     )
     price_pivot.index = pd.to_datetime(price_pivot.index, errors="coerce")
     price_pivot = price_pivot[price_pivot.index.notna()].sort_index()
+    if _minute_resample_too_large(price_pivot):
+        logging.warning(
+            "Skipping minute-by-minute performance: %d tickers x %d-min span exceeds %d-cell limit",
+            len(price_pivot.columns),
+            int((price_pivot.index.max() - price_pivot.index.min()).total_seconds() // 60),
+            MINUTE_RESAMPLE_CELL_LIMIT,
+        )
+        return pd.DataFrame()
     minute_prices = price_pivot.resample("min").ffill().bfill()
 
     if not trade_log:
@@ -189,7 +206,7 @@ def _generate_minute_by_minute_performance(
 def _generate_buy_and_hold_benchmark(
     full_historical_data: pd.DataFrame,
     initial_capital: float,
-    portfolio_weights: Dict[str, float],
+    portfolio_weights: dict[str, float],
 ) -> pd.DataFrame:
     """
     CORRECTED: Generates a robust minute-by-minute benchmark report that accounts
@@ -203,6 +220,14 @@ def _generate_buy_and_hold_benchmark(
     )
     price_pivot.index = pd.to_datetime(price_pivot.index, errors="coerce")
     price_pivot = price_pivot[price_pivot.index.notna()].sort_index()
+    if _minute_resample_too_large(price_pivot):
+        logging.warning(
+            "Skipping buy-and-hold benchmark: %d tickers x %d-min span exceeds %d-cell limit",
+            len(price_pivot.columns),
+            int((price_pivot.index.max() - price_pivot.index.min()).total_seconds() // 60),
+            MINUTE_RESAMPLE_CELL_LIMIT,
+        )
+        return pd.DataFrame()
     minute_prices = price_pivot.resample("min").ffill().bfill()
 
     first_day_prices = minute_prices.iloc[0]
@@ -247,16 +272,16 @@ def _generate_buy_and_hold_benchmark(
 
 def _compute_rolling_stats(
     df_pct_returns: pd.DataFrame,
-    columns_to_analyze: List[str],
-    windows_days: List[int] = [30, 90, 180],
+    columns_to_analyze: list[str],
+    windows_days: list[int] = [30, 90, 180],
     date_col: str = "timestamp",
-) -> Dict[str, pd.DataFrame]:
+) -> dict[str, pd.DataFrame]:
     """
     Computes rolling statistics allowing partial-window estimates
     (min_periods = w // 2), so results begin once at least half of
     the window has data.
     """
-    out: Dict[str, pd.DataFrame] = {}
+    out: dict[str, pd.DataFrame] = {}
     df = df_pct_returns.set_index(date_col)
     for w in windows_days:
         window_str = f"{w}D"
@@ -288,7 +313,7 @@ def _summarize_rolling_dataframe(rolling_df: pd.DataFrame) -> pd.DataFrame:
 
 def _compute_monthly_returns(
     df_pct_returns: pd.DataFrame,
-    columns_to_analyze: List[str],
+    columns_to_analyze: list[str],
     date_col: str = "timestamp",
 ) -> pd.DataFrame:
     """Computes monthly returns from a DataFrame of daily percentage returns."""
@@ -306,7 +331,7 @@ def _compute_monthly_returns(
 
 def _compute_return_correlations(
     df_pct_returns: pd.DataFrame,
-    columns_to_analyze: List[str],
+    columns_to_analyze: list[str],
     date_col: str = "timestamp",
 ) -> pd.DataFrame:
     """Computes the correlation matrix for specified columns."""
@@ -318,7 +343,7 @@ def _compute_return_correlations(
 
 
 def _calculate_portfolio_risk_components(
-    full_historical_data: pd.DataFrame, portfolio_weights: Dict[str, float]
+    full_historical_data: pd.DataFrame, portfolio_weights: dict[str, float]
 ) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame]:
     """
     Calculates risk components, returning the correlation matrix,
@@ -330,8 +355,10 @@ def _calculate_portfolio_risk_components(
     price_pivot = full_historical_data.pivot(
         index="timestamp", columns="ticker", values="close_price"
     )
-    price_pivot_filled = price_pivot.ffill()
-    daily_returns = price_pivot_filled.pct_change().dropna()
+    price_pivot.index = pd.to_datetime(price_pivot.index, errors="coerce")
+    price_pivot = price_pivot[price_pivot.index.notna()].sort_index()
+    daily_close = price_pivot.resample("1D").last().ffill()
+    daily_returns = daily_close.pct_change().dropna()
 
     if daily_returns.empty:
         return pd.DataFrame(), pd.Series(dtype=float), pd.DataFrame()
@@ -352,7 +379,7 @@ def _calculate_portfolio_risk_components(
 
 def _calculate_rolling_portfolio_risk(
     full_historical_data: pd.DataFrame,
-    portfolio_weights: Dict[str, float],
+    portfolio_weights: dict[str, float],
     window_days: int = 30,
 ) -> pd.DataFrame:
     """Calculates the rolling portfolio risk with a full window buffer."""
@@ -362,8 +389,10 @@ def _calculate_rolling_portfolio_risk(
     price_pivot = full_historical_data.pivot(
         index="timestamp", columns="ticker", values="close_price"
     )
-    price_pivot_filled = price_pivot.ffill()
-    daily_returns = price_pivot_filled.pct_change().dropna()
+    price_pivot.index = pd.to_datetime(price_pivot.index, errors="coerce")
+    price_pivot = price_pivot[price_pivot.index.notna()].sort_index()
+    daily_close = price_pivot.resample("1D").last().ffill()
+    daily_returns = daily_close.pct_change().dropna()
 
     if len(daily_returns) < window_days:
         return pd.DataFrame()
@@ -422,7 +451,7 @@ def generate_backtest_report(
     perf_df: pd.DataFrame,
     initial_capital: float,
     full_historical_data: pd.DataFrame,
-):
+) -> None:
     """
     Generates and saves a full backtest report with enhanced risk analysis.
     """
@@ -431,7 +460,7 @@ def generate_backtest_report(
     logger.info("Generating backtest report...")
     if perf_df.empty:
         logger.warning("Performance DataFrame is empty. Skipping report generation")
-        return
+        return None
     run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = os.path.join(
         "src", "backtest", "data", f"{run_ts}_backtest_{portfolio.portfolio_id}"

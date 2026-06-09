@@ -33,6 +33,7 @@ def test_backfill_cli_specific_parsing():
     assert args.tickers == ["AAPL", "MSFT"]
     assert args.interval == 5
 
+@pytest.mark.db
 def test_concurrent_backfill():
     parser = build_parser()
     args = parser.parse_args(

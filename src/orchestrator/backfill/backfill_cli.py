@@ -30,24 +30,18 @@ def _parse_date(date_str: str):
 def _ensure_tickers(args) -> List[str]:
     if args.tickers:
         return [t.upper() for t in args.tickers]
-    # If user did not pass tickers, try reading tickers.json
-    fallback_path = os.path.join(CURRENT_DIR, "tickers.json")
-    if os.path.exists(fallback_path):
-        import json
-
-        with open(fallback_path, "r") as f:
-            tickers = json.load(f)
-            if not (args.yes or not sys.stdin.isatty()):
-                cont = input(
-                    "No tickers specified. Continue with first 5 tickers? [y/n]: "
-                )
-                if cont.lower() != "y":
-                    raise SystemExit("Aborted by user.")
-            logger.info("Loaded first 5 tickers from %s", fallback_path)
-        return tickers[:5]
-    raise SystemExit(
-        f"No tickers specified and tickers.json not found. {fallback_path}"
-    )
+    fallback_path = _resolve_ticker_file("tickers.json")
+    tickers = _load_tickers_file(fallback_path, "default tickers")
+    if not tickers:
+        raise SystemExit(f"tickers.json is empty: {fallback_path}")
+    if not (args.yes or not sys.stdin.isatty()):
+        cont = input(
+            f"No tickers specified. Continue with all {len(tickers)} tickers from tickers.json? [y/n]: "
+        )
+        if cont.lower() != "y":
+            raise SystemExit("Aborted by user.")
+    logger.info("Loaded %d tickers from %s", len(tickers), fallback_path)
+    return tickers
 
 
 def _validate_interval(interval: int):

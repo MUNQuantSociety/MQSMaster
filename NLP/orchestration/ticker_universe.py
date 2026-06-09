@@ -1,4 +1,4 @@
-"""Load the active ticker universe from portfolio configs and batch it."""
+"""Load the active ticker universe from ``tickers.json`` and batch it."""
 
 from __future__ import annotations
 
@@ -10,54 +10,55 @@ from NLP.core import PROJECT_ROOT, get_logger
 
 logger = get_logger(__name__)
 
-DEFAULT_NUM_PORTFOLIOS: int = 4
+DEFAULT_TICKERS_PATH: Path = (
+    PROJECT_ROOT / "src" / "orchestrator" / "backfill" / "tickers.json"
+)
 DEFAULT_EXCLUDED_TICKERS: frozenset = frozenset({"^VIX"})
 
 
 class TickerUniverse:
     """Resolve and batch the active set of tickers.
 
-    The legacy daemon hard-coded ``portfolio_1..3`` config paths and a
-    ``^VIX`` skip list at module scope. This class makes both injectable
-    so the daemon, tests, and ad-hoc scripts share one source of truth.
+    Source of truth is ``src/orchestrator/backfill/tickers.json`` so the
+    NLP pipeline scrapes the same universe the backfill pipeline ingests.
     """
 
     def __init__(
         self,
-        config_paths: Optional[Sequence[Path | str]] = None,
+        tickers_path: Optional[Path | str] = None,
         excluded_tickers: Iterable[str] = DEFAULT_EXCLUDED_TICKERS,
     ):
-        if config_paths is None:
-            config_paths = self._default_config_paths()
-        self.config_paths: List[Path] = [Path(p) for p in config_paths]
+        self.tickers_path = (
+            Path(tickers_path) if tickers_path is not None else DEFAULT_TICKERS_PATH
+        )
         self.excluded_tickers = frozenset(excluded_tickers)
 
-    @staticmethod
-    def _default_config_paths(num_portfolios: int = DEFAULT_NUM_PORTFOLIOS) -> List[Path]:
-        return [
-            PROJECT_ROOT / "src" / "portfolios" / f"portfolio_{n}" / "config.json"
-            for n in range(1, num_portfolios)
-        ]
-
     def load_tickers(self) -> List[str]:
-        """Return deduplicated tickers in first-seen order."""
+        """Return deduplicated tickers in file order, minus the excluded set."""
+        try:
+            with open(self.tickers_path) as f:
+                raw = json.load(f)
+        except Exception as exc:
+            logger.warning(
+                f"Could not load tickers from {self.tickers_path}: {exc}"
+            )
+            return []
+
+        if not isinstance(raw, list):
+            logger.warning(
+                f"tickers.json at {self.tickers_path} is not a JSON list; got {type(raw).__name__}"
+            )
+            return []
+
         seen: set[str] = set()
         tickers: List[str] = []
-
-        for path in self.config_paths:
-            try:
-                with open(path) as f:
-                    config = json.load(f)
-            except Exception as exc:
-                logger.warning(f"Could not load portfolio config {path}: {exc}")
+        for ticker in raw:
+            if not isinstance(ticker, str):
                 continue
-
-            for ticker in config.get("TICKERS", []):
-                if ticker in seen or ticker in self.excluded_tickers:
-                    continue
-                seen.add(ticker)
-                tickers.append(ticker)
-
+            if ticker in seen or ticker in self.excluded_tickers:
+                continue
+            seen.add(ticker)
+            tickers.append(ticker)
         return tickers
 
     @staticmethod

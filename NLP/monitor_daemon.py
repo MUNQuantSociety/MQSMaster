@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Monitoring + synthetic-check tooling for the NLP scraper daemon."""
+"""Monitoring + synthetic-check tooling for the NLP pipeline runner."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from typing import Optional
 
 import psutil
 
-# Script-mode bootstrap - see ``daemon.py`` for the same pattern.
+# Script-mode bootstrap - see ``main_NLP.py`` for the same pattern.
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
@@ -26,13 +26,13 @@ LOG_FILE = DAEMON_LOG_FILE
 
 
 def get_daemon_process() -> Optional[psutil.Process]:
-    """Return the daemon ``psutil.Process`` if it is running, else None."""
+    """Return the NLP runner ``psutil.Process`` if running, else None."""
     for proc in psutil.process_iter(["pid", "name", "cmdline"]):
         try:
             name = proc.info["name"] or ""
             if "python" in name.lower() and proc.info["cmdline"]:
                 cmdline = " ".join(proc.info["cmdline"])
-                if "daemon.py start" in cmdline:
+                if "main_NLP.py" in cmdline:
                     return psutil.Process(proc.info["pid"])
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
@@ -118,12 +118,12 @@ class DaemonMonitor:
         self.log_file = log_file
 
     def report(self) -> None:
-        print("NLP Daemon Monitor")
+        print("NLP Pipeline Monitor")
         print("=" * 50)
 
         daemon_proc = get_daemon_process()
         if daemon_proc:
-            print(f"✓ Daemon is RUNNING (PID: {daemon_proc.pid})")
+            print(f"✓ NLP runner is RUNNING (PID: {daemon_proc.pid})")
             try:
                 cpu_percent = daemon_proc.cpu_percent(interval=1)
                 memory_mb = daemon_proc.memory_info().rss / 1024 / 1024
@@ -136,7 +136,7 @@ class DaemonMonitor:
             except Exception as exc:
                 print(f"  Error getting process info: {exc}")
         else:
-            print("✗ Daemon is NOT RUNNING")
+            print("✗ NLP runner is NOT RUNNING")
         print()
 
         stats = self.log_stats.parse()
@@ -230,7 +230,7 @@ def run_synthetic_check(max_log_age_hours: int = 48) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Monitor NLP daemon health")
+    parser = argparse.ArgumentParser(description="Monitor NLP pipeline health")
     parser.add_argument(
         "--synthetic",
         action="store_true",

@@ -64,6 +64,17 @@ class ArticleAggregator:
     def merged_csv_path(self) -> Path:
         return self.articles_dir / f"{self.symbol}.csv"
 
+    def run_fmp_only(self, days_back: int = 7) -> Path:
+        """Live-mode fast path: FMP newest page only.
+
+        Skips Yahoo/Finviz/AlphaVantage so live polling can sweep
+        ~1900 tickers inside a 5-minute cycle. Alt sources should be
+        rotated in via :meth:`run` on a slower cadence by the runner.
+        """
+        fmp_scraper = FmpNewsScraper(self.symbol, articles_dir=self.articles_dir)
+        fmp_scraper.fetch_latest_and_save(days_back=days_back)
+        return self.merged_csv_path
+
     def run(self, start_date: str, end_date: str) -> Path:
         """Fetch FMP + alt sources, merge, dedup, save the merged CSV."""
         fmp_scraper = FmpNewsScraper(self.symbol, articles_dir=self.articles_dir)

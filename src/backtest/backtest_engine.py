@@ -1,17 +1,23 @@
+"""
+File for the BacktestEngine class.
+"""
 # src/backtest/backtest_engine.py
 
+import os
 import inspect
 import json
 import logging
-import os
+from logging import Logger
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
+from pandas.core.tools.datetimes import DatetimeScalar
 
+from src.backtest.cost_model import CostModel
 from src.common.database.MQSDBConnector import MQSDBConnector
 from src.portfolios.portfolio_BASE.strategy import BasePortfolio
 
@@ -33,23 +39,24 @@ class BacktestEngine:
     def __init__(
         self,
         db_connector: "MQSDBConnector",
-        backtest_executor=None,
-        backtest_output_root: Optional[str] = None,
+        backtest_executor = None,
+        backtest_output_root: str | None = None,
     ):
-        self.db_connector = db_connector
+        self.db_connector: MQSDBConnector = db_connector
         self.backtest_executor = backtest_executor
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.backtest_output_root = backtest_output_root
-        self.portfolio_classes: List[type[BasePortfolio]] = []
+        self.logger: Logger = logging.getLogger(self.__class__.__name__)
+        self.backtest_output_root: str | None = backtest_output_root
+        self.portfolio_classes: list[type[BasePortfolio]] = []
         self.start_date: str = ""
         self.end_date: str = ""
         self.initial_capital: float = 0.0
         self.slippage: float = 0.0
+        self.cost_model: CostModel | None = None
         self.backtest_mode: str = "event"
-        self.fast_config: Dict[str, Any] = self._default_fast_config()
+        self.fast_config: dict[str, int | str | bool | list[int] | None] = self._default_fast_config()
 
     @staticmethod
-    def _default_fast_config() -> Dict[str, Any]:
+    def _default_fast_config() -> dict[str, int | str | bool | list[int] | None]:
         return {
             "years_back": 3,
             "benchmark_label": "Benchmark",
@@ -65,13 +72,15 @@ class BacktestEngine:
     @classmethod
     def _normalize_fast_config(
         cls,
-        fast_config: Optional[Dict[str, Any]],
+        fast_config: dict[str, Any] | None,
         *,
-        fast_years_back: Optional[int],
-        fast_benchmark_label: Optional[str],
-    ) -> Dict[str, Any]:
-        """Normalize fast-mode config where explicit scalar params win over fast_config keys."""
-        cfg = deepcopy(cls._default_fast_config())
+        fast_years_back: int | None,
+        fast_benchmark_label: str | None,
+    ) -> dict[str, Any]:
+        """
+        Normalize fast-mode config where explicit scalar params win over fast_config keys.
+        """
+        cfg: dict[str, bool | str | int | Any] = deepcopy(cls._default_fast_config())
         if fast_config:
             cfg.update(dict(fast_config))
 
@@ -87,7 +96,7 @@ class BacktestEngine:
         cfg["mc_n_sims"] = max(1, int(cfg.get("mc_n_sims", 10000)))
         cfg["mc_method"] = str(cfg.get("mc_method", "bootstrap")).lower().strip()
         cfg["mc_block_size"] = max(1, int(cfg.get("mc_block_size", 1)))
-        cfg["mc_seed"] = cfg.get("mc_seed", None)
+        cfg["mc_seed"] = cfg.get("mc_seed", "")
 
         raw_percentiles = cfg.get("mc_plot_percentiles", [10, 50, 90])
         if not isinstance(raw_percentiles, (list, tuple)):
@@ -105,15 +114,16 @@ class BacktestEngine:
 
     def setup(
         self,
-        portfolio_classes: List[type[BasePortfolio]],
+        portfolio_classes: list[type[BasePortfolio]],
         start_date: str,
         end_date: str,
         initial_capital: float,
         slippage: float = 0.0,
+        cost_model: CostModel | None = None,
         backtest_mode: str = "event",
-        fast_config: Optional[Dict[str, Any]] = None,
-        fast_years_back: Optional[int] = None,
-        fast_benchmark_label: Optional[str] = None,
+        fast_config: dict[str, Any] | None = None,
+        fast_years_back: int | None = None,
+        fast_benchmark_label: str | None = None,
     ):
         """
         Configures the backtest with the necessary parameters.
@@ -123,6 +133,7 @@ class BacktestEngine:
         self.end_date = end_date
         self.initial_capital = initial_capital
         self.slippage = slippage
+        self.cost_model = cost_model
         self.backtest_mode = str(backtest_mode).lower().strip()
         self.fast_config = self._normalize_fast_config(
             fast_config,
@@ -155,16 +166,16 @@ class BacktestEngine:
         return str(out_dir)
 
     @staticmethod
-    def _to_utc_timestamp(value) -> pd.Timestamp:
+    def _to_utc_timestamp(value: pd.Timestamp | DatetimeScalar) -> pd.Timestamp:
         if isinstance(value, pd.Timestamp):
-            ts = value
+            ts: pd.Timestamp | DatetimeScalar = value
             if ts.tz is None:
                 ts = ts.tz_localize("UTC")
             else:
                 ts = ts.tz_convert("UTC")
             return ts
 
-        ts = pd.to_datetime(value, utc=True)
+        ts: pd.Timestamp = pd.to_datetime(value, utc=True)
         if ts.tz is None:
             ts = ts.tz_localize("UTC")
         else:
@@ -176,7 +187,7 @@ class BacktestEngine:
         portfolio_instance: BasePortfolio,
         start_date: pd.Timestamp,
         end_date: pd.Timestamp,
-        tickers: Optional[List[str]] = None,
+        tickers: list[str] | None = None,
     ) -> pd.DataFrame:
         tickers = (
             tickers
@@ -235,16 +246,15 @@ class BacktestEngine:
             portfolio_instance.portfolio_id,
         )
 
-        end_ts = pd.to_datetime(self.end_date)
-        start_ts = pd.to_datetime(self.start_date)
-        query_start = start_ts - pd.DateOffset(years=int(fast_cfg["years_back"]))
+        ts = [pd.to_datetime(self.start_date), pd.to_datetime(self.end_date)]
+        query_start = ts[0] - pd.DateOffset(years=int(fast_cfg["years_back"]))
         query_start_utc = self._to_utc_timestamp(query_start)
-        end_ts_utc = self._to_utc_timestamp(end_ts)
+        end_ts_utc = self._to_utc_timestamp(ts[1])
 
         self.logger.info(
             "Fast mode data window: %s to %s (years_back=%s)",
             query_start,
-            end_ts,
+            ts[1],
             fast_cfg["years_back"],
         )
 
@@ -284,20 +294,15 @@ class BacktestEngine:
             .dropna(how="all")
         )
         if close_matrix.empty:
-            self.logger.warning(
-                "Fast mode skipped: unable to build ticker close matrix."
-            )
+            self.logger.warning("Fast mode skipped: unable to build ticker close matrix.")
             return
 
         selected_tickers = [
-            ticker
-            for ticker in getattr(portfolio_instance, "tickers", [])
+            ticker for ticker in getattr(portfolio_instance, "tickers", [])
             if ticker in close_matrix.columns
         ]
         if not selected_tickers:
-            self.logger.warning(
-                "Fast mode skipped: no overlapping ticker prices found."
-            )
+            self.logger.warning("Fast mode skipped: no overlapping ticker prices found.")
             return
 
         close_matrix = close_matrix[selected_tickers].dropna(how="all")
@@ -311,7 +316,9 @@ class BacktestEngine:
             columns=close_matrix.columns,
         ).fillna(0.0)
         returns_matrix = (
-            close_matrix.pct_change().replace([np.inf, -np.inf], np.nan).fillna(0.0)
+            close_matrix.pct_change()
+                .replace([np.inf, -np.inf], np.nan)
+                .fillna(0.0)
         )
 
         weights_full = weights.copy(deep=True)
@@ -328,10 +335,10 @@ class BacktestEngine:
         benchmark_returns_full = returns_matrix_full.mean(axis=1)
         benchmark_close_full = close_matrix_full.mean(axis=1)
 
-        weights = weights_full.loc[start_ts:end_ts]
-        lagged_weights = lagged_weights_full.loc[start_ts:end_ts]
-        returns_matrix = returns_matrix_full.loc[start_ts:end_ts]
-        close_matrix = close_matrix_full.loc[start_ts:end_ts]
+        weights = weights_full.loc[ts[0]:ts[1]]
+        lagged_weights = lagged_weights_full.loc[ts[0]:ts[1]]
+        returns_matrix = returns_matrix_full.loc[ts[0]:ts[1]]
+        close_matrix = close_matrix_full.loc[ts[0]:ts[1]]
         if (
             weights.empty
             or lagged_weights.empty
@@ -340,8 +347,7 @@ class BacktestEngine:
         ):
             self.logger.warning(
                 "Fast mode skipped: no data remains in requested backtest window %s to %s.",
-                start_ts,
-                end_ts,
+                ts[0], ts[1]
             )
             return
 
@@ -367,7 +373,7 @@ class BacktestEngine:
             data=price_data,
             commission=0.0,
             slippage=0.0,
-            initial_capital=self.initial_capital,
+            initial_capital=int(self.initial_capital),
             store_intermediates=False,
         )
 
@@ -434,7 +440,7 @@ class BacktestEngine:
                 data=seasonal_price_data,
                 commission=0.0,
                 slippage=0.0,
-                initial_capital=self.initial_capital,
+                initial_capital=int(self.initial_capital),
                 store_intermediates=False,
             )
             seasonal_bt.run_from_returns(
@@ -572,7 +578,7 @@ class BacktestEngine:
 
         self.logger.info("Fast vectorized artifacts saved to %s", out_dir)
 
-    def _build_fast_portfolio_stub(self, portfolio_class, config_data: Dict[str, Any]):
+    def _build_fast_portfolio_stub(self, portfolio_class, config_data: dict[str, Any]):
         """Create a lightweight portfolio-like object for fast mode.
 
         This avoids strategy __init__ side effects (indicator registration/warmup)
@@ -608,12 +614,11 @@ class BacktestEngine:
             f"{portfolio_class.__name__}_{portfolio_id}_fast_stub"
         )
         stub.executor = None
-        stub._indicators = []
         stub.running = True
         stub.debug = False
         stub.backtest_start_date = None
         stub.db = self.db_connector
-        stub.portfolio_id = portfolio_id
+        stub.portfolio_id = int(portfolio_id)
         stub.tickers = tickers
         stub.portfolio_config_dict = {
             "id": portfolio_id,
@@ -624,7 +629,7 @@ class BacktestEngine:
         }
         return stub
 
-    def run(self):
+    def run(self) -> list[Any]:
         """
         Initializes and runs the backtest for each portfolio.
         """
@@ -643,11 +648,13 @@ class BacktestEngine:
 
                 if not os.path.exists(config_path):
                     self.logger.error(
-                        f"Configuration file not found for {portfolio_class.__name__} at {config_path}"
+                        "Configuration file not found for %s at %s",
+                        portfolio_class.__name__,
+                        config_path
                     )
                     continue
 
-                with open(config_path, "r") as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config_data = json.load(f)
 
                 if self.backtest_mode == "fast":
@@ -656,7 +663,8 @@ class BacktestEngine:
                         config_data,
                     )
                     self.logger.info(
-                        f"--- Running backtest for portfolio: {portfolio_instance.portfolio_id} ---"
+                        "--- Running backtest for portfolio: %s ---",
+                        portfolio_instance.portfolio_id
                     )
                     self._run_fast_vectorized(portfolio_instance)
                 else:
@@ -668,7 +676,8 @@ class BacktestEngine:
                         backtest_start_date=pd.to_datetime(self.start_date),
                     )
                     self.logger.info(
-                        f"\n--- Running backtest for portfolio: {portfolio_instance.portfolio_id} ---"
+                        "\n--- Running backtest for portfolio: %s ---",
+                        portfolio_instance.portfolio_id
                     )
                     runner = BacktestRunner(
                         portfolio=portfolio_instance,
@@ -676,15 +685,18 @@ class BacktestEngine:
                         end_date=self.end_date,
                         initial_capital=self.initial_capital,
                         slippage=self.slippage,
+                        cost_model=self.cost_model,
                     )
                     trade_log = runner.run()
                     trade_logs.append(trade_log)
                 self.logger.info(
-                    f"\n--- Backtest for portfolio: {portfolio_instance.portfolio_id} finished ---"
+                    "\n--- Backtest for portfolio: %s finished ---",
+                    portfolio_instance.portfolio_id
                 )
             except Exception as e:
                 self.logger.exception(
-                    f"Error running backtest for {portfolio_class.__name__}: {e}",
+                    "Error running backtest for %s: %s",
+                    portfolio_class.__name__, e,
                     exc_info=True,
                 )
 

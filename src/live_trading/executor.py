@@ -1,5 +1,6 @@
 import logging
 import math
+from typing import Callable, Optional
 
 import pandas as pd
 
@@ -24,7 +25,7 @@ logging.basicConfig(
 
 
 class tradeExecutor:
-    def __init__(self, db_connector: MQSDBConnector, leverage: float = 2.0):
+    def __init__(self, db_connector: MQSDBConnector, leverage: float = 2.0, rbp_overlay: Optional[Callable[[str, str, str, float], float]] = None):
         """Initializes the tradeExecutor and its components."""
         self.dbconn = db_connector
         self.api_auth = APIAuth()
@@ -32,7 +33,9 @@ class tradeExecutor:
         self.marketData = FMPMarketData()
         self.logger = logging.getLogger(__name__)
         self.leverage = leverage
+        self.rbp_overlay = rbp_overlay
         self.logger.info(f"tradeExecutor initialized with leverage={self.leverage}.")
+        self.logger.info("RBP overlay: %s", "enabled" if rbp_overlay else "disabled")
 
     def _calculate_buying_power(
         self,
@@ -103,6 +106,16 @@ class tradeExecutor:
             return
 
         confidence_val = max(0.0, min(1.0, confidence_val))
+
+        # RBP conviction overlay (single chokepoint for all portfolios).
+        # Never raises — RBPOverlay.__call__ is safe.
+        if self.rbp_overlay is not None:
+            try:
+                confidence_val = float(self.rbp_overlay(portfolio_id, ticker, signal_type, confidence_val))
+                confidence_val = max(0.0, min(1.0, confidence_val))
+            except Exception as exc:
+                self.logger.warning("RBP overlay raised unexpectedly for %s/%s: %s", portfolio_id, ticker, exc)
+
         if signal_type == "HOLD" or confidence_val == 0.0:
             self.logger.debug(
                 "Skip trade: signal=%s confidence=%.2f", signal_type, confidence_val

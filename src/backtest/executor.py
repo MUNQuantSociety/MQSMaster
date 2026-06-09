@@ -1,49 +1,85 @@
+"""
+Specifies the BacktestExecutor class. Used for managing a portfolio.
+"""
 import logging
-import math
-from typing import Dict, List
+from typing import Any, Literal
 
 import pandas as pd
+
+from src.backtest.cost_model import CostModel
 
 
 class BacktestExecutor:
     """
     A backtest executor that manages a single, unified portfolio,
-    supporting long/short positions with a realistic margin model that mirrors live trading constraints.
+    supporting long/short positions with a realistic margin model that mirrors
+    live trading constraints.
     """
 
     def __init__(
         self,
         initial_capital: float,
-        tickers: List[str],
+        tickers: list[str],
         leverage: float = 2.0,
         slippage: float = 0.0,
+        cost_model: CostModel | None = None,
+        adv_lookup: dict[str, float] | None = None,
+        sigma_lookup: dict[str, float] | None = None,
     ):
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.tickers = tickers
-        self.leverage = leverage
-        self.slippage = slippage
+        self.logger: logging.Logger = logging.getLogger(self.__class__.__name__)
+        self.tickers: list[str] = tickers
+        self.leverage: float = leverage
+        self.slippage: float = slippage
+        # Legacy constant slippage stays available as a fallback (when cost_model is None).
+        self.cost_model: CostModel | None = cost_model
+        self.adv_lookup: dict[str, float] = dict(adv_lookup or {})
+        self.sigma_lookup: dict[str, float] = dict(sigma_lookup or {})
 
         # --- Unified Portfolio State ---
-        self.cash = initial_capital
-        self.positions: Dict[str, float] = {ticker: 0.0 for ticker in tickers}
-        self.latest_prices: Dict[str, float] = {ticker: 0.0 for ticker in tickers}
-        self.trade_log: List[Dict] = []
+        self.cash: float = initial_capital
+        self.positions: dict[str, float] = {ticker: 0.0 for ticker in tickers}
+        self.latest_prices: dict[str, float] = {ticker: 0.0 for ticker in tickers}
+        self.trade_log: list[dict[Any, Any]] = []
 
         self.logger.info(
-            f"BacktestExecutor initialized with {initial_capital:.2f} capital, "
-            f"leverage={leverage}, slippage={slippage}, for tickers: {tickers}"
+            "BacktestExecutor initialized with %.2f capital, leverage=%.2f, slippage=%.2f, "
+            + "cost_model=%s, for tickers: %s",
+            initial_capital,
+            leverage,
+            slippage,
+            'on' if self.cost_model is not None else 'off',
+            tickers
         )
 
-    def _apply_slippage(self, price: float, signal_type: str) -> float:
+    def _apply_slippage(
+        self,
+        price: float,
+        signal_type: str,
+        ticker: str | None = None,
+        trade_notional: float = 0.0,
+    ) -> float:
         """
-        Applies slippage to the execution price based on the trade direction.
-        - For BUY orders, the price is increased.
-        - For SELL orders, the price is decreased.
+        Applies execution cost to the price.
+        If a CostModel is configured, uses it (fixed + spread + sqrt impact).
+        Otherwise falls back to the legacy constant-multiplier slippage.
         """
+        if self.cost_model is not None and ticker is not None:
+            adv = float(self.adv_lookup.get(ticker, 0.0))
+            sigma = float(self.sigma_lookup.get(ticker, 0.0))
+            return self.cost_model.apply_to_price(
+                mid_price=price,
+                side=signal_type,
+                trade_notional=abs(trade_notional),
+                adv_notional=adv,
+                sigma_daily=sigma,
+                ticker=ticker,
+            )
         if signal_type == "BUY":
             return price * (1 + self.slippage)
-        elif signal_type == "SELL":
+
+        if signal_type == "SELL":
             return price * (1 - self.slippage)
+
         return price
 
     def update_price(self, ticker: str, price: float):
@@ -63,7 +99,7 @@ class BacktestExecutor:
         """Calculates the notional value of a single ticker's position."""
         return self.positions.get(ticker, 0.0) * self.latest_prices.get(ticker, 0.0)
 
-    def get_data_feeds(self) -> Dict[str, pd.DataFrame]:
+    def get_data_feeds(self) -> dict[str, pd.DataFrame]:
         """Generates the portfolio state dataframes required by the strategy."""
         cash_df = pd.DataFrame([{"notional": self.cash}])
         positions_list = [
@@ -90,97 +126,89 @@ class BacktestExecutor:
 
     def execute_trade(
         self,
-        portfolio_id,
-        ticker,
-        signal_type,
-        confidence,
-        arrival_price,
-        cash,
-        positions,
-        port_notional,
-        ticker_weight,
+        portfolio_id: int,
+        ticker: str,
+        signal_type: Literal['BUY', 'SELL'],
+        confidence: float,
+        arrival_price: float,
+        cash: float,
+        positions: list[Any],
+        port_notional: float,
+        ticker_weight: float,
         timestamp,
-    ):
-        try:
-            cash = float(cash)
-            port_notional = float(port_notional)
-            arrival_price = float(arrival_price)
-            confidence = float(confidence)
-            ticker_weight = float(ticker_weight)
-        except (ValueError, TypeError) as e:
-            self.logger.error(f"Numeric conversion failed: {e}")
-            return
+    ) -> dict[str, str | int | float]:
+        """
+        Executes a trade.
 
-        signal_type = signal_type.upper()
-        if signal_type not in ("BUY", "SELL", "HOLD"):
-            self.logger.warning(
-                f"Invalid signal type '{signal_type}' for {ticker}. Must be BUY, SELL, or HOLD."
-            )
-            return
+        @returns a dictionary:
+          - 'status' == 'success': Returns the necessary data
+          - 'status' == 'skipped': Returns 'reason' for skipping, not an issue
+          - 'status' == 'error': Returns 'reason' for the error
+        """
+        # Default to equal-weight allocation if unspecified
+        if ticker_weight == 0.0 and len(self.tickers) > 0:
+            ticker_weight = 1.0 / len(self.tickers)
+        elif ticker_weight == 0.0:
+            ticker_weight = 1.0
 
-        confidence = max(0.0, min(1.0, confidence))
-        if signal_type == "HOLD" or confidence == 0.0:
-            return
+        confidence = max(0.001, min(1.0, confidence))
 
-        exec_price = self._apply_slippage(arrival_price, signal_type)
-        if exec_price <= 0:
-            self.logger.warning(
-                f"Cannot execute trade for {ticker}: Invalid execution price of {exec_price} after slippage."
-            )
-            return
+        # First-pass approximation of trade notional so the cost model can size impact.
+        approx_notional = abs(port_notional * ticker_weight * confidence)
+        exec_cost = self._apply_slippage(
+            arrival_price, signal_type, ticker=ticker, trade_notional=approx_notional,
+        )
+        if exec_cost <= 0:
+            return {
+                "status": "error",
+                "reason": f"Invalid execution price after slippage: {exec_cost}"
+            }
 
         # --- Unified Sizing & Margin Logic (Reconciled with Live Executor) ---
-        current_quantity = self.positions.get(ticker, 0.0)
-        current_notional_value = current_quantity * exec_price
-
-        # If ticker_weight is 0 (no current position), default to equal-weight allocation
-        if ticker_weight == 0.0:
-            tickers_list = self.tickers
-            if not tickers_list or len(tickers_list) == 0:
-                self.logger.error("No tickers list available for fallback allocation.")
-                return
-            ticker_weight = 1.0 / len(tickers_list)
+        current_notional = self.positions.get(ticker, 0.0) * exec_cost
         target_notional = port_notional * ticker_weight
+
         # A SELL signal targets a negative (short) position
         if signal_type == "SELL":
             target_notional *= -1
 
-        adjustment_notional = target_notional - current_notional_value
-        desired_trade_notional = adjustment_notional * confidence
+        target_trade_notional = (target_notional - current_notional) * confidence
 
         # Ignore trades smaller than $1.00 notional
-        if abs(desired_trade_notional) < 1.0:
-            return
+        if abs(target_trade_notional) < 1.0:
+            return {
+                "status": "skipped",
+                "reason": "Desired notional below $1.00."
+            }
 
         # --- Constraint Application (Mirrors Live Logic) ---
         # Buying power constrains BOTH new buys and new shorts.
         buying_power = self._calculate_buying_power(port_notional)
 
         # For buys, we are also constrained by the actual cash available.
-        if desired_trade_notional > 0:  # This is a BUY operation
+        if target_trade_notional > 0:  # This is a BUY operation
             tradable_notional = min(
-                abs(desired_trade_notional), buying_power, self.cash
+                abs(target_trade_notional), buying_power, self.cash
             )
         else:  # This is a SELL/SHORT operation
-            tradable_notional = min(abs(desired_trade_notional), buying_power)
+            tradable_notional = min(abs(target_trade_notional), buying_power)
 
-        if tradable_notional < 1.0:
-            return
+        trade_qty = tradable_notional // exec_cost
 
-        quantity_to_trade = math.floor(tradable_notional / exec_price)
-
-        if quantity_to_trade <= 0:
-            return
+        if tradable_notional < 1.0 or trade_qty <= 0:
+            return {
+                "status": "skipped",
+                "reason": "Missing tradable notional or no quantity to trade."
+            }
 
         # --- Execute the Trade ---
-        trade_value = quantity_to_trade * exec_price
-
-        if desired_trade_notional > 0:  # Finalizing a BUY
-            self.cash -= trade_value
-            self.positions[ticker] += quantity_to_trade
-        else:  # Finalizing a SELL
-            self.cash += trade_value
-            self.positions[ticker] -= quantity_to_trade
+        if signal_type == 'BUY':
+            self.cash -= trade_qty * exec_cost
+            self.positions[ticker] += trade_qty
+        elif signal_type == 'SELL':
+            self.cash += trade_qty * exec_cost
+            self.positions[ticker] -= trade_qty
+        self.latest_prices[ticker] = arrival_price
 
         self.trade_log.append(
             {
@@ -189,15 +217,15 @@ class BacktestExecutor:
                 "ticker": ticker,
                 "signal_type": signal_type,
                 "confidence": confidence,
-                "shares": quantity_to_trade,
-                "fill_price": exec_price,
+                "shares": trade_qty,
+                "fill_price": exec_cost,
                 "cash_after": self.cash,
             }
         )
 
         return {
             "status": "success",
-            "quantity": quantity_to_trade,
+            "quantity": trade_qty,
             "updated_cash": self.cash,
         }
 
@@ -208,7 +236,7 @@ class BacktestExecutor:
         trade_logs: list[str] = []
         for entry in self.trade_log:
             ts = entry["timestamp"]
-            ts_str = (
+            ts_str: str = (
                 ts.strftime("%Y-%m-%d %H:%M:%S") if hasattr(ts, "strftime") else str(ts)
             )
             msg = (

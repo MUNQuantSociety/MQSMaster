@@ -35,9 +35,7 @@ def main():
     """
     portfolio_classes = [
         VolMomentum,
-        MomentumStrategy,
-        RegimeAdaptiveStrategy,
-        CrossoverRmiStrategy,
+        MomentumStrategy
     ]
 
     # DO NOT CHANGE BELOW THIS LINE
@@ -47,7 +45,41 @@ def main():
         db_conn = MQSDBConnector()
         logging.info("Database connector initialized.")
 
-        live_executor = tradeExecutor(db_conn)
+        # Ensure all tables exist. Idempotent -- uses CREATE TABLE IF NOT EXISTS.
+        # Defends against running this entrypoint without start.sh having run schema
+        # bootstrap via rbp_runner.
+        try:
+            try:
+                from common.database.schemaDefinitions import SchemaDefinitions
+            except ImportError:
+                from src.common.database.schemaDefinitions import SchemaDefinitions
+            SchemaDefinitions().create_all_tables()
+            logging.info("Schema bootstrap complete.")
+        except Exception as exc:
+            logging.exception("Schema bootstrap failed; continuing anyway: %s", exc)
+
+        # Load rbp_overlay config from master config.
+        import json
+        from pathlib import Path
+        master_cfg_path = Path(__file__).resolve().parent / "portfolios" / "portfolio_manager_config.json"
+        try:
+            with open(master_cfg_path) as f:
+                master_cfg = json.load(f)
+            rbp_overlay_cfg = master_cfg.get("rbp_overlay", {"enabled": False})
+        except Exception as exc:
+            logging.warning("Failed to load rbp_overlay config (%s); overlay disabled.", exc)
+            rbp_overlay_cfg = {"enabled": False}
+
+        rbp_overlay = None
+        if rbp_overlay_cfg.get("enabled", False):
+            try:
+                from risk_manager.rbp_overlay import RBPOverlay
+            except ImportError:
+                from src.risk_manager.rbp_overlay import RBPOverlay
+            rbp_overlay = RBPOverlay(db_conn, rbp_overlay_cfg)
+            logging.info("RBPOverlay constructed.")
+
+        live_executor = tradeExecutor(db_conn, rbp_overlay=rbp_overlay)
         logging.info("Live executor initialized.")
 
         run_engine = RunEngine(db_connector=db_conn, executor=live_executor)

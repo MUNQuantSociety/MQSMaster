@@ -1,6 +1,7 @@
+from logging import Logger
 import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Union
+from typing import Any
 from zoneinfo import ZoneInfo  # <-- ADDED for timezone fix
 
 import pandas as pd
@@ -25,75 +26,61 @@ class BacktestRunner:
     def __init__(
         self,
         portfolio: "BasePortfolio",
-        start_date: Optional[Union[str, datetime, pd.Timestamp]] = None,
-        end_date: Optional[Union[str, datetime, pd.Timestamp]] = None,
+        start_date: str | datetime | pd.Timestamp,
+        end_date: str | datetime | pd.Timestamp | None = None,
         initial_capital: float = 100000.0,
         slippage: float = 0.0,
+        cost_model: Any = None,
     ):
         """
         Initializes the BacktestRunner.
         """
-        self.portfolio = portfolio
-        self.logger = portfolio.logger
-        self.total_start_capital = initial_capital
+        self.portfolio: BasePortfolio = portfolio
+        self.logger: Logger = portfolio.logger
+        self.total_start_capital: float = initial_capital
 
         # FIX 3: Use new timezone-aware method
-        self.start_date = self._ensure_datetime(start_date)
-        self.end_date = self._ensure_datetime(end_date, default_is_yesterday=True)
+        self.start_date: datetime = self._ensure_datetime(start_date)
+        self.end_date: datetime = self._ensure_datetime(end_date, default_is_yesterday=True)
 
         # --- FIX 1: Save the *actual* backtest start date ---
-        self.backtest_loop_start_date = self.start_date
+        self.backtest_loop_start_date: datetime | None = self.start_date
         # --- END FIX 1 ---
 
-        self.slippage = slippage
+        self.slippage: float = slippage
+        self.cost_model: Any = cost_model
 
         lookback_days = getattr(self.portfolio, "lookback_days", 365)
         self.strategy_lookback_window = pd.Timedelta(days=lookback_days)
         self.logger.info(f"Using strategy lookback window of {lookback_days} days.")
 
-        if self.start_date is None:
-            if self.end_date:
-                self.start_date = self.end_date - timedelta(days=365 * 2)
-            else:
-                self.logger.error("Cannot determine start_date as end_date is invalid.")
-
-        self.perf_records: List[Dict] = []
+        self.perf_records: list[dict[str, Any]] = []
         self.main_data_df: pd.DataFrame = pd.DataFrame()
-        self.executor: Optional[BacktestExecutor] = None
+        self.executor: BacktestExecutor | None = None
 
-    def _ensure_datetime(
-        self, dt_val, default_is_yesterday=False
-    ) -> Optional[datetime]:
+    def _ensure_datetime(self,
+        dt_val: int | float | str | datetime,
+        default_is_yesterday: bool = False
+    ) -> datetime:
         """
         FIX 3: Converts input to a timezone-AWARE datetime object at midnight
         in 'America/New_York'.
         """
-        if dt_val is None:
-            if default_is_yesterday:
-                try:
-                    ny_now = datetime.now(NY_TZ)
-                    yesterday = (ny_now - timedelta(days=1)).date()
-                    return datetime(
-                        yesterday.year, yesterday.month, yesterday.day, tzinfo=NY_TZ
-                    )
-                except Exception as e:
-                    self.logger.error(f"Error getting yesterday's date: {e}")
-                    return None
-            return None
-
         try:
-            pd_dt = pd.to_datetime(dt_val, errors="coerce")
-            if pd.isna(pd_dt):
-                self.logger.warning(f"Could not parse '{dt_val}' as a datetime.")
-                return None
+            pd_dt: datetime = pd.to_datetime(dt_val, errors="coerce")
+            if pd.isna(pd_dt) and default_is_yesterday:
+                ny_now = datetime.now(NY_TZ)
+                yesterday: datetime = ny_now - timedelta(days=1)
+                return yesterday
+            elif pd.isna(pd_dt):
+                return datetime.now(NY_TZ)
 
             # Create naive datetime at midnight, then localize to NY
-            naive_dt = datetime(pd_dt.year, pd_dt.month, pd_dt.day)
             # Use replace() to correctly handle DST changes
-            return naive_dt.replace(tzinfo=NY_TZ)
+            return datetime(pd_dt.year, pd_dt.month, pd_dt.day).replace(tzinfo=NY_TZ)
         except Exception as e:
-            self.logger.error(f"Failed to convert '{dt_val}' to datetime: {e}")
-            return None
+            raise e
+
 
     def _prepare_data(self) -> bool:
         """
@@ -136,8 +123,9 @@ class BacktestRunner:
             initial_capital=self.total_start_capital,
             tickers=self.portfolio.tickers,
             slippage=self.slippage,
+            cost_model=self.cost_model,
         )
-        self.portfolio._original_executor = getattr(self.portfolio, "executor", None)
+        #self.portfolio._original_executor = getattr(self.portfolio, "executor", None)
         self.portfolio.executor = self.executor
 
     def _run_event_loop(self) -> None:
@@ -155,7 +143,7 @@ class BacktestRunner:
         # This series is built from the *full* dataframe, so lookups are correct
         timestamps_series = self.main_data_df["timestamp"]
         self.perf_records = []
-        last_poll_time: Optional[pd.Timestamp] = None
+        last_poll_time: pd.Timestamp | None = None
 
         # --- FIX 2: Filter the timestamps we iterate over ---
 
@@ -252,7 +240,7 @@ class BacktestRunner:
 
         self.logger.info("Event loop finished.")
 
-    def _calculate_results(self) -> Optional[pd.DataFrame]:
+    def _calculate_results(self) -> pd.DataFrame | None:
         """Calculates performance metrics from recorded data."""
         if not self.perf_records:
             self.logger.warning("No performance records generated during the backtest.")
@@ -300,7 +288,7 @@ class BacktestRunner:
             elif getattr(self.portfolio, "executor", None) is None:
                 self.logger.info("Portfolio executor was None or already restored.")
 
-    def run(self) -> Optional[List[str]]:
+    def run(self) -> list[str] | None:
         """Executes the entire backtest process."""
         self.logger.info("===== Starting Backtest Run =====")
         if not hasattr(self.portfolio, "portfolio_id") or not hasattr(
@@ -323,7 +311,7 @@ class BacktestRunner:
 
             self._setup_executor()
             self._run_event_loop()
-            perf_df = self._calculate_results()
+            perf_df: pd.DataFrame = self._calculate_results()
 
             if perf_df is not None and not perf_df.empty:
                 generate_backtest_report(

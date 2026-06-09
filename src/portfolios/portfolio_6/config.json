@@ -1,0 +1,56 @@
+{
+  "PORTFOLIO_ID": "6",
+  "TICKERS": [],
+  "INTERVAL": 23400,
+  "LOOKBACK_DAYS": 300,
+  "EXCH": "NASDAQ",
+  "WEIGHTS": {},
+  "DATA_FEEDS": ["MARKET_DATA", "POSITIONS", "CASH_EQUITY", "PORT_NOTIONAL"],
+  "PORTFOLIO_6_CONFIG": {
+    "UNIVERSE_PATH": "src/portfolios/portfolio_6/universe.json",
+    "FUNDAMENTALS_CSV": "fundamentals/fundamentals.csv",
+    "USE_FUNDAMENTALS": true,
+    "SCREEN_TOP_N": 50,
+    "VOL_LOOKBACK_DAYS": 252,
+    "MAX_WEIGHT_PER_STOCK": 0.05,
+    "VOL_TARGET_ANNUAL": 0.13,
+    "MAX_LEVERAGE": 1.5,
+    "GLD_TICKER": "GLD",
+    "GLD_WEIGHT": 0.07,
+    "TREND_HEDGE_TICKER": "DBMF",
+    "TREND_HEDGE_WEIGHT": 0.10,
+    "REBALANCE_DRIFT_THRESHOLD": 0.005,
+    "DSR_MIN_PROB": 0.5,
+
+    "WEIGHTING_METHOD": "INV_VOL",
+    "HRP_LINKAGE_METHOD": "single",
+
+    "SCORE_METHOD": "rank_sum",
+    "SCORE_WEIGHTS": {
+      "vol": 1.0,
+      "max_one_day": 1.0,
+      "gross_profit_to_assets": 1.0,
+      "momentum": 1.0,
+      "op_profit": 1.0,
+      "asset_growth": 1.0
+    },
+    "SCORE_WINSOR_SIGMA": 3.0,
+
+    "USE_MOMENTUM_12_2": false,
+    "USE_OPERATING_PROFITABILITY": false,
+    "USE_ASSET_GROWTH": false,
+    "MOMENTUM_LOOKBACK_DAYS": 252,
+    "MOMENTUM_SKIP_DAYS": 21,
+
+    "EXCLUSIONS": {
+      "MAX":            { "ENABLED": false, "WINDOW_DAYS": 21, "DROP_TOP_PCT": 0.20 },
+      "MAX_N":          { "ENABLED": false, "WINDOW_DAYS": 21, "N": 5, "DROP_TOP_PCT": 0.20 },
+      "IVOL":           { "ENABLED": false, "WINDOW_DAYS": 21, "MIN_OBS": 17, "DROP_TOP_PCT": 0.10 },
+      "PENNY":          { "ENABLED": false, "MIN_PRICE": 5.0 },
+      "MICROCAP":       { "ENABLED": false, "MIN_MARKET_CAP_USD": 300000000.0 },
+      "RECENT_IPO":     { "ENABLED": false, "MIN_LISTED_MONTHS": 12 },
+      "SHORT_INTEREST": { "ENABLED": false, "MAX_DELTA_PCT": 0.50 },
+      "PEAD":           { "ENABLED": false, "EXCLUDE_DAYS_PRE": 3, "EXCLUDE_DAYS_POST": 3 }
+    }
+  }
+}

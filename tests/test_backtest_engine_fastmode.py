@@ -296,6 +296,6 @@ def test_run_fastmode_skips_strategy_init_indicator_registration(
 
     engine.run()
 
-    assert captured["portfolio_id"] == "2"
+    assert captured["portfolio_id"] == 2
     assert captured["tickers"] == ["AAPL", "MSFT"]
     assert captured["class_name"] == "MomentumStrategy"

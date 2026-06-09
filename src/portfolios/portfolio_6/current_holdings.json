@@ -1,0 +1,30 @@
+{
+  "as_of": "2024-12-16T10:00:00-05:00",
+  "portfolio_id": "6-parity-test",
+  "weighting_method": "INV_VOL",
+  "score_method": "rank_sum",
+  "n_positions": 5,
+  "total_weight": 1.5000000000000002,
+  "holdings": [
+    {
+      "ticker": "MSFT",
+      "weight": 0.45795
+    },
+    {
+      "ticker": "AAPL",
+      "weight": 0.413653
+    },
+    {
+      "ticker": "PG",
+      "weight": 0.339619
+    },
+    {
+      "ticker": "KO",
+      "weight": 0.221899
+    },
+    {
+      "ticker": "GLD",
+      "weight": 0.066879
+    }
+  ]
+}

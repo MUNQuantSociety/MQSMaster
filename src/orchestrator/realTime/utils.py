@@ -14,8 +14,7 @@ def load_tickers():
     """
     # 1. Load tickers from tickers.json
     script_dir = os.path.dirname(__file__)
-    # Corrected typo from .jsonx to .json for robustness
-    ticker_file_path = os.path.join(script_dir, '..', 'tickers.json')
+    ticker_file_path = os.path.join(script_dir, '..', 'backfill', 'tickers.json')
 
     try:
         with open(ticker_file_path, 'r') as f:

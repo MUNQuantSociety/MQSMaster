@@ -12,7 +12,7 @@ flowchart TB
         ALLOCATOR_CLI["src/risk_manager/daily_allocator.py"]
         CAPITAL_CLI["src/risk_manager/manage_capital.py"]
         REALTIME_CLI["src/orchestrator/realTime/<br/>realtimeDataIngestor.py"]
-        NLP_CLI["NLP/daemon.py"]
+        NLP_CLI["NLP/main_NLP.py"]
         BACKFILL_CLI["src/orchestrator/backfill/backfill_cli.py"]
     end
 
@@ -59,7 +59,7 @@ flowchart TB
     end
 
     subgraph Research["Research / Signals"]
-        NLP["NLP daemon<br/>FinBERT scoring"]
+        NLP["NLP pipeline<br/>FinBERT scoring"]
         RBP_MODEL["RBPModel<br/>(Relevance-Based Prediction)"]
     end
 
@@ -168,7 +168,7 @@ flowchart TB
 | `FMPMarketData` | `src/orchestrator/marketData/fmpMarketData.py` | Financial Modeling Prep API client (rate-limited, retried) |
 | Backfill service | `src/orchestrator/backfill/` | Historical ingest CLI; parquet cache under `src/backtest/data/backfill_cache/` |
 | `realtimeDataIngestor` | `src/orchestrator/realTime/realtimeDataIngestor.py` | Per-minute live-quote ingest into `market_data` |
-| NLP daemon | `NLP/daemon.py` | Portfolio-driven scrape + FinBERT scoring → `news_sentiment` |
+| NLP pipeline | `NLP/main_NLP.py` | `tickers.json`-driven scrape + FinBERT scoring → `news_sentiment` |
 
 ## Strategy Roster
 

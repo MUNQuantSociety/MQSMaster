@@ -97,7 +97,7 @@ def test_fetch_articles_cli_parsing(monkeypatch):
     assert args.end_date == "2025-01-02"
 
 
-def test_sentiment_processor_model_load(monkeypatch):
+def test_sentiment_processor_model_load(monkeypatch, tmp_path):
     pytest.importorskip("torch")
     import NLP.sentiment_processor as sentiment_processor
 
@@ -108,7 +108,7 @@ def test_sentiment_processor_model_load(monkeypatch):
 
     class _StubModel:
         @classmethod
-        def from_pretrained(cls, _model_dir, torch_dtype=None):
+        def from_pretrained(cls, _model_dir, torch_dtype=None, **_kwargs):
             return cls()
 
         def to(self, _device):
@@ -122,7 +122,7 @@ def test_sentiment_processor_model_load(monkeypatch):
         sentiment_processor, "AutoModelForSequenceClassification", _StubModel
     )
 
-    processor = sentiment_processor.SentimentProcessor(model_dir="stub")
+    processor = sentiment_processor.SentimentProcessor(model_dir=str(tmp_path))
     processor.load_model()
 
     assert processor.tokenizer is not None

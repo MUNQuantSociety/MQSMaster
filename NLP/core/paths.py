@@ -12,7 +12,7 @@ PROJECT_ROOT: Path = NLP_DIR.parent
 ARTICLES_DIR: Path = NLP_DIR / "articles"
 SCORES_DIR: Path = NLP_DIR / "sentiment_scores"
 STATE_DIR: Path = NLP_DIR / "fetch_state"
-MODEL_DIR: Path = NLP_DIR / "finbert-combined-final"
+MODEL_DIR: Path = NLP_DIR / "finbert-finetuned-final"
 DAEMON_LOG_FILE: Path = NLP_DIR / "daemon.log"
 
 

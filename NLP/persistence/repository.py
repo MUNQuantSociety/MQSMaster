@@ -36,6 +36,24 @@ logger = get_logger(__name__)
 
 CONTENT_SUMMARY_MAX_LENGTH = 1000
 
+# Freshness-decay half-life for the daily weighted mean of sentiment.
+# Each article's weight = content_length * 0.5^(age_seconds / SENTIMENT_HALF_LIFE_SECONDS).
+# 6.5 hours == one trading session.
+SENTIMENT_HALF_LIFE_SECONDS = int(6.5 * 3600)
+
+# Default content_length for rows that pre-date the column. Backfilled rows
+# already have it populated from LENGTH(content_summary); this constant is
+# the fallback used by the weighted-mean SQL via COALESCE.
+DEFAULT_CONTENT_LENGTH = 100
+
+# Lookback window for the weighted-mean UPDATE. Articles older than this
+# have weight ~ length * 0.5^(168h / 6.5h) ~ length * 1.6e-8 and cannot
+# move the daily weighted mean by more than float noise, so we skip them
+# in the SQL to keep the per-ticker UPDATE cheap. Without the cap, scoring
+# scales O(all-news-ever * #tickers) every cycle. Days that fall out of
+# the cap retain whatever sentiment_score they held last write.
+SENTIMENT_UPDATE_LOOKBACK_DAYS = 7
+
 
 class NewsSentimentRepository:
     """CRUD-style accessor for the ``news_sentiment`` table.
@@ -63,6 +81,7 @@ class NewsSentimentRepository:
             published_at TIMESTAMP,
             sentiment_score FLOAT,
             content_summary TEXT,
+            content_length INTEGER,
             created_at TIMESTAMP DEFAULT NOW()
         );
         """
@@ -70,6 +89,16 @@ class NewsSentimentRepository:
         if result["status"] == "error":
             logger.error(f"Failed to create news_sentiment table: {result['message']}")
             raise Exception("Database table creation failed")
+
+        # content_length was added after the original schema; ensure it
+        # exists on legacy databases.
+        alter_sql = "ALTER TABLE news_sentiment ADD COLUMN IF NOT EXISTS content_length INTEGER"
+        alter_result = self.db.execute_query(alter_sql)
+        if alter_result["status"] == "error":
+            logger.warning(
+                f"content_length column add failed (may be fine if it already exists): {alter_result['message']}"
+            )
+
         logger.info("news_sentiment table verified/created")
 
     def _create_indexes(self) -> None:
@@ -213,9 +242,11 @@ class NewsSentimentRepository:
 
                 content = str(article_row.get("content", ""))
                 title = str(article_row.get("title", ""))
-                content_summary = (title + " " + content)[
-                    :CONTENT_SUMMARY_MAX_LENGTH
-                ].strip()
+                full_text = (title + " " + content).strip()
+                content_summary = full_text[:CONTENT_SUMMARY_MAX_LENGTH].strip()
+                # Word count of the full pre-truncation text drives the
+                # length-weighted daily mean downstream.
+                content_length = len(full_text.split())
 
                 rows.append(
                     {
@@ -224,6 +255,7 @@ class NewsSentimentRepository:
                         "published_at": pd.to_datetime(article_row["publishedDate"]),
                         "sentiment_score": sentiment_score,
                         "content_summary": content_summary,
+                        "content_length": content_length,
                     }
                 )
                 stats["processed"] += 1
@@ -249,27 +281,60 @@ class NewsSentimentRepository:
         return stats
 
     def update_market_data_sentiment(self, ticker: str) -> None:
-        """Sync daily mean sentiment into ``market_data.sentiment_score``."""
+        """Sync length-weighted, freshness-decayed daily mean into ``market_data.sentiment_score``.
+
+        Per-article weight = ``COALESCE(content_length, %(default_len)s) *
+        POWER(0.5, age_seconds / %(half_life)s)`` where ``age_seconds =
+        EXTRACT(EPOCH FROM (NOW() - published_at))``. Per-day score =
+        ``SUM(score * weight) / SUM(weight)``.
+
+        Because the decay uses ``NOW()``, historical days' scores shift
+        every cycle as older articles' weights drop. That is intentional
+        ("freshness" semantics) but it means this UPDATE rewrites the
+        full sentiment history for the ticker on each invocation. The
+        ``ABS(...) > 1e-4`` guard suppresses no-op writes from float
+        precision jitter.
+        """
         sql = """
         UPDATE market_data md
-        SET sentiment_score = ns.avg_score
+        SET sentiment_score = ns.weighted_score
         FROM (
             SELECT
                 ticker,
                 DATE(published_at) AS day,
-                AVG(sentiment_score) AS avg_score
-            FROM news_sentiment
-            WHERE ticker = %s
+                SUM(sentiment_score * weight) / NULLIF(SUM(weight), 0) AS weighted_score
+            FROM (
+                SELECT
+                    ticker,
+                    published_at,
+                    sentiment_score,
+                    COALESCE(content_length, %s)
+                        * POWER(0.5, EXTRACT(EPOCH FROM (NOW() - published_at)) / %s::float)
+                        AS weight
+                FROM news_sentiment
+                WHERE ticker = %s
+                  AND published_at >= NOW() - (%s || ' days')::interval
+            ) weighted
             GROUP BY ticker, DATE(published_at)
         ) ns
         WHERE md.ticker = ns.ticker
           AND md.date = ns.day
-          AND (md.sentiment_score IS NULL OR md.sentiment_score != ns.avg_score);
+          AND ns.weighted_score IS NOT NULL
+          AND (
+            md.sentiment_score IS NULL
+            OR ABS(md.sentiment_score - ns.weighted_score) > 0.0001
+          );
         """
+        params = (
+            DEFAULT_CONTENT_LENGTH,
+            SENTIMENT_HALF_LIFE_SECONDS,
+            ticker,
+            SENTIMENT_UPDATE_LOOKBACK_DAYS,
+        )
         max_attempts = 5
         for i in range(max_attempts):
             try:
-                result = self.db.execute_query(sql, (ticker,))
+                result = self.db.execute_query(sql, params)
                 if result["status"] == "error":
                     logger.warning(
                         "Attempt %s/%s failed to update market_data sentiment for %s: %s",

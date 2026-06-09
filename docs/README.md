@@ -71,7 +71,7 @@ flowchart LR
 | Real-time price ingestor | `python -m src.orchestrator.realTime.realtimeDataIngestor` |
 | Daily capital rebalance | `python -m src.risk_manager.daily_allocator` |
 | Add / withdraw master capital | `python -m src.risk_manager.manage_capital --action ADD --amount ...` |
-| Start NLP sentiment daemon | `python NLP/daemon.py start` |
+| Start NLP sentiment pipeline | `python NLP/main_NLP.py` |
 | Run smoke tests | `pytest -m smoke` |
 
 ## Conventions

@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 import tempfile
-import threading
 import time
 from pathlib import Path
 from typing import List, Optional
@@ -19,6 +18,7 @@ if str(SRC_ROOT) not in sys.path:
 
 try:
     from common.auth.apiAuth import APIAuth
+    from common.fmp_rate_limiter import FMPRateLimiter
     from orchestrator.backfill.update.crypto_tickers import (
         format_for_fmp,
         get_top_crypto_from_coingecko,
@@ -52,10 +52,11 @@ class FMPMarketData:
             )
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        # Rate Limiting Config
-        self.request_timestamps = []
-        self.MAX_REQUESTS_PER_MIN = 3000
-        self.LOCK_WINDOW_SECONDS = 60
+        # Rate Limiting: shared process-singleton limiter at 1000 req/min for
+        # the realtime ingestor. NLP gets the rest of the 3000 account budget
+        # via its own FMPRateLimiter.for_nlp() instance. See
+        # src/common/fmp_rate_limiter.py.
+        self._rate_limiter = FMPRateLimiter.for_realtime()
 
         # API Request Config
         self.MAX_RETRIES = 6
@@ -68,51 +69,9 @@ class FMPMarketData:
         self.INTERNET_RETRY_INTERVAL_SECONDS = 10
         self.INTERNET_MAX_WAIT_SECONDS = 120
 
-        # A lock to protect rate-limiter data (request_timestamps), etc.
-        self._lock = threading.Lock()
-
     def _check_rate_limit(self):
-        """
-        Enforces API rate limits in a thread-safe manner.
-        If the limit is exceeded, it waits outside the lock.
-        """
-        while True:
-            wait_time = 0.0
-            with self._lock:
-                current_time = time.time()
-
-            # Remove timestamps older than the rate limit window (60 seconds)
-            self.request_timestamps = [
-                t
-                for t in self.request_timestamps
-                if (current_time - t) < self.LOCK_WINDOW_SECONDS
-            ]
-
-            # If we are at or above the limit, wait
-            if len(self.request_timestamps) >= self.MAX_REQUESTS_PER_MIN:
-                wait_time = self.LOCK_WINDOW_SECONDS - (
-                    current_time - self.request_timestamps[0]
-                )
-                if wait_time > 0:
-                    print(
-                        f"[RateLimiter] Hit API limit ({self.MAX_REQUESTS_PER_MIN} calls/min). Sleeping for {wait_time:.2f} s..."
-                    )
-                    time.sleep(wait_time)
-
-                # Otherwise compute wait time until the oldest timestamp expires
-                wait_time = self.LOCK_WINDOW_SECONDS - (
-                    current_time - self.request_timestamps[0]
-                )
-
-            if wait_time > 0:
-                self.logger.warning(
-                    "[RateLimiter] Hit API limit (%s calls/min). Sleeping for %.2f s...",
-                    self.MAX_REQUESTS_PER_MIN,
-                    wait_time,
-                )
-                time.sleep(wait_time)
-            else:
-                return
+        """Block until a slot is available, then claim it."""
+        self._rate_limiter.acquire()
 
     def _wait_for_internet(self, max_wait_seconds=None):
         """

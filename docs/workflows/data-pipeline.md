@@ -209,7 +209,7 @@ The cache directory is committed (the `.parquet` files act as a checked-in datas
 | `exchange` | `VARCHAR(50)` | |
 | `open_price` / `high_price` / `low_price` / `close_price` | `NUMERIC` | |
 | `volume` | `BIGINT` | Real-time ingestor stores *interval* volume |
-| `avg_sentiment` | `NUMERIC` | Optional sentiment overlay (NLP daemon) |
+| `avg_sentiment` | `NUMERIC` | Optional sentiment overlay (NLP pipeline) |
 | `created_at` | `TIMESTAMP DEFAULT NOW()` | |
 
 Unique constraint: `(ticker, timestamp)` — required for `--on-conflict ignore` semantics.

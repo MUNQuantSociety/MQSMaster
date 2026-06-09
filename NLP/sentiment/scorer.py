@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 import torch
 from tqdm import tqdm
@@ -29,15 +30,30 @@ ensure_project_root_on_path()
 logger = get_logger(__name__)
 
 DEFAULT_LOCAL_MODEL_DIR = str(MODEL_DIR)
+
+# Legacy alias retained for back-compat imports
+# (``from NLP.sentiment_processor import HUGGINGFACE_FALLBACK``).
+# No longer used as a runtime fallback - missing model now raises.
 HUGGINGFACE_FALLBACK = "ProsusAI/finbert"
+
+# Freshness-decay half-life for the per-day weighted mean.
+# Must match :data:`NLP.persistence.repository.SENTIMENT_HALF_LIFE_SECONDS`
+# so the CSV daily-mean column stays consistent with the SQL one.
+SENTIMENT_HALF_LIFE_SECONDS = int(6.5 * 3600)
+
+# Fallback content-length weight for legacy article-score CSVs that
+# pre-date the (date, sentiment, content_length, published_at) schema.
+DEFAULT_CONTENT_LENGTH = 100
 
 
 class FinBertSentimentScorer:
-    """Score articles with a FinBERT model.
+    """Score articles with the fine-tuned FinBERT model.
 
-    Picks a local safetensors checkpoint when available (avoids the
-    ``torch.load()`` vulnerability in ``torch < 2.6``) and falls back to
-    the HuggingFace hub.
+    Requires the local safetensors checkpoint at :data:`MODEL_DIR`. No
+    automatic HuggingFace fallback: if the local directory is missing
+    the scorer raises :class:`FileNotFoundError` at init so callers see
+    a clear "missing model" failure rather than silently using a
+    different (mis-labeled) model.
     """
 
     DEFAULT_CHUNK_SIZE: int = 32
@@ -58,16 +74,19 @@ class FinBertSentimentScorer:
 
     @staticmethod
     def _resolve_model_dir(explicit: Optional[str]) -> str:
-        if explicit is not None:
-            return explicit
-        if os.path.exists(DEFAULT_LOCAL_MODEL_DIR):
-            logger.info(f"Using local safetensors model: {DEFAULT_LOCAL_MODEL_DIR}")
-            return DEFAULT_LOCAL_MODEL_DIR
-        logger.warning(
-            f"Local model not found at {DEFAULT_LOCAL_MODEL_DIR}, "
-            f"falling back to HuggingFace: {HUGGINGFACE_FALLBACK}"
-        )
-        return HUGGINGFACE_FALLBACK
+        candidate = explicit if explicit is not None else DEFAULT_LOCAL_MODEL_DIR
+        if not os.path.exists(candidate):
+            raise FileNotFoundError(
+                f"FinBERT model directory is missing at {candidate}. "
+                f"Download the fine-tuned model and place it at "
+                f"{DEFAULT_LOCAL_MODEL_DIR}. See NLP/README.md for the "
+                f"download link. The previous HuggingFace fallback "
+                f"({HUGGINGFACE_FALLBACK}) used a different label "
+                f"ordering and would have produced incorrect scores, so "
+                f"it has been removed."
+            )
+        logger.info(f"Using local safetensors model: {candidate}")
+        return candidate
 
     def load_model(self) -> None:
         """Load the FinBERT model and tokenizer using safetensors when available."""
@@ -96,16 +115,52 @@ class FinBertSentimentScorer:
 
     @staticmethod
     def _aggregate_daily_means(article_scores_df: pd.DataFrame) -> pd.DataFrame:
-        """Group per-article scores into a (date, sentiment) daily mean frame.
+        """Group per-article scores into a (date, sentiment) daily weighted-mean frame.
 
-        The grouper is materialized as a real ``date`` column before the
-        ``groupby`` so pandas keeps it in the result. Using an external
-        Series grouper drops the column under pandas >= 2.2 and emits a
-        FutureWarning.
+        Weight = ``content_length * 0.5 ** (age_seconds / SENTIMENT_HALF_LIFE_SECONDS)``
+        where ``age_seconds = (now - published_at).total_seconds()``. Matches the
+        formula used by :meth:`NewsSentimentRepository.update_market_data_sentiment`
+        so CSV and DB stay consistent.
+
+        Falls back to the legacy arithmetic mean when the input frame is
+        missing ``content_length`` / ``published_at`` (older CSVs written
+        before the weighting was added).
         """
+        if article_scores_df is None or article_scores_df.empty:
+            return pd.DataFrame(columns=["date", "sentiment"])
+
         df = article_scores_df.copy()
         df["date"] = pd.to_datetime(df["date"]).dt.date
-        return df.groupby("date", as_index=False)["sentiment"].mean()
+
+        has_weight_cols = (
+            "content_length" in df.columns and "published_at" in df.columns
+        )
+        if not has_weight_cols:
+            return df.groupby("date", as_index=False)["sentiment"].mean()
+
+        df["published_at"] = pd.to_datetime(df["published_at"], errors="coerce")
+        df = df.dropna(subset=["published_at"])
+        if df.empty:
+            return pd.DataFrame(columns=["date", "sentiment"])
+
+        df["content_length"] = (
+            df["content_length"].fillna(DEFAULT_CONTENT_LENGTH).clip(lower=1)
+        )
+        now = pd.Timestamp.utcnow().tz_localize(None)
+        age_seconds = (now - df["published_at"]).dt.total_seconds().clip(lower=0)
+        df["weight"] = df["content_length"] * np.power(
+            0.5, age_seconds / SENTIMENT_HALF_LIFE_SECONDS
+        )
+        df["weighted_score"] = df["sentiment"] * df["weight"]
+
+        grouped = df.groupby("date", as_index=False).agg(
+            weighted_score=("weighted_score", "sum"),
+            weight=("weight", "sum"),
+        )
+        grouped["sentiment"] = grouped["weighted_score"] / grouped["weight"].replace(
+            0, np.nan
+        )
+        return grouped[["date", "sentiment"]]
 
     def _score_batch(self, texts: List[str]) -> List[float]:
         inputs = self.tokenizer(
@@ -189,8 +244,13 @@ class FinBertSentimentScorer:
             return pd.DataFrame(), pd.DataFrame()
 
         df["date"] = df["publishedDate"].dt.date
-        texts = (df["content"].fillna("") + " " + df["title"].fillna("")).tolist()
+        df["text"] = df["content"].fillna("") + " " + df["title"].fillna("")
+        df["content_length"] = df["text"].str.split().str.len().fillna(0).astype(int)
+
+        texts = df["text"].tolist()
         dates = pd.to_datetime(df["date"]).tolist()
+        content_lengths = df["content_length"].tolist()
+        published_ats = pd.to_datetime(df["publishedDate"]).tolist()
 
         self._ensure_loaded()
 
@@ -204,9 +264,13 @@ class FinBertSentimentScorer:
         ):
             batch_texts = texts[i : i + self.chunk_size]
             batch_dates = dates[i : i + self.chunk_size]
+            batch_lengths = content_lengths[i : i + self.chunk_size]
+            batch_published = published_ats[i : i + self.chunk_size]
             try:
                 scores = self._score_batch(batch_texts)
-                records.extend(zip(batch_dates, scores))
+                records.extend(
+                    zip(batch_dates, scores, batch_lengths, batch_published)
+                )
             except Exception as exc:
                 logger.error(
                     f"Error processing batch {i // self.chunk_size + 1} for {ticker}: {exc}"
@@ -217,7 +281,9 @@ class FinBertSentimentScorer:
             logger.warning(f"No sentiment scores computed for {ticker}")
             return pd.DataFrame(), pd.DataFrame()
 
-        new_scores_df = pd.DataFrame(records, columns=["date", "sentiment"])
+        new_scores_df = pd.DataFrame(
+            records, columns=["date", "sentiment", "content_length", "published_at"]
+        )
 
         if not existing_scores_df.empty:
             article_scores_df = pd.concat(

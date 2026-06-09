@@ -120,20 +120,20 @@ def test_with_database(require_db_env):
 
 - **Marker**: `@pytest.mark.synthetic` (metadata only)
 - **CI trigger**: Scheduled jobs in GitHub Actions (every 6 hours)
-- **Scope**: FMP API provider checks, NLP daemon health, latency validation
+- **Scope**: FMP API provider checks, NLP pipeline health, latency validation
 
 **When to use:**
 - Monitoring external service availability
 - Validating API response schemas haven't changed
 - Detecting latency regressions
-- NLP daemon heartbeat checks
+- NLP pipeline heartbeat checks
 
 **Scripts:**
 ```bash
 # FMP API provider checks
 python scripts/api_test.py --symbol AAPL --require-fmp
 
-# NLP daemon health
+# NLP pipeline health
 python NLP/monitor_daemon.py --synthetic --max-log-age-hours 72
 ```
 
@@ -259,7 +259,7 @@ export FMP_API_KEY=your-api-key
 # For scheduled FMP provider checks (main branch only)
 export FMP_API_KEY=your-api-key
 
-# For NLP daemon health checks
+# For NLP pipeline health checks
 export NLP_ENDPOINT=http://localhost:5000
 ```
 

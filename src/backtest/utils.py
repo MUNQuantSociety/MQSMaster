@@ -15,59 +15,111 @@ def _fetch_from_db(portfolio, tickers: List[str], start, end) -> pd.DataFrame:
     """
     logger = portfolio.logger
     placeholders = ", ".join(["%s"] * len(tickers))
-    sql = f"""
-        SELECT
+    # NOTE: replaced an ARRAY_AGG-based per-day aggregator with a much cheaper
+    # DISTINCT ON-style pull. For 519-ticker x multi-year intraday backtests the
+    # original SQL blew PG timeouts; this version uses two index-friendly scans
+    # (close = last bar of day, max/min/sum via GROUP BY) and joins them in
+    # Python. close_price comes from the 16:00 bar via DISTINCT ON; open_price
+    # from the 09:30 bar via a symmetric DISTINCT ON ASC.
+    sql_close = f"""
+        SELECT DISTINCT ON (ticker, DATE(timestamp AT TIME ZONE 'America/New_York'))
             ticker,
             timestamp,
-            open_price,
-            high_price,
-            low_price,
-            close_price,
-            volume
+            close_price
           FROM market_data
          WHERE ticker IN ({placeholders})
            AND timestamp BETWEEN %s AND %s
            AND (timestamp AT TIME ZONE 'America/New_York')::time
                BETWEEN '09:30' AND '16:00'
-         ORDER BY timestamp ASC
+         ORDER BY
+            ticker,
+            DATE(timestamp AT TIME ZONE 'America/New_York'),
+            timestamp DESC
+    """
+    sql_open = f"""
+        SELECT DISTINCT ON (ticker, DATE(timestamp AT TIME ZONE 'America/New_York'))
+            ticker,
+            DATE(timestamp AT TIME ZONE 'America/New_York') AS trade_date,
+            open_price
+          FROM market_data
+         WHERE ticker IN ({placeholders})
+           AND timestamp BETWEEN %s AND %s
+           AND (timestamp AT TIME ZONE 'America/New_York')::time
+               BETWEEN '09:30' AND '16:00'
+         ORDER BY
+            ticker,
+            DATE(timestamp AT TIME ZONE 'America/New_York'),
+            timestamp ASC
+    """
+    sql_hlv = f"""
+        SELECT
+            ticker,
+            DATE(timestamp AT TIME ZONE 'America/New_York') AS trade_date,
+            MAX(high_price) AS high_price,
+            MIN(low_price)  AS low_price,
+            SUM(volume)     AS volume
+          FROM market_data
+         WHERE ticker IN ({placeholders})
+           AND timestamp BETWEEN %s AND %s
+           AND (timestamp AT TIME ZONE 'America/New_York')::time
+               BETWEEN '09:30' AND '16:00'
+         GROUP BY ticker, DATE(timestamp AT TIME ZONE 'America/New_York')
     """
     params = tickers + [start, end]
     logger.debug(
         "DB query for %d tickers from %s to %s", len(tickers), start, end
     )
 
-    
-    try:
-        # Execute db query
-        result = portfolio.db.execute_query(sql, params, fetch=True)
-    except Exception as e:
-        # return empty df if failed to query
-        logger.exception("Database query exception: %s", e, exc_info=True)
-        return pd.DataFrame()
+    def _run(sql_text, label):
+        try:
+            res = portfolio.db.execute_query(sql_text, params, fetch=True)
+        except Exception as e:
+            logger.exception("DB query %s failed: %s", label, e, exc_info=True)
+            return None
+        if res.get("status") != "success":
+            logger.error(
+                "DB query %s failed: %s", label, res.get("message", "<no message>")
+            )
+            return None
+        return res.get("data") or []
 
-    if result.get("status") != "success":
-        # Return empty df if query successful but didn't retrieve data
-        logger.error("Database query failed: %s", result.get("message", "<no message>"))
+    rows_close = _run(sql_close, "close")
+    rows_open = _run(sql_open, "open")
+    rows_hlv = _run(sql_hlv, "hlv")
+    if rows_close is None or rows_open is None or rows_hlv is None:
         return pd.DataFrame()
-
-    raw = result.get("data", [])
-    if not raw:
-        # return empty df if no data found for tickers
+    if not rows_close:
         logger.warning("DB query returned no rows for tickers %s.", tickers)
         return pd.DataFrame()
 
-    # Create df using fetched data
-    df = pd.DataFrame(raw)
+    df_close = pd.DataFrame(rows_close)
+    df_open = pd.DataFrame(rows_open)
+    df_hlv = pd.DataFrame(rows_hlv)
 
-    # Add timestamp column to df in NY timezone
-    df["timestamp"] = (pd.to_datetime(df["timestamp"], utc=True, errors="coerce").dt.tz_convert("America/New_York"))
+    df_close["timestamp"] = pd.to_datetime(
+        df_close["timestamp"], utc=True, errors="coerce"
+    ).dt.tz_convert("America/New_York")
+    df_close["trade_date"] = df_close["timestamp"].dt.date
 
-    # Ensure prices are numeric (not str)
+    for frame in (df_open, df_hlv):
+        if "trade_date" in frame.columns:
+            frame["trade_date"] = pd.to_datetime(frame["trade_date"]).dt.date
+
+    df = df_close.merge(
+        df_open[["ticker", "trade_date", "open_price"]],
+        on=["ticker", "trade_date"],
+        how="left",
+    ).merge(
+        df_hlv[["ticker", "trade_date", "high_price", "low_price", "volume"]],
+        on=["ticker", "trade_date"],
+        how="left",
+    )
+    df = df.drop(columns=["trade_date"])
+
     for col in ["open_price", "high_price", "low_price", "close_price", "volume"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Drop invalid rows (missing required data, e.g., open price but no close price, no timestamp, etc)
     before = len(df)
     df.dropna(subset=["timestamp", "ticker", "close_price"], inplace=True)
     dropped = before - len(df)
@@ -77,7 +129,11 @@ def _fetch_from_db(portfolio, tickers: List[str], start, end) -> pd.DataFrame:
     return df
 
 
-def fetch_historical_data(portfolio: BasePortfolio, start_date: datetime, end_date: datetime) -> pd.DataFrame:
+def fetch_historical_data(
+    portfolio: BasePortfolio,
+    start_date: datetime,
+    end_date: datetime
+) -> pd.DataFrame:
     """
     Returns daily OHLCV data for all portfolio tickers in [start_date, end_date].
 
@@ -131,14 +187,39 @@ def fetch_historical_data(portfolio: BasePortfolio, start_date: datetime, end_da
             len(range_to_tickers),
             len(unique_tickers_needing_fetch),
         )
+        # Chunk by BOTH ticker and date window. A single 30-ticker x 6yr
+        # intraday SQL (with GROUP BY day aggregation) overwhelmed PG: ~17M raw
+        # rows scanned per query, timing out repeatedly. Smaller slabs let each
+        # query finish in seconds.
+        TICKER_CHUNK = 10
+        DATE_SLAB_DAYS = 365
+        slab_td = pd.Timedelta(days=DATE_SLAB_DAYS)
         for (gap_start, gap_end), gap_tickers in range_to_tickers.items():
-            # query missing data for a given range and tickers missing that range.
-            fetched = _fetch_from_db(portfolio, gap_tickers, gap_start, gap_end)
-            if fetched.empty:
-                continue
-            for ticker in gap_tickers:
-                ticker_rows = fetched[fetched["ticker"] == ticker]
-                caches[ticker] = _cache.merge_and_save(ticker, caches[ticker], ticker_rows)
+            slab_start = gap_start
+            slab_idx = 0
+            while slab_start < gap_end:
+                slab_end = min(slab_start + slab_td, gap_end)
+                slab_idx += 1
+                for chunk_start in range(0, len(gap_tickers), TICKER_CHUNK):
+                    chunk = gap_tickers[chunk_start : chunk_start + TICKER_CHUNK]
+                    logger.info(
+                        "Fetching DB slab%d %s..%s tickers %d-%d/%d",
+                        slab_idx,
+                        slab_start.date(),
+                        slab_end.date(),
+                        chunk_start + 1,
+                        chunk_start + len(chunk),
+                        len(gap_tickers),
+                    )
+                    fetched = _fetch_from_db(portfolio, chunk, slab_start, slab_end)
+                    if fetched.empty:
+                        continue
+                    for ticker in chunk:
+                        ticker_rows = fetched[fetched["ticker"] == ticker]
+                        caches[ticker] = _cache.merge_and_save(
+                            ticker, caches[ticker], ticker_rows
+                        )
+                slab_start = slab_end
     else:
         logger.info("Fetching all data from local cache")
 

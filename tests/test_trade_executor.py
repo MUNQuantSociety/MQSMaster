@@ -1,9 +1,12 @@
+import pytest
+
 from src.live_trading.engine import RunEngine
 from src.live_trading.executor import tradeExecutor
 from src.portfolios.portfolio_1.strategy import VolMomentum
 from src.portfolios.portfolio_2.strategy import MomentumStrategy
 
 
+@pytest.mark.db
 def test_trade_executor_and_engine_wiring(db_connection):
     """
     Basic integration-style test:

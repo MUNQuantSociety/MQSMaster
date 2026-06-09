@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Iterator, List, Optional
 
@@ -169,6 +169,31 @@ class FmpNewsScraper(BaseNewsScraper):
             )
 
         return all_articles, hit_max_pages, next_start_page
+
+    def fetch_latest_and_save(self, days_back: int = 7) -> Path:
+        """Live-polling fast path: page 0 only, ignore state-store cursor.
+
+        For the live runner: page 0 carries the newest articles; the CSV
+        dedup logic in :meth:`_merge_and_save` rejects anything already
+        seen. State-store cursors stay reserved for the backfill flow,
+        which paginates through history.
+        """
+        self.articles_dir.mkdir(parents=True, exist_ok=True)
+        user_end = datetime.now().replace(hour=23, minute=59, second=59)
+        user_start = user_end - timedelta(days=days_back)
+
+        prev_max = self.MAX_PAGES_PER_RUN
+        try:
+            self.MAX_PAGES_PER_RUN = 1
+            articles, _, _ = self.fetch_page_window(user_start, user_end, start_page=0)
+        finally:
+            self.MAX_PAGES_PER_RUN = prev_max
+
+        if articles:
+            self._merge_and_save(articles)
+        else:
+            logger.info(f"[{self.symbol}] No new articles found on page 0")
+        return self.csv_path
 
     def update_csv(self, start_date_str: str, end_date_str: str) -> Path:
         """Run fetch cycles until pagination is exhausted, append to CSV."""

@@ -4,17 +4,20 @@ from datetime import datetime
 from typing import Optional
 import pandas as pd
 import pytz as pytz 
-# This import registers the .toolkit accessor globally
+# This import registers the .toolkit accessor globally.
+# Prefer the `src.*` path so MarketData is the same class object as imported
+# elsewhere (tests, src/main_backtest.py); falling through to the bare
+# `portfolios.*` path otherwise would create a duplicate MarketData class
+# and break `isinstance` checks.
 try:
-    from portfolios import toolkit
-    from portfolios.market_data_api import MarketData
+    from src.portfolios import toolkit
+    from src.portfolios.market_data_api import MarketData
 except ImportError:
-    logging.warning("toolkit relative import failed; using absolute import.")
     try:
-        from src.portfolios import toolkit
-        from src.portfolios.market_data_api import MarketData
+        from portfolios import toolkit
+        from portfolios.market_data_api import MarketData
     except ImportError:
-        logging.error("Failed to import toolkit from both relative and absolute paths.")
+        logging.error("Failed to import toolkit from both src.* and bare paths.")
         raise
 
 class PortfolioManager:

@@ -5,7 +5,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Any, Literal
 
 import pandas as pd
 
@@ -46,39 +46,40 @@ class BasePortfolio(ABC):
         self,
         db_connector,
         executor,
-        debug=False,
-        config_dict=None,
-        backtest_start_date: Optional[datetime] = None,
+        debug: bool = False,
+        config_dict: dict[str, Any] = {},
+        backtest_start_date: datetime | None = None,
     ):
         """
         Initializes the base portfolio, loading configuration.
         """
         self.db = db_connector
         self.executor = executor
-        self.running = True
-        self.debug = debug
+        self.running: bool = True
+        self.debug: bool = debug
         self.backtest_start_date = backtest_start_date
-        self._last_processed_timestamp: Optional[datetime] = None
-        if config_dict is None:
-            raise ValueError("config_dict is required for portfolio configuration.")
+        self._last_processed_timestamp: datetime | None = None
 
-        self.portfolio_id = config_dict.get("PORTFOLIO_ID", "0")
-        self.tickers = config_dict.get("TICKERS", [])
-        self.poll_interval = config_dict.get("INTERVAL", 60)
-        self.lookback_days = config_dict.get("LOOKBACK_DAYS", 30)
-        self.portfolio_weights = config_dict.get("WEIGHTS")
-        self.data_feeds = config_dict.get(
-            "DATA_FEEDS", ["MARKET_DATA", "POSITIONS", "CASH_EQUITY", "PORT_NOTIONAL"]
+        self.portfolio_id: str = config_dict.get("PORTFOLIO_ID", "0")
+        self.tickers: list[str] = config_dict.get("TICKERS", [])
+        self.poll_interval: int = config_dict.get("INTERVAL", 60)
+        self.lookback_days: int = config_dict.get("LOOKBACK_DAYS", 30)
+        self.portfolio_weights: list[Any] | None = config_dict.get("WEIGHTS")
+        self.data_feeds: list[str] = config_dict.get(
+            "DATA_FEEDS",
+            ["MARKET_DATA", "POSITIONS", "CASH_EQUITY", "PORT_NOTIONAL"]
         )
 
-        self.logger = logging.getLogger(
-            f"{self.__class__.__name__}_{self.portfolio_id}"
+        self.logger: logging.Logger = logging.getLogger(
+            f"{self.__class__.__name__}_{self.portfolio_id}",
         )
         self.logger.info(
-            f"Initialized portfolio {self.portfolio_id} with {len(self.tickers)} tickers."
+            "Initialized portfolio %s with %s tickers.",
+            self.portfolio_id,
+            len(self.tickers)
         )
 
-        self.portfolio_config_dict = {
+        self.portfolio_config_dict: dict[str, Any] = {
             "id": self.portfolio_id,
             "tickers": self.tickers,
             "weights": self.portfolio_weights,
@@ -87,10 +88,15 @@ class BasePortfolio(ABC):
         }
 
         # --- Indicator Management ---
-        self._indicators: List[Indicator] = []
+        self._indicators: list[Indicator] = []
 
-    def _build_indicator_update_payload(self, indicator: Indicator, row):
-        """Build a consistent Update() payload for an indicator from a market-data row."""
+    def _build_indicator_update_payload(self,
+        indicator: Indicator,
+        row
+    ) -> tuple[Any | Literal['close_price'], float, dict[Any, Any]] | None:
+        """
+        Build a consistent Update() payload for an indicator from a market-data row.
+        """
         price_col = (
             getattr(indicator, "price_col", None)
             or getattr(indicator, "close_col", None)
@@ -125,7 +131,7 @@ class BasePortfolio(ABC):
 
     def _update_indicator_from_row(self, indicator: Indicator, row) -> bool:
         """Update one indicator from one row; returns True if an update was applied."""
-        payload = self._build_indicator_update_payload(indicator, row)
+        payload: Any | None = self._build_indicator_update_payload(indicator, row)
         if payload is None:
             return False
 
@@ -142,7 +148,10 @@ class BasePortfolio(ABC):
 
     # --- DYNAMIC INDICATOR FACTORY ---
     def AddIndicator(
-        self, indicator_class_name: str, ticker: str, **kwargs
+        self,
+        indicator_class_name: str,
+        ticker: str,
+        **kwargs
     ) -> Indicator:
         """
         Dynamically loads, instantiates, warms up, and registers an indicator.
@@ -161,29 +170,32 @@ class BasePortfolio(ABC):
                 f"Ticker '{ticker}' is not part of this portfolio's universe."
             )
 
+        module_name: str = _camel_to_snake(indicator_class_name)
         try:
-            module_name = _camel_to_snake(indicator_class_name)
             module = importlib.import_module(f"src.portfolios.indicators.{module_name}")
             indicator_class = getattr(module, indicator_class_name)
         except (ImportError, AttributeError):
             # Fallback: try importing without 'src.' prefix for live trading context
             self.logger.debug(
-                f"Failed to load indicator '{indicator_class_name}' from 'src.portfolios', "
-                f"trying without 'src.' prefix..."
+                "Failed to load indicator '%s' from 'src.portfolios',\n\
+                    trying without 'src.' prefix...",
+                indicator_class_name
             )
             try:
                 module = importlib.import_module(f"portfolios.indicators.{module_name}")
                 indicator_class = getattr(module, indicator_class_name)
             except (ImportError, AttributeError) as e:
                 self.logger.error(
-                    f"Could not dynamically load indicator '{indicator_class_name}' from either path. "
-                    f"Details: {e}"
+                    "Could not dynamically load indicator '%s' from either path. "
+                    + "\nDetails: %s",
+                    indicator_class_name,
+                    e
                 )
                 raise
 
         indicator = indicator_class(ticker=ticker, **kwargs)
 
-        warmup_days = int(kwargs.get("period", 20) * 1.7)
+        warmup_days = int(kwargs.get("period", 20)) * 1.7
         end_time = self.backtest_start_date or datetime.now()
         start_time = end_time - timedelta(days=warmup_days)
 
@@ -191,7 +203,7 @@ class BasePortfolio(ABC):
         params = [ticker, start_time.date(), end_time.date()]
         result = self.db.execute_query(sql, params, fetch="all")
 
-        price_col = kwargs.get("price_col") or kwargs.get("close_col", "close_price")
+        price_col: str = kwargs.get("price_col") or kwargs.get("close_col", "close_price")
         if result["status"] == "success" and result.get("data"):
             df = pd.DataFrame(result["data"])
 
@@ -218,7 +230,7 @@ class BasePortfolio(ABC):
             if price_col not in df.columns:
                 self.logger.warning(
                     "Indicator warmup missing price_col for _build_indicator_update_payload path "
-                    "(indicator=%s, ticker=%s, price_col=%s, df_columns=%s)",
+                    + "(indicator=%s, ticker=%s, price_col=%s, df_columns=%s)",
                     indicator_class_name,
                     ticker,
                     price_col,
@@ -235,7 +247,9 @@ class BasePortfolio(ABC):
         self._indicators.append(indicator)
         return indicator
 
-    def RegisterIndicatorSet(self, indicator_definitions: Dict[str, tuple]):
+    def RegisterIndicatorSet(self,
+        indicator_definitions: dict[str, tuple[str, dict[str, Any]]]
+    ) -> None:
         """
         Initializes a set of indicators for every ticker and attaches them as
         ticker-keyed dictionaries to the strategy instance. This is the
@@ -264,7 +278,7 @@ class BasePortfolio(ABC):
             self.logger.info(f"Registered indicator set '{attr_name}' for all tickers.")
 
     def generate_signals_and_trade(
-        self, data: Dict[str, pd.DataFrame], current_time: Optional[datetime] = None
+        self, data: dict[str, pd.DataFrame], current_time: datetime | None = None
     ):
         """
         (Framework-Internal Method)
@@ -293,21 +307,29 @@ class BasePortfolio(ABC):
                 for _, group in new_data.sort_values("timestamp").groupby("timestamp"):
                     for row in group.itertuples():
                         for indicator in self._indicators:
-                            if indicator.ticker == row.ticker:
-                                if not self._update_indicator_from_row(indicator, row):
-                                    continue
+                            if not indicator.ticker == row.ticker:
+                                continue
+                            if not self._update_indicator_from_row(indicator, row):
+                                continue
 
-                                price_col = (
-                                    getattr(indicator, "price_col", None)
-                                    or getattr(indicator, "close_col", None)
-                                    or "close_price"
-                                )
-                                vol_col = getattr(indicator, "vol_col", "volume")
-                                high_col = getattr(indicator, "high_col", "high_price")
-                                low_col = getattr(indicator, "low_col", "low_price")
-                                self.logger.debug(
-                                    f"Updated {indicator.__class__.__name__} for {row.ticker} at {row.timestamp}: {getattr(row, price_col)}, vol={getattr(row, vol_col, 'N/A')}, high={getattr(row, high_col, 'N/A')}, low={getattr(row, low_col, 'N/A')}"
-                                )
+                            price_col = (
+                                getattr(indicator, "price_col", None)
+                                or getattr(indicator, "close_col", None)
+                                or "close_price"
+                            )
+                            vol_col = getattr(indicator, "vol_col", "volume")
+                            high_col = getattr(indicator, "high_col", "high_price")
+                            low_col = getattr(indicator, "low_col", "low_price")
+                            self.logger.debug(
+                                "Updated %s for %s at %s: %s, vol=%s, high=%s, low=%s",
+                                indicator.__class__.__name__,
+                                row.ticker,
+                                row.timestamp,
+                                getattr(row, price_col),
+                                getattr(row, vol_col, 'N/A'),
+                                getattr(row, high_col, 'N/A'),
+                                getattr(row, low_col, 'N/A')
+                            )
 
         # Update the last processed time. If current_time is None, fall back to newest timestamp.
         if current_time is not None:
@@ -352,7 +374,7 @@ class BasePortfolio(ABC):
     # as it's responsible for fetching the data that will eventually be
     # passed into the StrategyContext.
 
-    ATOMIC_STATE_QUERY = """
+    ATOMIC_STATE_QUERY: str = """
     WITH latest_cash AS (
         SELECT *
         FROM cash_equity_book
@@ -372,14 +394,14 @@ class BasePortfolio(ABC):
         (SELECT json_agg(lp) FROM latest_positions lp) AS positions_data;
     """
 
-    MARKET_DATA_QUERY = """
+    MARKET_DATA_QUERY: str = """
         SELECT *
         FROM market_data
         WHERE ticker IN ({placeholders})
           AND timestamp BETWEEN %s AND %s
     """
 
-    LATEST_PNL_QUERY = """
+    LATEST_PNL_QUERY: str = """
         SELECT *
         FROM pnl_book
         WHERE portfolio_id = %s
@@ -387,22 +409,22 @@ class BasePortfolio(ABC):
         LIMIT 1
     """
 
-    SEED_POSITION_QUERY = """
+    SEED_POSITION_QUERY: str = """
         INSERT INTO positions_book (portfolio_id, ticker, quantity)
         VALUES (%s, %s, 0)
         RETURNING *;
     """
 
-    SEED_CASH_QUERY = """
+    SEED_CASH_QUERY: str = """
         INSERT INTO cash_equity_book (portfolio_id, timestamp, date, currency, notional)
         VALUES (%s, %s, %s, %s, %s)
         RETURNING *;
     """
 
     # Default initial capital for auto-seeding (can be overridden in config)
-    DEFAULT_INITIAL_CAPITAL = 1000000.0
+    DEFAULT_INITIAL_CAPITAL: float = 1000000.0
 
-    def get_data(self, data_feeds: List[str]) -> Dict[str, pd.DataFrame]:
+    def get_data(self, data_feeds: list[str]) -> dict[str, pd.DataFrame]:
         """
         Fetches a consistent snapshot of portfolio data. Core state (cash, positions)
         is fetched atomically to prevent race conditions.
@@ -468,7 +490,7 @@ class BasePortfolio(ABC):
         )
 
         try:
-            result = self.db.execute_query(
+            result: dict[str, Any] = self.db.execute_query(
                 self.SEED_CASH_QUERY,
                 (self.portfolio_id, timestamp, date_part, "USD", initial_capital),
                 fetch="all",
@@ -546,7 +568,7 @@ class BasePortfolio(ABC):
         return df
 
     def _get_portfolio_notional(
-        self, fallback_cash_df: Optional[pd.DataFrame] = None
+        self, fallback_cash_df: pd.DataFrame | None = None
     ) -> pd.DataFrame:
         """
         Retrieves the latest portfolio notional. Falls back to cash if no PnL record exists.

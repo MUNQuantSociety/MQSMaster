@@ -16,6 +16,7 @@ def _build_executor(price_map, record):
     executor = tradeExecutor.__new__(tradeExecutor)
     executor.dbconn = object()
     executor.leverage = 2.0
+    executor.rbp_overlay = None
     executor.logger = logging.getLogger("test_trade_executor")
 
     def fake_get_current_price(ticker):

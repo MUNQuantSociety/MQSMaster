@@ -50,12 +50,41 @@ def load_existing_tickers(tickers_path: Path) -> list[str]:
 
 
 def save_tickers(tickers: list[str], tickers_path: Path) -> None:
-    """Save tickers to JSON file."""
+    """Save tickers to JSON file + append a dated entry to <name>_history.json.
+
+    The history sidecar is a minimum-viable PIT trail (D2 Tier 1, 2026-05-20).
+    Each entry records (date, set of tickers); a follow-up PR can promote this
+    into a proper index_membership DB table. The sidecar is append-only; old
+    entries are never removed.
+    """
     try:
         tickers_path.parent.mkdir(parents=True, exist_ok=True)
         with open(tickers_path, "w") as f:
             json.dump(tickers, f, indent=2)
         logger.info(f"Saved {len(tickers)} tickers to {tickers_path.name}")
+
+        # D2 Tier 1 history sidecar.
+        from datetime import datetime as _dt
+        history_path = tickers_path.with_name(tickers_path.stem + "_history.json")
+        history: list = []
+        if history_path.exists():
+            try:
+                with open(history_path, "r") as hf:
+                    history = json.load(hf) or []
+                if not isinstance(history, list):
+                    history = []
+            except (OSError, json.JSONDecodeError):
+                history = []
+        history.append({
+            "date": _dt.utcnow().strftime("%Y-%m-%d"),
+            "tickers": sorted(tickers),
+            "n": len(tickers),
+        })
+        try:
+            with open(history_path, "w") as hf:
+                json.dump(history, hf, indent=2)
+        except OSError as e:
+            logger.warning(f"Could not write history sidecar {history_path.name}: {e}")
     except Exception as e:
         logger.error(f"Error saving tickers: {e}")
         raise
@@ -67,7 +96,7 @@ def fetch_and_merge_tickers(
     """Fetch new tickers and merge with existing ones."""
     try:
         # Fetch S&P 500 tickers
-        sp500 = fmp.get_SP500_tickers()
+        sp500 = fmp.get_sp500_tickers()
         logger.info(f"Fetched {len(sp500)} S&P 500 tickers from FMP")
 
         # Fetch commodity tickers
@@ -116,7 +145,7 @@ def parse_cli_arguments() -> argparse.Namespace:
         "--interval", type=int, default=1, help="Bar interval in minutes (default: 1)"
     )
     parser.add_argument(
-        "--threads", type=int, default=8, help="Number of worker threads (default: 8)"
+        "--threads", type=int, default=4, help="Number of worker threads (default: 4, must be < MQSDBConnector pool maxconn=6)"
     )
     parser.add_argument(
         "--exchange", type=str, default="NYSE", help="Exchange code (default: NYSE)"

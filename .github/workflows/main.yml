@@ -115,12 +115,14 @@ jobs:
       - name: Run integration tests
         if: matrix.python-version == '3.11' && steps.db.outputs.available == 'true'
         env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_SSLMODE: ${{ secrets.DB_SSLMODE }}
+          # MQSDBConnector reads lowercase env var names (mirrors .env keys).
+          host: ${{ secrets.DB_HOST }}
+          port: ${{ secrets.DB_PORT }}
+          database: ${{ secrets.DB_NAME }}
+          db_user: ${{ secrets.DB_USER }}
+          password: ${{ secrets.DB_PASSWORD }}
+          sslmode: "require"
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           PYTHONWARNINGS: error
         run: |
           python -m pytest -q -m "db" \

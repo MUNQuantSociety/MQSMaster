@@ -163,12 +163,6 @@ def main():
         volume_state = initialize_volume_state(db, tickers_to_track)
 
         while True:
-            # Use timezone-aware datetime for robust market hours checking
-            now_eastern = datetime.now(TIMEZONE)
-            if not (MARKET_OPEN <= now_eastern.time() <= MARKET_CLOSE):
-                logging.info("Market is closed. Stopping script.")
-                break
-
             start_time = time.time()
             run_ingestion_cycle(fmp, db, tickers_to_track, volume_state)
             

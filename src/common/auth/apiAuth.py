@@ -9,7 +9,8 @@ import os
 from dotenv import load_dotenv
 
 # Optional: load .env if you want
-load_dotenv()
+if (load_dotenv() is False):
+    pass
 
 class APIAuth:
     """Lightweight accessor for the FMP API key.
@@ -21,7 +22,7 @@ class APIAuth:
 
     def __init__(self):
         api_key_env = os.getenv('FMP_API_KEY')
-        self.fmp_api_key = (api_key_env or '').strip()
+        self.fmp_api_key: str = (api_key_env or '').strip()
         if not self.fmp_api_key:
             # Deliberately avoid silently using a hard‑coded default; force visibility.
             print("⚠️ FMP_API_KEY not set or empty. Set it in your environment or .env file.")

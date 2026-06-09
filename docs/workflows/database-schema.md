@@ -132,7 +132,7 @@ flowchart TD
         BTEXEC["BacktestExecutor"]
         ALLOC["DailyAllocator"]
         CAP["manage_capital"]
-        NLP["NLP daemon"]
+        NLP["NLP pipeline"]
     end
 
     subgraph Tables["Tables"]
