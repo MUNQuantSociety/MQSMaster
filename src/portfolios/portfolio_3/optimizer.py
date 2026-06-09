@@ -2,7 +2,7 @@ import argparse
 import numpy as np
 import math
 import pandas as pd
-from src.backtest.optimizer import TickerParamOptim
+from src.portfolios.portfolio_BASE import TickerParamOptim
 
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -91,47 +91,6 @@ class Portfolio3Optimizer(TickerParamOptim):
         # }
         return params
 
-    def check_boundaries(self, params, ranges):
-        """
-        Checks if an optimized parameter value for a ticker is at a max or min value.
-
-        Returns a dict for each maxed parameter, 0 indicates min, 1 indicates max
-        """
-        lims = {}
-        for p in params:
-            if abs(params[p] - ranges[p][0]) < 0.001:
-                lims[p] = 0
-            if abs(params[p] - ranges[p][1]) < 0.001:
-                lims[p] = 1
-        return lims
-
-    def build_rerun_ranges(self, best_params, boundary_params, ranges):
-        """
-        If a ticker was optimized and has a param at a max or min value of the range used,
-        this method will re-run the optimizer using a range starting at and exceeding the 
-        limit reached for the limited tickers and a 30% tighter range for non-limited tickers.
-        """
-        new_ranges = {}
-        for p in best_params:
-            if p in boundary_params:
-                if boundary_params[p] == 0:
-                    new_max = ranges[p][0]
-                    new_min = ranges[p][0] - 1.0
-                else:
-                    new_min = ranges[p][1]
-                    new_max = ranges[p][1] + 1.0
-            else:
-                old_range = ranges[p]
-                best = best_params[p]
-                new_min = old_range[0] + round( ((best - old_range[0]) * 0.3), 1)
-                new_max = old_range[1] - round( ((old_range[1] - best) * 0.3), 1)
-            if len(ranges[p]) > 2:
-                new_ranges[p] = (new_min, new_max, ranges[p][2])
-            else:
-                new_ranges[p] = (new_min, new_max)
-        return new_ranges
-
-    
     def compute_indicators(self, df, vix_df):
         """
         Computes vwap atr roc and sma50 for portfolio_3.
