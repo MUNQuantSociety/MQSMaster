@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import List, Optional
@@ -69,6 +70,33 @@ class FMPMarketData:
         self.INTERNET_RETRY_INTERVAL_SECONDS = 10
         self.INTERNET_MAX_WAIT_SECONDS = 120
 
+        # Transfer-speed / timing stats (thread-safe accumulation across requests)
+        self._lock = threading.Lock()
+        self.request_timestamps: list = []
+        self.total_bytes_downloaded = 0
+        self.total_request_seconds = 0.0
+
+    def get_transfer_stats(self) -> dict:
+        """
+        Cumulative download stats across every request this instance has made.
+
+        Returns dict with total_bytes, total_seconds, avg_mb_per_sec,
+        and request_count. avg_mb_per_sec is 0.0 if no time has elapsed yet.
+        """
+        with self._lock:
+            total_bytes = self.total_bytes_downloaded
+            total_seconds = self.total_request_seconds
+            request_count = len(self.request_timestamps)
+
+        mb_downloaded = total_bytes / (1024 * 1024)
+        avg_mb_per_sec = mb_downloaded / total_seconds if total_seconds > 0 else 0.0
+        return {
+            "total_bytes": total_bytes,
+            "total_seconds": total_seconds,
+            "avg_mb_per_sec": avg_mb_per_sec,
+            "request_count": request_count,
+        }
+
     def _check_rate_limit(self):
         """Block until a slot is available, then claim it."""
         self._rate_limiter.acquire()
@@ -117,13 +145,17 @@ class FMPMarketData:
                 # Enforce rate limit before making the request
                 self._check_rate_limit()
 
+                request_start = time.perf_counter()
                 response = requests.get(
                     url, params=params, timeout=self.TIMEOUT_SECONDS
                 )
+                elapsed = time.perf_counter() - request_start
 
                 if response.status_code == 200:
                     with self._lock:
                         self.request_timestamps.append(time.time())
+                        self.total_bytes_downloaded += len(response.content)
+                        self.total_request_seconds += elapsed
                     return response.json()
 
                 self.logger.warning(

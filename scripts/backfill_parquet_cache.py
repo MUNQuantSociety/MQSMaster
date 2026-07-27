@@ -10,8 +10,11 @@ HOW TO USE:
 
 Usage:
     python -m scripts.backfill_parquet_cache
+    python -m scripts.backfill_parquet_cache --tickers TSLA AMZN --overwrite TSLA --interval 30 --chunk-size 30
 """
 
+import argparse
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -156,11 +159,44 @@ def fetch_and_cache(fmp: FMPMarketData, ticker: str) -> int:
     return len(new_df)
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Backfill historical OHLCV into local parquet cache from FMP."
+    )
+    parser.add_argument(
+        "--tickers", nargs="+", default=TICKERS,
+        help=f"Tickers to backfill (space-separated). Default: {TICKERS}",
+    )
+    parser.add_argument(
+        "--overwrite", nargs="+", default=sorted(REPLACE_ENTIRELY),
+        help="Tickers to delete and fully rebuild instead of merging. "
+             f"Default: {sorted(REPLACE_ENTIRELY)}",
+    )
+    parser.add_argument(
+        "--interval", type=int, default=INTERVAL,
+        help=f"Intraday bar size in minutes (1, 5, 15, 30, 60). Default: {INTERVAL}",
+    )
+    parser.add_argument(
+        "--chunk-size", type=int, default=CHUNK_DAYS,
+        help=f"Days per FMP intraday API call. Default: {CHUNK_DAYS}",
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = _parse_args()
+
+    global TICKERS, REPLACE_ENTIRELY, INTERVAL, CHUNK_DAYS
+    TICKERS = args.tickers
+    REPLACE_ENTIRELY = set(args.overwrite)
+    INTERVAL = args.interval
+    CHUNK_DAYS = args.chunk_size
+
     fmp = FMPMarketData()
     total_rows = 0
     failed = []
 
+    run_start = time.perf_counter()
     for ticker in TICKERS:
         try:
             count = fetch_and_cache(fmp, ticker)
@@ -170,9 +206,14 @@ def main():
         except Exception as e:
             print(f"[{ticker}] ERROR: {e}")
             failed.append(ticker)
+    run_seconds = time.perf_counter() - run_start
 
+    stats = fmp.get_transfer_stats()
     print(f"\n{'='*50}")
     print(f"Done. {total_rows} total rows written across {len(TICKERS)} tickers.")
+    print(f"Total time: {run_seconds:.1f}s over {stats['request_count']} FMP requests")
+    print(f"Downloaded: {stats['total_bytes'] / (1024 * 1024):.2f} MB "
+          f"(avg {stats['avg_mb_per_sec']:.3f} MB/s while requests were in flight)")
     if failed:
         print(f"Failed or empty: {failed}")
         print("For ^VIX, try changing the ticker to '%5EVIX' if FMP returned no data.")
