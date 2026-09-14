@@ -1,4 +1,5 @@
 import logging
+import math
 
 # Try relative imports first; on failure, log and attempt absolute imports.
 try:
@@ -42,8 +43,10 @@ class VolMomentum(BasePortfolio):
             f"{self.__class__.__name__}_{self.portfolio_id}"
         )
         # Format: "indicator_variable_name": ("IndicatorName", {params})
+        self.PERIOD = 20
+        self.TARGET_WEIGHT = 0.2
         indicator_definitions = {
-            "roc": ("RateOfChange", {"period": 20}),
+            "roc": ("RateOfChange", {"period": self.PERIOD}),
         }
         self.RegisterIndicatorSet(indicator_definitions)
 
@@ -66,20 +69,33 @@ class VolMomentum(BasePortfolio):
                 continue
 
             return_history = asset.History("60d")
-            returns = return_history["close_price"].pct_change(60).dropna()
-            volatility = returns.std() * (252**0.5)
+            returns = (
+                return_history["close_price"]
+                .pct_change(fill_method=None)
+                .dropna()
+            )
+            if len(returns) < self.PERIOD:
+                continue
+            # ROC is a 20-bar percentage return. Compare it with volatility
+            # over the same horizon and keep both values in percent units.
+            volatility = float(returns.std() * (self.PERIOD**0.5) * 100.0)
 
             momentum = roc.Current
+            if (
+                momentum is None
+                or not math.isfinite(momentum)
+                or not math.isfinite(volatility)
+            ):
+                raise ValueError(
+                    f"VolMomentum: non-finite momentum or volatility for {ticker}."
+                    )
             threshold = volatility * vol_multiplier
             position = portfolio.positions.get(ticker, 0)
 
             bullish = momentum > threshold
             bearish = momentum < -threshold
 
-            if bullish and not is_risk_off:
-                is_risk_off = False
-
-            weight = 0.2 if bullish else 0.0
+            weight = self.TARGET_WEIGHT if bullish else 0.0
             asset_weight = 0.0
             if asset.Exists:
                 asset_weight = portfolio.get_asset_weight(ticker, asset.Close)
@@ -88,7 +104,7 @@ class VolMomentum(BasePortfolio):
             elif asset_weight > weight:
                 target_weight = False
 
-            if (bullish and target_weight) or position < 0:  # Max 25% weight
+            if bullish and target_weight and not is_risk_off:  # Max 25% weight
                 self.logger.debug(
                     f"[{ticker}] BUY signal: momentum ({momentum:.4f}) > threshold ({threshold:.4f}), position={position}"
                 )
