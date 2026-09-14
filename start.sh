@@ -15,20 +15,50 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # outside this directory -- cron included.
 PYTHON_VENV="${PYTHON_VENV:-${SCRIPT_DIR}/MQS/bin/python}"
 
-# Load environment variables (like FMP_API_KEY) from the .env file.
-# The .env file should be in the same directory as this script.
-if [ -f "${SCRIPT_DIR}/.env" ]; then
-    source "${SCRIPT_DIR}/.env"
-else
-    echo "[ERROR] .env file not found at ${SCRIPT_DIR}/.env. trying .env.example."
-    if [ -f "${SCRIPT_DIR}/.env.example" ]; then
-        cp "${SCRIPT_DIR}/.env.example" "${SCRIPT_DIR}/.env"
-        echo "[WARNING] Created .env from .env.example. Please verify credentials are correct."
-        source "${SCRIPT_DIR}/.env"
-    else
-        echo "[ERROR] .env.example file not found at ${SCRIPT_DIR}/.env.example. Exiting."
-        exit 1
+# Credentials the app expects, as both .env keys and process env var names
+# (they're deliberately identical -- see MQS_AWS_INFRA ssm-parameters module).
+ENV_KEYS=(FMP_API_KEY ALPHA_KEY APIFY_KEY db_user password host port database sslmode)
+
+# start.sh sources .env (or falls back to empty .env.example which
+# would clobber the ECS-injected env vars). Materialise a real .env
+# from the secrets ECS already injected, so source preserves them.
+#
+# .env is for local/dev use only -- it is gitignored and dockerignored, so it
+# never exists in the container; ECS instead sets these as real process
+# environment variables (task definition `environment`/`secrets`) before this
+# script runs. The old fallback copied .env.example (every value blank) to
+# .env and sourced THAT -- since .env is always missing in ECS, that path
+# always ran, silently overwriting the credentials ECS had already injected
+# with empty strings. Writing .env from the current environment instead keeps
+# the single `source` codepath below correct in both places: locally it picks
+# up whatever .env already has, and in ECS it round-trips the same values
+# that were already set, rather than erasing them.
+if [ ! -f "${SCRIPT_DIR}/.env" ]; then
+    echo "[INFO] No .env file at ${SCRIPT_DIR}/.env -- materialising one from the current environment (e.g. ECS task secrets)."
+    : > "${SCRIPT_DIR}/.env"
+    for var in "${ENV_KEYS[@]}"; do
+        if [ -n "${!var:-}" ]; then
+            printf '%s=%q\n' "$var" "${!var}" >> "${SCRIPT_DIR}/.env"
+        fi
+    done
+fi
+
+echo "[INFO] Loading environment from ${SCRIPT_DIR}/.env."
+source "${SCRIPT_DIR}/.env"
+
+# Fail fast and loud if required credentials are missing, rather than limping
+# along with blank values -- from a stale .env, a misconfigured ECS task
+# definition, or an SSM parameter that never got pushed.
+required_vars=(FMP_API_KEY db_user password host port database)
+missing_vars=()
+for var in "${required_vars[@]}"; do
+    if [ -z "${!var:-}" ]; then
+        missing_vars+=("$var")
     fi
+done
+if [ ${#missing_vars[@]} -gt 0 ]; then
+    echo "[ERROR] Missing required environment variable(s): ${missing_vars[*]}. Exiting."
+    exit 1
 fi
 
 # Set the exchange to monitor.
@@ -225,16 +255,55 @@ launch_market_script() {
 # procps (pgrep/ps) -- minimal base images often lack that package entirely,
 # which would otherwise make this check silently pass every time. /proc is
 # part of the kernel, not a package, so this works anywhere Linux does.
-is_process_running() {
+#
+# Prints the first matching PID on success (find_pid_by_cmdline) -- used both
+# for the plain running/not-running check below and to locate a persistent
+# script's current PID for memory logging, since spawn_persistent's watcher
+# restarts it under a new PID on every crash and nothing else tracks that PID.
+find_pid_by_cmdline() {
   local pattern="$1"
   local pid_dir
   for pid_dir in /proc/[0-9]*; do
     [ -r "${pid_dir}/cmdline" ] || continue
     if tr '\0' ' ' < "${pid_dir}/cmdline" 2>/dev/null | grep -qF -- "$pattern"; then
+      basename "$pid_dir"
       return 0
     fi
   done
   return 1
+}
+
+is_process_running() {
+  find_pid_by_cmdline "$1" >/dev/null
+}
+
+# Log one process's resident memory (VmRSS, from /proc -- no procps dependency)
+# plus its full command line so the log line is self-identifying even if the
+# caller only had a PID. Silently skips a PID that's gone by the time it's
+# read (process exited between discovery and this call) rather than erroring.
+log_process_memory() {
+  local pid="$1"
+  local rss_kb cmdline
+  rss_kb=$(awk '/^VmRSS:/{print $2}' "/proc/${pid}/status" 2>/dev/null)
+  [ -n "$rss_kb" ] || return 0
+  cmdline=$(tr '\0' ' ' < "/proc/${pid}/cmdline" 2>/dev/null)
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] [mem] ${cmdline:-PID $pid} (PID $pid): $(( rss_kb / 1024 )) MB"
+}
+
+# Purely observational: logs memory for every tracked market-hours PID plus
+# each configured persistent script (looked up fresh each call, per
+# find_pid_by_cmdline's docstring above). Informs whether market_task_memory
+# needs raising now that persistent_scripts (NLP) can run folded into this
+# same task -- see ecs-task-market's header comment in MQS_AWS_INFRA -- without
+# committing to a number ahead of having real data.
+log_memory_usage() {
+  local pid script
+  for pid in "${market_pids[@]}"; do
+    log_process_memory "$pid"
+  done
+  for script in "${persistent_to_run[@]}"; do
+    pid=$(find_pid_by_cmdline "$script") && log_process_memory "$pid"
+  done
 }
 
 # Spawn a script under a detached auto-restart watcher.
@@ -297,16 +366,10 @@ market_scripts=(
 # Scripts that run 24/7 with auto-restart, detached from this start.sh.
 # Even after the market-hours watchdog exits, these keep running and will
 # survive crashes via the spawn_persistent supervisor loop.
-#
-# Set SKIP_PERSISTENT_SCRIPTS=1 (e.g. via ECS task env) when NLP runs as its
-# own separate service/task, so this instance doesn't also spawn it.
-if [ "${SKIP_PERSISTENT_SCRIPTS:-0}" = "1" ]; then
-    persistent_scripts=()
-else
-    persistent_scripts=(
-      "./NLP/main_NLP.py"
-    )
-fi
+persistent_scripts=(
+  "./NLP/main_NLP.py"
+  "./src/orchestrator/retention/prune_market_data.py"
+)
 
 check_db=(
   "./src/common/database/test.py"
@@ -400,6 +463,11 @@ fi
 
 echo "Market PIDs: ${market_pids[*]}"
 
+# Baseline reading right after launch, before the recurring one in the
+# monitoring loop below -- startup memory isn't steady-state, but it's a
+# useful T+0 anchor to compare later readings against.
+log_memory_usage
+
 # --- MONITORING LOOP ---
 
 unknown_streak=0
@@ -468,6 +536,8 @@ while true; do
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] All market processes exited before market close. Exiting watchdog."
     exit 1
   fi
+
+  log_memory_usage
 
   # If the market is still open, wait for 3 minutes.
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] Market is open (${#market_pids[@]} process(es) alive). Checking again in 3 minutes."

@@ -35,6 +35,12 @@ env:
 permissions:
   contents: read
 
+# Serialize deploys per ref, and never cancel one in flight -- an interrupted
+# run can leave an image in ECR with no matching task definition revision.
+#
+# This must stay workflow-level ONLY. A job-level `concurrency:` with this same
+# group deadlocks: the job cannot acquire a group its own workflow run already
+# holds, and GitHub fails it in about a second with no steps and no logs.
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
@@ -48,8 +54,6 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_branch == 'main')
-    concurrency:
-      group: deploy-${{ github.ref }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

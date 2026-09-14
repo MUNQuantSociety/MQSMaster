@@ -35,6 +35,12 @@ ENV PYTHONPATH="/app" \
 # Add the venv’s bin directory to PATH so its python and scripts are used
 ENV PATH="/app/MQS/bin:$PATH"
 
+# start.sh's preflight requires curl (market-hours check against FMP) and jq
+# (parsing that response) -- python:3.12-slim ships neither.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl jq && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN groupadd -g 1001 appgroup && \
     useradd -u 1001 -g appgroup -m -d /app -s /bin/bash appuser
 
