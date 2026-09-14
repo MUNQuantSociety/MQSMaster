@@ -14,7 +14,6 @@ import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
 from multiprocessing import RLock, cpu_count
-from typing import List, Optional, Type
 
 import pandas as pd
 from tqdm import tqdm
@@ -51,7 +50,9 @@ START_DATE = "2025-01-01"
 END_DATE = "2025-09-05"
 INITIAL_CAPITAL = 1000000.0
 SLIPPAGE = 0.0  # cost_model authoritative; legacy slippage held at 0
-COST_MODEL = CostModel.for_large_cap()  # fixed 0.5 + half-spread 2 + 1.0*sigma*sqrt(Q/ADV) bps
+COST_MODEL = (
+    CostModel.for_large_cap()
+)  # fixed 0.5 + half-spread 2 + 1.0*sigma*sqrt(Q/ADV) bps
 # Survivorship-bias caveat (D2 audit, 2026-05-20): the P6/P7/P8 universes are
 # current-snapshot SPX+NDX (no historical index membership). Multi-year backtests
 # therefore overstate CAGR by ~50-400 bps/yr per BGIR 1992 / AnalyticalPlatform 145bps.
@@ -60,8 +61,8 @@ COST_MODEL = CostModel.for_large_cap()  # fixed 0.5 + half-spread 2 + 1.0*sigma*
 BACKTEST_MODE = "event"  # or "fast"
 BACKTEST_NUM_BATCHES = None  # Set to an integer to override auto batch(for best results use the number of cores on your machine).
 DEFAULT_PORTFOLIO_CLASSES = [
-#    VolMomentum,
-#    MomentumStrategy,
+    VolMomentum,
+    MomentumStrategy,
     RegimeAdaptiveStrategy,
     TrendRotateStrategy,
     CrossoverRmiStrategy,
@@ -108,6 +109,7 @@ FAST_MODE_CONFIG = {
     "mc_seed": None,
     "mc_plot_percentiles": [10, 50, 90],
 }
+
 
 def _resolve_fast_mode_config(
     fast_config=None,
@@ -162,7 +164,7 @@ def init_backtest(
 ):
 
     if portfolio_classes is None or len(portfolio_classes) == 0:
-        portfolio_classes: List[Type[BasePortfolio]] = list(
+        portfolio_classes: list[type[BasePortfolio]] = list(
             AVAILABLE_PORTFOLIO_CLASSES[:2]
         )  # Default to first 2 portfolios.
 
@@ -202,6 +204,7 @@ def init_backtest(
         backtest_mode,
         None,
     )
+
 
 def run_backtest(
     portfolio_classes,
@@ -243,7 +246,7 @@ def run_backtest(
 
 def _resolve_num_batches(
     portfolio_count: int,
-    requested_num_batches: Optional[int] = None,
+    requested_num_batches: int | None = None,
 ) -> int:
     if portfolio_count <= 0:
         return 0
@@ -283,11 +286,12 @@ def _resolve_num_batches(
         return min(portfolio_count, cpus)
     return min(portfolio_count, 4)
 
+
 # Default to 4 batches if CPU count is unavailable.
 def _partition_portfolios_evenly(
-    portfolio_classes: List[Type[BasePortfolio]],
+    portfolio_classes: list[type[BasePortfolio]],
     num_batches: int,
-) -> List[List[Type[BasePortfolio]]]:
+) -> list[list[type[BasePortfolio]]]:
     if num_batches <= 0:
         return []
 
@@ -295,7 +299,7 @@ def _partition_portfolios_evenly(
     base_size = n // num_batches
     remainder = n % num_batches
 
-    batches: List[List[Type[BasePortfolio]]] = []
+    batches: list[list[type[BasePortfolio]]] = []
     start = 0
     for i in range(num_batches):
         batch_size = base_size + (1 if i < remainder else 0)
@@ -306,8 +310,7 @@ def _partition_portfolios_evenly(
     return batches
 
 
-
-def main(num_batches: Optional[int] = None):
+def main(num_batches: int | None = None):
     """
     Main entry point for the MQS Trading System backtests.
     using ProcessPoolExecutor to run multiple backtests in parallel.
@@ -369,9 +372,14 @@ def main(num_batches: Optional[int] = None):
                         logging.info("No trades executed in this batch.")
                         continue
                     elif trade_log is None:
-                        raise ValueError("Backtest returned None instead of a trade log.")
+                        raise ValueError(
+                            "Backtest returned None instead of a trade log."
+                        )
                     for portfolio in range(len(trade_log)):
-                        if trade_log[portfolio] is None or len(trade_log[portfolio]) == 0:
+                        if (
+                            trade_log[portfolio] is None
+                            or len(trade_log[portfolio]) == 0
+                        ):
                             logging.info("No trades executed for portfolio")
                             continue
                         for trade in trade_log[portfolio]:
