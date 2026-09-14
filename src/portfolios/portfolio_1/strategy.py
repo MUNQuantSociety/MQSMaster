@@ -104,13 +104,18 @@ class VolMomentum(BasePortfolio):
             elif asset_weight > weight:
                 target_weight = False
 
-            if bullish and target_weight and not is_risk_off:  # Max 25% weight
+            if bullish and target_weight and not is_risk_off:
                 self.logger.debug(
                     f"[{ticker}] BUY signal: momentum ({momentum:.4f}) > threshold ({threshold:.4f}), position={position}"
                 )
                 context.buy(ticker, confidence=1.0)
 
-            elif position > 0 and (bearish or target_weight is False or is_risk_off):
+            # Risk-off means no *new* exposure, not liquidation: a held position
+            # is only reduced by its own signal or by drifting over weight. A
+            # fully invested book fails the cash test every bar, and selling
+            # its still-bullish names for that reason flattened and re-bought
+            # the whole book on alternate bars.
+            elif position > 0 and (bearish or target_weight is False):
                 self.logger.debug(
                     f"[{ticker}] SELL signal: momentum ({momentum:.4f}) < threshold ({threshold:.4f}), position={position}"
                 )
