@@ -265,6 +265,33 @@ class FMPMarketData:
         )
         return None
 
+    def _get_batch_quotes(self, endpoint, label):
+        """
+        Fetch a full asset-class quote feed (crypto, commodity) in one request.
+        Returns the list of quote dicts, or None if the call fails.
+        """
+        url = f"https://financialmodelingprep.com/stable/{endpoint}"
+        params = {"short": "false", "apikey": self.fmp_api_key}
+
+        self.logger.info("Fetching batch data for %s...", label)
+        data = self._make_request(url, params)
+
+        if isinstance(data, list):
+            return data
+
+        self.logger.error(
+            "[FMP API] Failed to fetch or parse batch data for %s.", label
+        )
+        return None
+
+    def get_batch_crypto_quotes(self):
+        """Fetch real-time quotes for every crypto pair FMP serves (exchange='CRYPTO')."""
+        return self._get_batch_quotes("batch-crypto-quotes", "CRYPTO")
+
+    def get_batch_commodity_quotes(self):
+        """Fetch real-time quotes for every commodity FMP serves (exchange='COMMODITY')."""
+        return self._get_batch_quotes("batch-commodity-quotes", "COMMODITY")
+
     def get_current_price(self, ticker):
         """
         Fetch real-time stock price for a single ticker using FMP API.

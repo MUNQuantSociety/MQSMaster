@@ -4,13 +4,11 @@ import json
 
 def load_tickers():
     """
-    Load ticker symbols from config.json files located in portfolio directories.
-    
-    Args:
-        portfolios_base_path (str): Relative path where the portfolios are located.
-    
+    Load the realtime ticker universe from orchestrator/backfill/tickers.json
+    (the same list the backfill CLI uses), not from portfolio configs.
+
     Returns:
-        list: A list of unique ticker symbols.
+        list: A list of ticker symbols.
     """
     # 1. Load tickers from tickers.json
     script_dir = os.path.dirname(__file__)

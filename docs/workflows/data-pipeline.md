@@ -161,23 +161,27 @@ CLI reference: [../BackFill/refresh_README.md](../BackFill/refresh_README.md).
 
 ```mermaid
 flowchart TD
-    START["realtimeDataIngestor.main()"] --> LOAD["load_tickers()<br/>from portfolio configs"]
+    START["realtimeDataIngestor.main()"] --> VERIFY["verify_upsert_constraint()<br/>(UNIQUE index on ticker, timestamp<br/>must exist or the script exits)"]
+    VERIFY --> LOAD["load_tickers()<br/>from backfill/tickers.json"]
     LOAD --> INIT["initialize_volume_state()<br/>(read latest 'volume' per ticker for today)"]
-    INIT --> LOOP{"Market open?<br/>(09:30 ≤ now ≤ 16:00 ET)"}
-    LOOP -->|"no"| STOP["Stop"]
-    LOOP -->|"yes"| FETCH["fmp.get_realtime_data(NASDAQ)"]
-    FETCH --> PROCESS["process_market_data:<br/>filter tracked tickers,<br/>compute interval volume<br/>(diff vs last_known_volume)"]
+    INIT --> LOOP["Every 60s (start.sh enforces market hours)"]
+    LOOP --> FEEDS["For each feed:<br/>NASDAQ, NYSE, AMEX (batch-exchange-quote)<br/>CRYPTO (batch-crypto-quotes)<br/>COMMODITY (batch-commodity-quotes)"]
+    FEEDS --> PROCESS["process_market_data:<br/>filter tracked tickers not yet seen this cycle,<br/>exchange = row's FMP value, else feed label,<br/>compute interval volume<br/>(diff vs last_known_volume)"]
     PROCESS --> INSERT["bulk_inject_to_db(<br/>conflict_columns=[ticker, timestamp])"]
-    INSERT --> SLEEP["Sleep to next 60s tick"]
-    SLEEP --> LOOP
+    INSERT --> REPORT["Log prepared / inserted / ignored,<br/>failed feeds, uncovered tickers"]
+    REPORT --> LOOP
 
     classDef rti fill:#e8f5e9,stroke:#2e7d32
-    classDef stop fill:#ffebee,stroke:#b71c1c
-    class START,LOAD,INIT,LOOP,FETCH,PROCESS,INSERT,SLEEP rti
-    class STOP stop
+    class START,VERIFY,LOAD,INIT,LOOP,FEEDS,PROCESS,INSERT,REPORT rti
 ```
 
-The ingestor stores *interval* volume (delta vs previously seen cumulative volume), not the cumulative API value. There is a known fragility: a crash mid-day re-initializes volume state from the stored interval volume, which is incorrect — see the warning comment at the top of `realtimeDataIngestor.py`.
+Each cycle polls five FMP feeds (one request each). `exchange` on a row is FMP's own per-row value (`NASDAQ`, `NYSE`, `AMEX`, `CRYPTO`, `COMMODITY`), falling back to the feed label only when FMP returns null — the column is `NOT NULL` and a single null would roll back the whole batch. A ticker matched by one feed is excluded from later feeds in the same cycle so its volume state is never advanced twice.
+
+`open_price` / `high_price` / `low_price` are deliberately left `NULL` on realtime rows: FMP's quote endpoints return session-level `open` / `dayHigh` / `dayLow`, not per-minute values, so only backfilled bars carry real OHL.
+
+The ingestor stores *interval* volume (delta vs previously seen cumulative volume), not the cumulative API value. There is a known fragility: a crash mid-day re-initializes volume state from the stored interval volume, which is incorrect — see the warning comment at the top of `realtimeDataIngestor.py`. Crypto volumes from FMP are rolling-window rather than session-cumulative, so negative deltas (logged per cycle) are more common there.
+
+Logs go to stderr and, when writable, `/var/log/market_data_ingestor.log` (override with `MARKET_DATA_INGESTOR_LOG`). Tracked tickers that no feed serves are listed by name on the first cycle and every 30th cycle after.
 
 ## Backfill Cache (parquet)
 
