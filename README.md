@@ -159,7 +159,7 @@ Backfill refuses to start during weekday US cash-session hours; `--wait` waits f
 
 ### RBP: research and forecast service
 
-`python -m RBP.main_rbp` runs the configurable research split and exports predictions and relevance-based importance (RBI). It needs no downloaded model. `python -m src.orchestrator.rbp_runner` runs the DB forecast service. These are separate from Portfolio 5's local model and Portfolio 8's ranking extension. See [RBP setup and detailed diagrams](RBP/README.md), including the current forecast freshness limitation.
+`python -m RBP.main_rbp` runs the configurable research split and exports predictions and relevance-based importance (RBI). It needs no downloaded model. `python -m src.orchestrator.rbp_runner` runs the DB forecast service. These are separate from Portfolio 5's local model and Portfolio 8's ranking extension. See [RBP setup](RBP/README.md) and [detailed diagrams](RBP/WORKFLOW.md), including the current forecast freshness limitation.
 
 ### Complete supervisor: Linux / WSL / Docker
 
@@ -207,7 +207,7 @@ Tests enforce strict markers and treat pandas/deprecation/future warnings as err
 - [Live trading details](docs/workflows/live-trading-workflow_detailed.md)
 - [Ingestor setup and behavior](src/orchestrator/realTime/README.md)
 - [NLP commands](NLP/README.md) and [detailed NLP workflow](NLP/WORKFLOW.md)
-- [RBP setup and workflow](RBP/README.md)
+- [RBP setup](RBP/README.md) and [detailed RBP workflow](RBP/WORKFLOW.md)
 - [Portfolio development and workflow](src/portfolios/README.md)
 - [OMS design and implementation status](docs/OMS/OMS_DESIGN.md)
 - [Capital management](docs/workflows/capital-management.md), [CFA calculator](scripts/CFA/README.md), [analysis tools](scripts/Backtest_Analysis/README.md), and [CI/CD](docs/CICD/CICD.md)

@@ -12,7 +12,7 @@ For installation, cloning, Windows/macOS venv setup, credentials, database initi
 | [Real-time ingestor](workflows/realtime-ingestor-workflow.md) | Feed routing, transformation, volume state, bulk inserts |
 | [NLP high-level overview](workflows/nlp_workflow.md) | News to sentiment to strategy inputs |
 | [Detailed NLP workflow](../NLP/WORKFLOW.md) | Live rotation, providers, model inference, CSVs, DB contract, backfill |
-| [Detailed RBP workflow](../RBP/README.md) | Research pipeline, forecast service, predictor, portfolio integrations |
+| [Detailed RBP workflow](../RBP/WORKFLOW.md) | Research pipeline, forecast service, predictor, portfolio integrations |
 | [Portfolio workflow and setup](../src/portfolios/README.md) | Configuration, indicators, context routing, P5 and P6/P7/P8 |
 | [Backtest flow](workflows/backtest-flow.md) | Process batches, event simulation, vector/Monte Carlo paths |
 | [Data pipeline](workflows/data-pipeline.md) | Historical backfill, cache, ticker refresh |

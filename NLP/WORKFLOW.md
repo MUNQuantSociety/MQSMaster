@@ -4,11 +4,38 @@
 
 The live entrypoint is [main_NLP.py](main_NLP.py). [runner.py](runner.py) owns the continuous loop; scraping, scoring, and persistence happen in the same process. The local notebook experiment described in the README is a separate, file-only workflow.
 
+## Live workflow hierarchy
+
+Read from the highlighted root downward: launcher, worker initialization, inputs, processing, storage, and consumers. Each arrow leads to the next stage or a branch within it. Repeated work ends at a next-cycle leaf to keep the hierarchy readable. The worker command can also be run directly from the repository root after activating the venv.
+
+```mermaid
+flowchart TD
+    START(["bash start.sh"]) --> LAUNCH["Persistent watcher launches NLP/main_NLP.py"]
+    LAUNCH --> ENTRY["Worker entrypoint<br/>python -m NLP.main_NLP"]
+    ENTRY --> INIT["1. Initialize NLPRunner<br/>Load FinBERT, repository, and pipeline"]
+    INIT --> INPUT["2. Load ticker universe<br/>Rotate the alternative-source batch"]
+    INPUT --> FETCH["3. For each ticker: fetch news<br/>Merge and deduplicate article CSV"]
+    FETCH --> NEW{"Article CSV grew?"}
+    NEW -->|Yes| SCORE["4. Score new rows with FinBERT<br/>Write article and daily score CSVs"]
+    SCORE --> STORE["5. Persist news_sentiment<br/>Sync recent market_data sentiment"]
+    STORE -.-> CONSUMER["Available to sentiment-aware portfolios<br/>Portfolio 7 when selected"]
+    STORE --> NEXT["Continue with remaining tickers"]
+    NEW -->|No| SKIP["Skip scoring for this ticker"]
+    SKIP --> NEXT
+    NEXT --> WAIT["Finish sweep; wait for remaining cycle interval"]
+    WAIT --> CYCLE["Next cycle: reload tickers and rotate batch"]
+    style START fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+```
+
+Solid arrows show worker execution; the dashed branch shows a downstream consumer, not another worker step. `start.sh` supervises NLP as a persistent process: its watcher restarts it 30 seconds after exit and does not stop it at market close. Direct invocation has no watcher. See the [launcher lifecycle](../docs/workflows/live_trading_workflow.md#market-watchdog-and-persistent-worker-lifecycle).
+
+The sections below expand [startup and rotation](#live-startup-and-batch-rotation), [inference and storage](#fetch-model-inference-and-storage), and [historical/local modes](#historical-and-local-modes).
+
 ## Live startup and batch rotation
 
 ```mermaid
 flowchart TD
-    START["main_NLP.main"] --> RUNNER["Construct NLPRunner"]
+    START(["python -m NLP.main_NLP"]) --> RUNNER["Construct NLPRunner"]
     RUNNER --> MODEL["Resolve finbert-combined-final<br/>Load tokenizer and model once"]
     MODEL --> REPO["Construct NewsSentimentRepository<br/>Ensure news table, content_length, indexes"]
     REPO --> PIPE["Share scorer and repository in SentimentPipeline"]

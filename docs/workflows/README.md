@@ -9,7 +9,7 @@
 | [Real-time ingestor](realtime-ingestor-workflow.md) | Separate complete ingestion workflow |
 | [NLP overview](nlp_workflow.md) | High-level news-to-sentiment flow |
 | [Detailed NLP](../../NLP/WORKFLOW.md) | Module-level workflow in the NLP folder |
-| [Detailed RBP](../../RBP/README.md) | Research and service diagrams in the RBP folder |
+| [Detailed RBP](../../RBP/WORKFLOW.md) | Research and service diagrams in the RBP folder |
 | [Detailed portfolios](../../src/portfolios/README.md) | Shared lifecycle and strategy-family diagrams in the portfolio folder |
 | [Portfolio overview](portfolio-strategy-flow.md) | Compact shared flow |
 | [System architecture](system-architecture.md) | Relationship between projects |
