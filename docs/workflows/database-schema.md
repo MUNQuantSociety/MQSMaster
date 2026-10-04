@@ -155,7 +155,7 @@ flowchart TD
     BF --> MD
     RTI --> MD
     NLP --> NS
-    NLP -.->|"avg_sentiment overlay"| MD
+    NLP -.->|"sentiment_score sync; extra column required"| MD
 
     LIVE --> CASH
     LIVE --> POS
@@ -179,7 +179,7 @@ flowchart TD
     POS --> ALLOCR
 ```
 
-`portfolio_weights`, `risk_book`, and `news_sentiment` are produced by research/operational paths but are not yet read by the live trading or backtest engine — they exist for reporting and future strategy use.
+Portfolio 7 reads `news_sentiment` when selected. The NLP writer also updates `market_data.sentiment_score`, while the base schema above defines `avg_sentiment`; see the [NLP database contract](../../NLP/WORKFLOW.md#database-contract) and [setup prerequisite](../../README.md#3-configure-credentials-and-initialize-the-database). The RBP service writes `rbp_forecasts`, consumed by the optional executor confidence overlay; see the [RBP workflow](../../RBP/README.md).
 
 ## Atomic State Query
 

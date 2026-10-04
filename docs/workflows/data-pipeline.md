@@ -159,9 +159,11 @@ CLI reference: [../BackFill/refresh_README.md](../BackFill/refresh_README.md).
 
 ## Real-time Ingestor
 
+See the [separate detailed ingestion workflow](realtime-ingestor-workflow.md) and [local worker setup](../../src/orchestrator/realTime/README.md).
+
 ```mermaid
 flowchart TD
-    START["realtimeDataIngestor.main()"] --> VERIFY["verify_upsert_constraint()<br/>(UNIQUE index on ticker, timestamp<br/>must exist or the script exits)"]
+    START["realtimeDataIngestor.main()"] --> VERIFY["verify_upsert_constraint()<br/>(UNIQUE index on ticker, timestamp<br/>absence exits; inspection errors warn)"]
     VERIFY --> LOAD["load_tickers()<br/>from backfill/tickers.json"]
     LOAD --> INIT["initialize_volume_state()<br/>(read latest 'volume' per ticker for today)"]
     INIT --> LOOP["Every 60s (start.sh enforces market hours)"]
@@ -175,7 +177,7 @@ flowchart TD
     class START,VERIFY,LOAD,INIT,LOOP,FEEDS,PROCESS,INSERT,REPORT rti
 ```
 
-Each cycle polls five FMP feeds (one request each). `exchange` on a row is FMP's own per-row value (`NASDAQ`, `NYSE`, `AMEX`, `CRYPTO`, `COMMODITY`), falling back to the feed label only when FMP returns null — the column is `NOT NULL` and a single null would roll back the whole batch. A ticker matched by one feed is excluded from later feeds in the same cycle so its volume state is never advanced twice.
+Each cycle polls up to five FMP feeds (one request each before retries), stopping early if all tracked symbols have been matched. `exchange` on a row is FMP's own per-row value (`NASDAQ`, `NYSE`, `AMEX`, `CRYPTO`, `COMMODITY`), falling back to the feed label only when FMP returns null — the column is `NOT NULL` and a single null would roll back the whole batch. A ticker matched by one feed is excluded from later feeds in the same cycle so its volume state is never advanced twice.
 
 `open_price` / `high_price` / `low_price` are deliberately left `NULL` on realtime rows: FMP's quote endpoints return session-level `open` / `dayHigh` / `dayLow`, not per-minute values, so only backfilled bars carry real OHL.
 
@@ -213,7 +215,7 @@ The cache directory is committed (the `.parquet` files act as a checked-in datas
 | `exchange` | `VARCHAR(50)` | |
 | `open_price` / `high_price` / `low_price` / `close_price` | `NUMERIC` | |
 | `volume` | `BIGINT` | Real-time ingestor stores *interval* volume |
-| `avg_sentiment` | `NUMERIC` | Optional sentiment overlay (NLP pipeline) |
+| `avg_sentiment` | `NUMERIC` | Base-schema column; NLP writes a separate `sentiment_score` column (see [NLP setup](../../NLP/WORKFLOW.md#database-contract)) |
 | `created_at` | `TIMESTAMP DEFAULT NOW()` | |
 
 Unique constraint: `(ticker, timestamp)` — required for `--on-conflict ignore` semantics.

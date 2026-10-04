@@ -1,58 +1,27 @@
-# NLP Pipeline — Workflow
+# NLP sentiment: high-level workflow
 
-Multi-source text ingestion → sentiment scoring → database → portfolio consumption.
+[Setup and commands](../../NLP/README.md) · [Detailed NLP diagrams](../../NLP/WORKFLOW.md) · [Full live stack](live_trading_workflow.md)
 
 ```mermaid
-graph TD
-    subgraph Sources
-        FMP[FMP API<br/>news · press · transcripts]
-        OTHER[Other Sources<br/>Reddit · X · RSS · SEC filings]
-    end
-
-    subgraph Ingestion
-        FMP -->|"pull raw text"| FETCH[Fetch &amp; Clean]
-        OTHER -->|"pull raw text"| FETCH
-        FETCH -->|"dedupe · tag ticker · language"| SCORE[Compute Score]
-    end
-
-    subgraph Scoring
-        SCORE -->|"LLM / FinBERT inference"| SENT[Per-Ticker Sentiment]
-        SENT -->|"aggregate window"| UPD[Update Database]
-    end
-
-    subgraph Persistence
-        UPD -->|"INSERT scores + meta"| DB[(PostgreSQL<br/>nlp_scores · fetch_state)]
-    end
-
-    subgraph Consumption
-        DB -->|"read latest scores"| PORT[Portfolio]
-        PORT -->|"weight + rebalance"| STRAT[Strategy Inputs]
-    end
-
-    DB -.->|"scheduled re-fetch"| FETCH
-
-    classDef src fill:#22d3ee,stroke:#0e7490,color:#0f172a;
-    classDef src2 fill:#60a5fa,stroke:#1d4ed8,color:#ffffff;
-    classDef ingest fill:#f472b6,stroke:#be185d,color:#ffffff;
-    classDef score fill:#a78bfa,stroke:#6d28d9,color:#ffffff;
-    classDef db fill:#fbbf24,stroke:#b45309,color:#0f172a;
-    classDef port fill:#34d399,stroke:#047857,color:#0f172a;
-
-    class FMP src;
-    class OTHER src2;
-    class FETCH ingest;
-    class SCORE,SENT score;
-    class UPD,DB db;
-    class PORT,STRAT port;
+flowchart TD
+    START["NLP/main_NLP.py<br/>or start.sh persistent watcher"] --> RUN["NLPRunner<br/>Load model once; sweep ticker universe"]
+    FMP["FMP news"] --> FETCH["Fetch, merge, deduplicate"]
+    ALT["Yahoo, Finviz, Alpha Vantage<br/>Rotating batch"] --> FETCH
+    RUN --> FETCH
+    FETCH --> CSV["Per-ticker article CSVs"]
+    CSV -->|"New rows detected"| SCORE["Fine-tuned FinBERT<br/>Per-article sentiment"]
+    SCORE --> SCORES["Article and daily score CSVs"]
+    SCORES --> DB[("news_sentiment")]
+    DB --> SYNC["Recent daily aggregate"]
+    SYNC --> MD[("market_data.sentiment_score")]
+    DB -.-> PORT["Sentiment-aware strategy<br/>Portfolio 7 when selected"]
+    MD -.-> PORT
+    RUN --> WAIT["Target 300-second cycle"]
+    WAIT --> RUN
 ```
 
-## Stages
+The live loop processes tickers sequentially, rotating alternative-source work through up to four batches. It uses a latest-page FMP fetch for other batches. The historical backfill command uses paginated fetches and blocks startup during weekday cash-session hours. A fetch-only CLI and a local two-model notebook are also available.
 
-1. **Sources** — FMP API for news/press/transcripts, plus Reddit, X, RSS, SEC filings.
-2. **Fetch & Clean** — dedupe, normalize, tag tickers and language.
-3. **Compute Score** — LLM / FinBERT inference produces per-ticker sentiment.
-4. **Update Database** — write scores and state snapshots to PostgreSQL.
-5. **Portfolio** — reads latest scores, applies weighting and rebalance rules.
-6. **Strategy Inputs** — sentiment feeds downstream strategies.
+The score is positive probability minus negative probability. Persistence uses `news_sentiment`, while the market-data sync updates only the last seven days of matching sentiment. The root setup documents the required `market_data.sentiment_score` column, which differs from the base schema's `avg_sentiment`.
 
-Scheduled re-fetch closes the loop.
+NLP enriches data; it does not place trades. The current live entrypoint runs P1/P2, not P7. See the [detailed workflow](../../NLP/WORKFLOW.md) for exact source selection, model label assumptions, positional CSV alignment, retry behavior, and database requirements.

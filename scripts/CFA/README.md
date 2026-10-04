@@ -15,9 +15,9 @@ This project is a command-line interface (CLI) financial calculator that impleme
 
 ## Usage
 
-To run the financial calculator, execute the following command in your terminal:
+Complete the [repository setup](../../README.md) and activate the MQS environment. No database or API credentials are needed for this calculator. From the repository root, run:
 ```
-python -m src.cli
+python -m scripts.CFA.src.cli
 ```
 
 Follow the prompts to select the desired calculation and input the required values.

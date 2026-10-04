@@ -1,6 +1,6 @@
 # Utilities Scripts
 
-This folder contains utility scripts for testing, data fetching, and backtest analysis.
+This folder contains backtest report readers and allocation analysis tools. Complete the [repository setup](../../README.md), activate the MQS environment, and run these commands from the repository root after generating backtest reports.
 
 ## File Overview
 
@@ -11,7 +11,7 @@ Main entry point for running backtest analysis tools. Provides a unified command
 
 **Usage:**
 ```bash
-python scripts/backtest_entrypoint.py <command> [options]
+python scripts/Backtest_Analysis/backtest_entrypoint.py <command> [options]
 ```
 
 **Available commands:**
@@ -26,8 +26,8 @@ python scripts/backtest_entrypoint.py <command> [options]
 
 **Examples:**
 ```bash
-python scripts/backtest_entrypoint.py read --sample-rows 3
-python scripts/backtest_entrypoint.py analyze --risk-appetite 0.35 --portfolio 2
+python scripts/Backtest_Analysis/backtest_entrypoint.py read --sample-rows 3
+python scripts/Backtest_Analysis/backtest_entrypoint.py analyze --risk-appetite 0.35 --portfolio 2
 ```
 
 #### `backtest_reader.py`
@@ -35,7 +35,7 @@ Reads and displays backtest output data from the latest runs. Dynamically discov
 
 **Usage:**
 ```bash
-python scripts/backtest_reader.py --sample-rows 3
+python scripts/Backtest_Analysis/backtest_reader.py --sample-rows 3
 ```
 
 **Output:**
@@ -48,7 +48,7 @@ Analyzes backtest results and computes optimized portfolio weights using real ba
 
 **Usage:**
 ```bash
-python scripts/backtest_analyzer.py --risk-appetite 0.5
+python scripts/Backtest_Analysis/backtest_analyzer.py --risk-appetite 0.5
 ```
 
 **Output:**
@@ -98,10 +98,10 @@ Tests yfinance API for fetching financial statements and data. Validates access 
 
 ```bash
 # 1) Quick view of all latest portfolio runs
-python scripts/backtest_entrypoint.py read --sample-rows 2
+python scripts/Backtest_Analysis/backtest_entrypoint.py read --sample-rows 2
 
 # 2) Analyze one portfolio with explicit risk appetite
-python scripts/backtest_entrypoint.py analyze --portfolio 2 --risk-appetite 0.40
+python scripts/Backtest_Analysis/backtest_entrypoint.py analyze --portfolio 2 --risk-appetite 0.40
 
 # 3) Test data API connections
 python scripts/api_test.py
@@ -113,7 +113,7 @@ python scripts/alpha_test.py
 Run individual scripts directly without the entry point wrapper when you only need one specific tool:
 
 ```bash
-python scripts/backtest_reader.py --sample-rows 3
-python scripts/backtest_analyzer.py --risk-appetite 0.5
+python scripts/Backtest_Analysis/backtest_reader.py --sample-rows 3
+python scripts/Backtest_Analysis/backtest_analyzer.py --risk-appetite 0.5
 python scripts/api_test.py
 ```

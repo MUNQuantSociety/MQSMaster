@@ -1,27 +1,21 @@
-# Workflow Diagrams
+# Workflow diagrams
 
-Architecture and data flow diagrams for the MQS Trading System core (`src/`). For an index of all docs, see [../README.md](../README.md).
+[Repository setup](../../README.md) · [All documentation](../README.md)
 
-## Diagrams
+| Start here | Scope |
+|---|---|
+| [Full live stack](live_trading_workflow.md) | Everything launched from start.sh, including lifecycle and supporting workers |
+| [Live bot detail](live-trading-workflow_detailed.md) | Threads, portfolio state, signals, sizing, direct/OMS fills |
+| [Real-time ingestor](realtime-ingestor-workflow.md) | Separate complete ingestion workflow |
+| [NLP overview](nlp_workflow.md) | High-level news-to-sentiment flow |
+| [Detailed NLP](../../NLP/WORKFLOW.md) | Module-level workflow in the NLP folder |
+| [Detailed RBP](../../RBP/README.md) | Research and service diagrams in the RBP folder |
+| [Detailed portfolios](../../src/portfolios/README.md) | Shared lifecycle and strategy-family diagrams in the portfolio folder |
+| [Portfolio overview](portfolio-strategy-flow.md) | Compact shared flow |
+| [System architecture](system-architecture.md) | Relationship between projects |
+| [Backtests](backtest-flow.md) | Event and fast paths |
+| [Data pipeline](data-pipeline.md) | Backfill, cache, and ticker maintenance |
+| [Capital management](capital-management.md) | Funding and allocation |
+| [Database schema](database-schema.md) | Book/data table relationships |
 
-| File | Topic |
-|------|-------|
-| [system-architecture.md](system-architecture.md) | High-level system overview — entry points, engines, executors, data layer |
-| [backtest-flow.md](backtest-flow.md) | Backtest driver: multiprocess pool → engine → event vs fast (vectorized + Monte Carlo) |
-| [live-trading-flow.md](live-trading-flow.md) | Live trading: thread-per-portfolio, circuit breaker, atomic state fetch |
-| [portfolio-strategy-flow.md](portfolio-strategy-flow.md) | `BasePortfolio`, indicators, `StrategyContext`, signal-to-trade path |
-| [data-pipeline.md](data-pipeline.md) | FMP client, backfill CLI, parquet cache, ticker refresh, real-time ingestor |
-| [capital-management.md](capital-management.md) | Master portfolio, daily rebalancing, internal transfers |
-| [database-schema.md](database-schema.md) | Tables, ER, atomic state query, connection pool |
-
-## Rendering
-
-Mermaid blocks render automatically in:
-- GitHub (web UI, PR diffs)
-- VS Code with the Mermaid extension
-- [mermaid.live](https://mermaid.live)
-- Any Markdown viewer with Mermaid support
-
-## Updating Diagrams
-
-When code structure changes, update both the Mermaid block and any prose tables that reference component names so the two stay in sync. Keep diagrams *behavioral* (what happens) rather than *exhaustive* (every helper) — readers should be able to predict actual control flow from the diagram alone.
+Mermaid code fences render directly on GitHub. When behavior changes, update the subsystem diagram beside its code and the high-level overview if connections or lifecycle change. Include optional gates, failure behavior, and the actual storage destination; avoid presenting proposed features as implemented.

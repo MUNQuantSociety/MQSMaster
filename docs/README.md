@@ -1,82 +1,36 @@
-# MQS Trading System — Documentation
+# MQS Trading System documentation
 
-This is the entry point for all internal documentation. The repo is split into a live-trading and backtesting core (`src/`), supporting research/analysis modules (`NLP/`, `RBP/`, `CFA/`), and operational tooling (`scripts/`, `.github/workflows`).
+For installation, cloning, Windows/macOS venv setup, credentials, database initialization, and commands for each project, start with the [root README](../README.md).
 
-## Map at a Glance
+## Runtime workflows
 
-```mermaid
-flowchart LR
-    subgraph Core["Core trading platform — src/"]
-        BT[Backtest engine]
-        LIVE[Live trading engine]
-        STRAT[Strategies P1..P5]
-        DATA[Backfill / market data]
-        RISK[Risk + capital allocation]
-    end
+| Guide | What it explains |
+|---|---|
+| [System architecture](workflows/system-architecture.md) | Components and their data dependencies |
+| [Full live stack from start.sh](workflows/live_trading_workflow.md) | Preflight, all workers, data flow, watchdog, restart and shutdown behavior |
+| [Inside the live bot](workflows/live-trading-workflow_detailed.md) | Portfolio threads, circuit breaker, sizing, OMS, transactional settlement |
+| [Real-time ingestor](workflows/realtime-ingestor-workflow.md) | Feed routing, transformation, volume state, bulk inserts |
+| [NLP high-level overview](workflows/nlp_workflow.md) | News to sentiment to strategy inputs |
+| [Detailed NLP workflow](../NLP/WORKFLOW.md) | Live rotation, providers, model inference, CSVs, DB contract, backfill |
+| [Detailed RBP workflow](../RBP/README.md) | Research pipeline, forecast service, predictor, portfolio integrations |
+| [Portfolio workflow and setup](../src/portfolios/README.md) | Configuration, indicators, context routing, P5 and P6/P7/P8 |
+| [Backtest flow](workflows/backtest-flow.md) | Process batches, event simulation, vector/Monte Carlo paths |
+| [Data pipeline](workflows/data-pipeline.md) | Historical backfill, cache, ticker refresh |
+| [Capital management](workflows/capital-management.md) | Master funding, allocation, internal transfers |
+| [Database schema](workflows/database-schema.md) | Tables and relationships; NLP writer differences are documented in the NLP guide |
 
-    subgraph Research["Research / signals"]
-        NLP[NLP sentiment pipeline]
-        RBP[RBP model<br/>(loose research scripts)]
-    end
+## Subsystem commands and reference
 
-    subgraph Side["Side library"]
-        CFA[CFA finance calculator]
-    end
+- [NLP setup and local experiments](../NLP/README.md)
+- [RBP setup and configuration](../RBP/README.md)
+- [Price/PnL worker setup](../src/orchestrator/realTime/README.md)
+- [Backfill CLI](../src/orchestrator/backfill/Readme.md) and [ticker refresh](../src/orchestrator/backfill/update/refresh_README.md)
+- [OMS design and implementation status](OMS/OMS_DESIGN.md): parent/child scheduling and pumps are implemented; durable order persistence, volume-profile integration, and LIMIT/STOP remain separate work
+- [CFA calculator](../scripts/CFA/README.md) and [backtest analysis tools](../scripts/Backtest_Analysis/README.md)
+- [CI/CD](CICD/CICD.md) and [test modes](TEST_MODES.md)
 
-    subgraph Ops["Operations"]
-        CICD[CI / CD pipeline]
-        TESTS[Test suite + markers]
-        SCRIPTS[Backtest tooling]
-    end
+## Reading the diagrams
 
-    NLP -->|"news_sentiment"| DATA
-    RBP -->|"feeds Portfolio 5"| STRAT
-    DATA --> BT
-    DATA --> LIVE
-    STRAT --> BT
-    STRAT --> LIVE
-    RISK --> LIVE
-    SCRIPTS --> BT
-```
+Mermaid blocks render on GitHub and in compatible Markdown viewers. Start with the full stack, then follow the subsystem links for detail. Solid arrows describe implemented control/data flow; dashed edges denote optional consumers or integrations where labeled.
 
-## Documentation Index
-
-### Architecture & Workflows (`workflows/`)
-- [System architecture](workflows/system-architecture.md) — components and their relationships
-- [Backtest flow](workflows/backtest-flow.md) — multiprocess driver, event-mode, fast-mode (vectorized + Monte Carlo)
-- [Live trading flow](workflows/live-trading-flow.md) — concurrent portfolio threads, circuit breakers
-- [Portfolio / strategy flow](workflows/portfolio-strategy-flow.md) — `BasePortfolio`, indicators, `StrategyContext`
-- [Data pipeline](workflows/data-pipeline.md) — FMP ingestion, backfill CLI, parquet cache, real-time ingestor
-- [Capital management](workflows/capital-management.md) — master portfolio, daily rebalancing
-- [Database schema](workflows/database-schema.md) — tables, ER, atomic state queries
-
-### Subsystems
-- [NLP sentiment pipeline](NLP/README.md) — daemon, FinBERT scoring, `news_sentiment` table. **Requires the fine-tuned FinBERT model** to be downloaded into `NLP/finbert-combined-final/` before use — see [NLP setup](NLP/README.md#prerequisite-download-the-finbert-model).
-- [Backfill CLI](BackFill/Readme.md) — `backfill_cli` commands and arguments
-- [Backfill / refresh script](BackFill/refresh_README.md) — `refresh.py` ticker universe updater
-- [Order Management System](OMS/OMS_DESIGN.md) — VWAP/TWAP design doc + current **Implementation Status**. A config-gated (`OMS.enabled`) order-tracking layer is wired into both pipelines today; the VWAP/TWAP algorithms, scheduler thread, and DB persistence in the design are not yet built.
-
-### Operations
-- [CI / CD](CICD/CICD.md) — pipeline stages, secrets, coverage gate
-- [Test modes](TEST_MODES.md) — pytest markers, smoke vs slow vs db tiers
-
-## Key Entry Points
-
-| Task | Command |
-|------|---------|
-| Run backtest (multi-portfolio, parallel) | `python -m src.main_backtest` |
-| Run live trading | `python -m src.main` |
-| Backfill historical bars | `python -m src.orchestrator.backfill.backfill_cli concurrent --start ... --end ... --tickers ...` |
-| Refresh ticker universe + backfill | `python src/orchestrator/backfill/update/refresh.py` |
-| Real-time price ingestor | `python -m src.orchestrator.realTime.realtimeDataIngestor` |
-| Daily capital rebalance | `python -m src.risk_manager.daily_allocator` |
-| Add / withdraw master capital | `python -m src.risk_manager.manage_capital --action ADD --amount ...` |
-| Start NLP sentiment pipeline | `python NLP/main_NLP.py` |
-| Run smoke tests | `pytest -m smoke` |
-
-## Conventions
-
-- Diagrams use Mermaid.js. They render natively in GitHub, in VS Code with the Mermaid extension, and at [mermaid.live](https://mermaid.live).
-- All timestamps stored in `America/New_York`; SQL queries normalize through that zone.
-- Strategies live in `src/portfolios/portfolio_<n>/` with a paired `config.json`. Configs are loaded dynamically by file location, not by import.
-- Indicators are loaded by name via `importlib`; new indicators just need a new file under `src/portfolios/indicators/` whose class name matches the snake_case filename.
+The guides describe the checked-in code, not a live deployment audit. Operational timestamps are generally normalized to New York, but each loader's documented conversion matters (for example, RBP's daily grouping uses UTC-normalized timestamps). Runtime configuration and selected classes determine what actually runs.
