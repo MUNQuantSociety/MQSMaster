@@ -125,58 +125,30 @@ Constraints worth highlighting:
 
 ```mermaid
 flowchart TD
-    subgraph Producers["Producers"]
-        BF["Backfill CLI"]
-        RTI["realtimeDataIngestor"]
-        LIVE["tradeExecutor"]
-        BTEXEC["BacktestExecutor"]
-        ALLOC["DailyAllocator"]
-        CAP["manage_capital"]
-        NLP["NLP pipeline"]
-    end
-
-    subgraph Tables["Tables"]
-        MD[(market_data)]
-        CASH[(cash_equity_book)]
-        POS[(positions_book)]
-        TLOG[(trade_execution_logs)]
-        PNL[(pnl_book)]
-        WTS[(portfolio_weights)]
-        RISK[(risk_book)]
-        NS[(news_sentiment)]
-    end
-
-    subgraph Consumers["Consumers"]
-        STRAT["Strategy.get_data()"]
-        REPORT["Backtest reporting"]
-        ALLOCR["DailyAllocator reads"]
-    end
-
-    BF --> MD
-    RTI --> MD
-    NLP --> NS
-    NLP -.->|"sentiment_score sync; extra column required"| MD
-
-    LIVE --> CASH
-    LIVE --> POS
-    LIVE --> TLOG
-    BTEXEC -. simulated .-> TLOG
-
-    ALLOC --> CASH
-    ALLOC --> TLOG
-    CAP --> CASH
-    CAP --> TLOG
-
-    MD --> STRAT
-    CASH --> STRAT
-    POS --> STRAT
+    ROOT(["Application operation"]) --> MODE{"Workload"}
+    MODE --> DATA["Backfill or real-time ingestion"]
+    DATA --> MD[("market_data")]
+    MODE --> LIVE["Live executor"]
+    LIVE --> BOOKS[("Cash, positions, execution logs")]
+    MODE --> PNLWORK["PnL worker"]
+    PNLWORK --> PNL[("pnl_book")]
+    MODE --> CAPITAL["Funding or daily allocation"]
+    CAPITAL --> BOOKS
+    MODE --> NLP["NLP pipeline"]
+    NLP --> NS[("news_sentiment")]
+    NS --> SYNC["Recent sentiment sync<br/>Extra sentiment_score column required"]
+    SYNC --> MD
+    MODE --> RBP["RBP forecast runner"]
+    RBP --> RF[("rbp_forecasts")]
+    MODE --> BT["Backtest executor"]
+    BT --> SIM["Simulated books and local reports"]
+    MD --> STRAT["Subsequent strategy data reads"]
+    BOOKS --> STRAT
     PNL --> STRAT
-
-    MD --> REPORT
-    TLOG --> REPORT
-
-    CASH --> ALLOCR
-    POS --> ALLOCR
+    NS --> SENT["Sentiment-aware portfolio reads"]
+    RF --> OVERLAY["Optional RBP sizing overlay"]
+    BOOKS --> ALLOC["Subsequent capital-allocation reads"]
+    style ROOT fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 Portfolio 7 reads `news_sentiment` when selected. The NLP writer also updates `market_data.sentiment_score`, while the base schema above defines `avg_sentiment`; see the [NLP database contract](../../NLP/WORKFLOW.md#database-contract) and [setup prerequisite](../../README.md#3-configure-credentials-and-initialize-the-database). The RBP service writes `rbp_forecasts`, consumed by the optional executor confidence overlay; see the [RBP workflow](../../RBP/README.md).
@@ -186,16 +158,13 @@ Portfolio 7 reads `news_sentiment` when selected. The NLP writer also updates `m
 `BasePortfolio.get_data()` issues a single CTE-based query so that cash and positions are read in one consistent snapshot, instead of two queries that could straddle a write:
 
 ```mermaid
-flowchart LR
-    subgraph Q["ATOMIC_STATE_QUERY"]
-        C1["latest_cash CTE:<br/>cash_equity_book<br/>WHERE portfolio_id = %s<br/>ORDER BY timestamp DESC, id DESC<br/>LIMIT 1"]
-        C2["latest_positions CTE:<br/>DISTINCT ON (ticker)<br/>ORDER BY ticker, updated_at DESC"]
-        SEL["SELECT row_to_json(latest_cash),<br/>       json_agg(latest_positions)"]
-    end
-    CASH[(cash_equity_book)] --> C1
-    POS[(positions_book)]  --> C2
-    C1 --> SEL
-    C2 --> SEL
+flowchart TD
+    ROOT(["BasePortfolio.get_data: request portfolio state"]) --> QUERY["Execute ATOMIC_STATE_QUERY"]
+    QUERY --> CASH["Read latest cash snapshot<br/>cash_equity_book"]
+    QUERY --> POS["Read latest positions<br/>positions_book"]
+    CASH --> SNAPSHOT["Return cash and positions<br/>from one SQL statement"]
+    POS --> SNAPSHOT
+    style ROOT fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 The single statement returns both halves of the snapshot, eliminating the read-skew window.
@@ -206,29 +175,16 @@ The single statement returns both halves of the snapshot, eliminating the read-s
 
 ```mermaid
 flowchart TD
-    subgraph Threads["Application threads / processes"]
-        T1["Portfolio 1 thread"]
-        T2["Portfolio 2 thread"]
-        TN["Portfolio N thread"]
-    end
-
-    subgraph Pool["ThreadedConnectionPool<br/>minconn=1, maxconn=6"]
-        C1["conn 1"]
-        C2["conn 2"]
-        CN["conn N"]
-    end
-
-    T1 -->|"get_connection()"| Pool
-    T2 -->|"get_connection()"| Pool
-    TN -->|"get_connection()"| Pool
-
-    Pool --> C1 --> DB[(PostgreSQL)]
-    Pool --> C2 --> DB
-    Pool --> CN --> DB
-
-    T1 -.->|"release_connection()"| Pool
-    T2 -.->|"release_connection()"| Pool
-    TN -.->|"release_connection()"| Pool
+    ROOT(["Application needs a database connection"]) --> OWNER["Use this process's MQSDBConnector"]
+    OWNER --> THREAD["Calling portfolio or worker thread"]
+    THREAD --> GET["get_connection"]
+    GET --> POOL["ThreadedConnectionPool<br/>minconn=1, maxconn=6"]
+    POOL --> CONN["Acquire and health-check a connection"]
+    CONN --> DB["Execute PostgreSQL operation"]
+    DB --> RESULT["Commit or roll back as required"]
+    RESULT --> RELEASE["release_connection"]
+    RELEASE --> READY["Connection available for a later caller"]
+    style ROOT fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 When tuning concurrency (live thread count, backfill `--threads`, multiprocess backtest workers), keep the working set under `maxconn` to avoid acquisition stalls.

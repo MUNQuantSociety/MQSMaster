@@ -18,4 +18,6 @@
 | [Capital management](capital-management.md) | Funding and allocation |
 | [Database schema](database-schema.md) | Book/data table relationships |
 
+The live, ingestion, NLP, RBP, portfolio, and database-operation flowcharts read **top to bottom**. Each has one highlighted root: the entrypoint or operation that starts that workflow. Branches sit beneath it; a labelled next-cycle or retry step describes repetition without drawing an arrow back above the root. The database ER diagram remains a table-relationship reference.
+
 Mermaid code fences render directly on GitHub. When behavior changes, update the subsystem diagram beside its code and the high-level overview if connections or lifecycle change. Include optional gates, failure behavior, and the actual storage destination; avoid presenting proposed features as implemented.

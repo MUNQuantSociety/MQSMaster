@@ -4,20 +4,22 @@
 
 ```mermaid
 flowchart TD
-    START["NLP/main_NLP.py<br/>or start.sh persistent watcher"] --> RUN["NLPRunner<br/>Load model once; sweep ticker universe"]
-    FMP["FMP news"] --> FETCH["Fetch, merge, deduplicate"]
-    ALT["Yahoo, Finviz, Alpha Vantage<br/>Rotating batch"] --> FETCH
-    RUN --> FETCH
-    FETCH --> CSV["Per-ticker article CSVs"]
-    CSV -->|"New rows detected"| SCORE["Fine-tuned FinBERT<br/>Per-article sentiment"]
-    SCORE --> SCORES["Article and daily score CSVs"]
+    START(["NLP/main_NLP.py<br/>Directly or through start.sh"]) --> RUN["NLPRunner: load FinBERT once"]
+    RUN --> CYCLE["Reload ticker universe and select rotating batch"]
+    CYCLE --> FETCH["Fetch FMP news for every ticker<br/>Yahoo, Finviz, Alpha Vantage for selected batch"]
+    FETCH --> CSV["Merge and deduplicate per-ticker article CSVs"]
+    CSV --> NEW{"New rows detected?"}
+    NEW -->|Yes| SCORE["Fine-tuned FinBERT: article scores"]
+    SCORE --> SCORES["Save article and daily score CSVs"]
     SCORES --> DB[("news_sentiment")]
     DB --> SYNC["Recent daily aggregate"]
     SYNC --> MD[("market_data.sentiment_score")]
-    DB -.-> PORT["Sentiment-aware strategy<br/>Portfolio 7 when selected"]
-    MD -.-> PORT
-    RUN --> WAIT["Target 300-second cycle"]
-    WAIT --> RUN
+    MD --> CONSUMER["Available to sentiment-aware strategies<br/>P7 also reads news_sentiment directly"]
+    CONSUMER --> FINISH["Finish ticker sweep"]
+    NEW -->|No| FINISH
+    FINISH --> WAIT["Wait remaining part of 300-second interval"]
+    WAIT --> NEXT["Begin next cycle"]
+    style START fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 The live loop processes tickers sequentially, rotating alternative-source work through up to four batches. It uses a latest-page FMP fetch for other batches. The historical backfill command uses paginated fetches and blocks startup during weekday cash-session hours. A fetch-only CLI and a local two-model notebook are also available.

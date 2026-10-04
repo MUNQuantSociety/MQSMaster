@@ -26,10 +26,11 @@ flowchart TD
     STATS --> SCORE["process_ticker_complete"]
     SCORE --> NEXT
     NEXT --> MORE{"More tickers?"}
-    MORE -->|Yes| TICKER
+    MORE -->|Yes| NEXTTICKER["Process the next ticker<br/>Repeat this ticker branch until sweep completes"]
     MORE -->|No| FINISH["Log cycle time and skip statistics<br/>Collect garbage every ten cycles"]
     FINISH --> SLEEP["Sleep remaining part of 300-second interval<br/>No sleep if cycle overran"]
-    SLEEP --> LOAD
+    SLEEP --> NEXTCYCLE["Begin next cycle: reload ticker universe"]
+    style START fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 A failed fetch records inactivity and skips that ticker. A scoring/persistence error is logged; later tickers still run. Unexpected outer-loop exceptions wait 60 seconds before retrying. Four batches do not imply four parallel workers: processing is serial. A full sweep can exceed five minutes, so alternative-source coverage every four cycles is not a guaranteed 20-minute schedule.
@@ -40,26 +41,31 @@ The new-row signal counts physical CSV lines, not parsed records or article iden
 
 ```mermaid
 flowchart TD
-    FMP["FMP news<br/>Paged state in fetch_state"] --> AGG["ArticleAggregator"]
-    YAHOO["Yahoo via yfinance"] --> AGG
-    FINVIZ["Finviz via aiohttp and BeautifulSoup"] --> AGG
-    ALPHA["Alpha Vantage when ALPHA_KEY is set"] --> AGG
-    TRUTH["Optional Truth Social via Apify"] -.-> AGG
+    START(["ArticleAggregator: fetch a ticker"]) --> SOURCES{"Sources selected for this mode"}
+    SOURCES --> FMP["FMP news<br/>Paged state in fetch_state"]
+    SOURCES --> YAHOO["Yahoo via yfinance"]
+    SOURCES --> FINVIZ["Finviz via aiohttp and BeautifulSoup"]
+    SOURCES --> ALPHA["Alpha Vantage when ALPHA_KEY is set"]
+    SOURCES -.->|Opt-in| TRUTH["Truth Social via Apify"]
+    FMP --> AGG["Merge and deduplicate provider results"]
+    YAHOO --> AGG
+    FINVIZ --> AGG
+    ALPHA --> AGG
+    TRUTH --> AGG
     AGG --> CSV["articles/TICKER.csv"]
     CSV --> DEDUP["Scorer: dedupe publishedDate and title"]
     DEDUP --> RESUME["If scores exist, skip that many article rows"]
-    RESUME --> TEXT["Content plus title<br/>Tokenize, truncate to 512 tokens"]
-    TEXT --> MODEL["FinBERT inference in chunks<br/>Softmax logits"]
-    MODEL --> SCORE["Score = probability index 0 minus index 2"]
-    SCORE --> AC["sentiment_scores/TICKER_article_scores.csv"]
-    AC --> DAILY["Length-weighted, decayed daily mean"]
-    DAILY --> DC["sentiment_scores/TICKER_daily_scores.csv"]
-    CSV --> PAIR["Repository reloads deduped articles and scores<br/>Checks counts; pairs by row position"]
-    AC --> PAIR
+    RESUME --> TEXT["Content plus title<br/>Tokenize and truncate to 512 tokens"]
+    TEXT --> MODEL["FinBERT chunks; softmax logits"]
+    MODEL --> SCORE["Probability index 0 minus index 2"]
+    SCORE --> AC["Save article score CSV"]
+    AC --> DAILY["Calculate and save weighted daily score CSV"]
+    DAILY --> PAIR["Repository reloads articles and scores<br/>Check counts; pair by row position"]
     PAIR --> INSERT["Bulk insert news_sentiment<br/>ON CONFLICT article_url DO NOTHING"]
-    INSERT --> SYNC["Aggregate last seven days of news by ticker and date"]
-    SYNC --> MD["UPDATE matching market_data.sentiment_score"]
-    INSERT --> P7["Portfolio 7 may read news_sentiment directly"]
+    INSERT --> SYNC["Aggregate last seven days by ticker and date"]
+    SYNC --> MD["UPDATE market_data.sentiment_score"]
+    INSERT --> P7["Available for Portfolio 7 to read"]
+    style START fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 Truth Social is opt-in (for example `backfill_NLP --include-trump-tracker`); it is not part of the default live rotation. FMP pagination lives in [scrapers/fmp.py](scrapers/fmp.py); [scrapers/aggregator.py](scrapers/aggregator.py) merges provider results. Optional provider failures can leave a partial source set, so a saved CSV does not imply complete historical coverage.
@@ -102,16 +108,20 @@ The sentiment sync retries up to five times, then logs failure without raising i
 
 ```mermaid
 flowchart TD
-    CLI["backfill_NLP: ISO start/end and optional ticker list"] --> HOURS{"Weekday 09:30 to 16:00 New York?"}
+    START(["Choose an NLP historical or local command"]) --> MODE{"Requested workflow"}
+    MODE -->|Database backfill| CLI["backfill_NLP: ISO dates and optional tickers"]
+    CLI --> HOURS{"Weekday 09:30 to 16:00 New York?"}
     HOURS -->|Yes, no wait flag| REFUSE["Exit 2"]
     HOURS -->|Yes, wait flag| WAIT["Wait for session close"]
     WAIT --> INIT["Load model and repository once"]
     HOURS -->|No| INIT
     INIT --> EACH["For each ticker: paged multi-source fetch"]
     EACH --> PIPE["Same scoring and DB pipeline as live"]
-    PIPE --> DONE["Report ticker result; continue to next ticker"]
-    LOCAL["fetch_articles CLI"] --> FILE["Fetch/merge CSV only<br/>No model or DB"]
+    PIPE --> DONE["Report result; continue with next ticker"]
+    MODE -->|Fetch only| LOCAL["fetch_articles CLI"]
+    LOCAL --> FILE["Fetch and merge CSV only<br/>No model or DB"]
     FILE --> NOTEBOOK["Optional visualise_NLP.ipynb<br/>Two-model scoring and plots in local files"]
+    style START fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 The backfill hours helper in [src/common/market_hours.py](../src/common/market_hours.py) checks weekdays and time of day, with no holiday calendar. It runs before the backfill starts, not before every ticker. The live runner has no market-hours block.

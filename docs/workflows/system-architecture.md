@@ -2,42 +2,33 @@
 
 [Setup](../../README.md) · [Workflow index](README.md)
 
+Read this hierarchy from the root downward. The live stack starts at `start.sh`; the other project entrypoints form a separate branch because the launcher does not run them. Detailed workflow pages show the data exchanged between these components.
+
 ```mermaid
-flowchart TB
-    START["start.sh: Linux supervisor"] --> BOT["Live bot"]
-    START --> ING["Real-time ingestor"]
-    START --> PNL["PnL worker"]
-    START --> RF["RBP forecast runner"]
-    START --> NLP["NLP persistent worker"]
-    START --> RET["Retention persistent worker"]
-
-    FMP["FMP market quotes"] --> ING
-    ING --> MD[("market_data")]
-    HIST["Historical backfill CLI"] --> MD
-    NEWS["News providers"] --> NLP
-    NLP --> NS[("news_sentiment")]
-    NLP -->|"Recent sentiment sync"| MD
-    MD --> BOT
-    MD --> PNL
-    MD --> RF
-    RF --> FC[("rbp_forecasts")]
-    FC -.->|"Config-gated confidence blend"| BOT
-    NS -.->|"P7 if selected"| BOT
-    BOT --> BOOKS[("Cash, positions, execution logs")]
-    BOOKS --> PNL
-    PNL --> PB[("pnl_book")]
-    PB --> BOT
-    CAPITAL["Separate funding and allocator commands"] --> BOOKS
-    RET -->|"Deletes old rows; SSM run gate"| MD
-
-    MD --> BT["Backtest engine<br/>Event or vectorized fast mode"]
-    STRAT["Portfolio strategies and configs"] --> BOT
-    STRAT --> BT
-    BT --> REPORT["Local reports, CSVs, cache"]
+flowchart TD
+    ROOT(["MQS Trading System: choose an entrypoint"]) --> LIVE["start.sh: supervised live stack"]
+    ROOT --> MANUAL["Separately invoked projects"]
+    LIVE --> PRE["Environment, script validation, DB preflight"]
+    PRE --> PERSIST["Launch persistent workers"]
+    PERSIST --> NLP["NLP/main_NLP.py<br/>News providers to FinBERT to sentiment"]
+    PERSIST --> RET["Retention pruner<br/>SSM-gated deletion of old price rows"]
+    PERSIST --> MARKET["Launch market workers"]
+    MARKET --> BOT["src/main.py<br/>Strategies, sizing, optional OMS"]
+    MARKET --> ING["Real-time ingestor<br/>FMP quotes to market_data"]
+    MARKET --> PNL["PnL worker<br/>Books and prices to pnl_book"]
+    MARKET --> RF["RBP runner<br/>Market history to rbp_forecasts"]
+    BOT --> BOOKS["Cash, positions, and execution logs"]
+    NLP --> NS["news_sentiment and recent market sentiment"]
+    MARKET --> WATCH["Market watchdog<br/>Stop market workers at close"]
+    MANUAL --> BF["Backfill CLI<br/>Historical prices to market_data"]
+    MANUAL --> CAPITAL["Funding and daily allocator<br/>Book balances and internal transfers"]
+    MANUAL --> BT["Backtest engine<br/>Selected portfolios and historical data"]
+    BT --> REPORT["Reports, CSVs, and local cache"]
     REPORT --> ANALYSIS["Backtest analysis tools"]
-    MD --> RR["RBP research CLI"]
+    MANUAL --> RR["RBP research CLI"]
     RR --> CSV["Prediction and RBI CSVs"]
-    CFA["CFA calculator<br/>Independent interactive utility"]
+    MANUAL --> CFA["CFA calculator"]
+    style ROOT fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 ## Ownership and execution boundaries

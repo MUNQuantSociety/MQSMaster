@@ -115,15 +115,16 @@ python -m NLP.monitor_daemon --synthetic --max-log-age-hours 72
 ## Workflow at a glance
 
 ```mermaid
-flowchart LR
-    RUN["NLPRunner: reload ticker universe"] --> FETCH["Latest FMP page or rotating multi-source batch"]
+flowchart TD
+    START(["python -m NLP.main_NLP"]) --> RUN["NLPRunner: reload ticker universe"] --> FETCH["Latest FMP page or rotating multi-source batch"]
     FETCH --> CSV["Article CSV grows"]
     CSV --> MODEL["FinBERT article scores"]
     MODEL --> FILES["Article and daily score CSVs"]
     FILES --> DB[("news_sentiment")]
     DB --> SYNC["Seven-day market-data sentiment sync"]
     SYNC --> WAIT["Finish sweep; wait remaining cycle interval"]
-    WAIT --> RUN
+    WAIT --> NEXT["Begin next ticker sweep"]
+    style START fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 The target interval is 300 seconds, including work. Tickers run sequentially in up to four batches; one batch uses alternative sources each cycle. A slow sweep exceeds five minutes. NLP does not execute trades; sentiment-aware portfolios must be explicitly selected.

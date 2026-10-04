@@ -52,7 +52,7 @@ flowchart TD
 
     DB --> STRAT
     DB --> BTUTILS
-    BTUTILS <--> PARQUET
+    BTUTILS -->|"Read existing cache and save filled gaps"| PARQUET
 
     classDef source fill:#e3f2fd,stroke:#1565c0
     classDef client fill:#fff3e0,stroke:#ef6c00
@@ -65,6 +65,7 @@ flowchart TD
     class BF,REFRESH,RTI ingest
     class DB,PARQUET storage
     class STRAT,EXEC,BTUTILS consumer
+    style FMP fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 ## FMPMarketData Client
@@ -72,24 +73,18 @@ flowchart TD
 A single `FMPMarketData` instance is shared across threads in a process; rate limiting and retries are thread-safe.
 
 ```mermaid
-sequenceDiagram
-    participant T1 as Thread / caller
-    participant Limiter as RateLimiter (lock)
-    participant Net as Internet check
-    participant FMP
-
-    T1->>Limiter: _check_rate_limit()
-    Limiter->>Limiter: Acquire lock
-    Limiter->>Limiter: Drop timestamps > 60s old
-    alt Count >= 3000
-        Limiter->>Limiter: Sleep until oldest expires
-    end
-    Limiter->>Limiter: Record this request
-    Limiter->>Limiter: Release lock
-    T1->>Net: Probe connectivity (cached briefly)
-    Net-->>T1: ok
-    T1->>FMP: HTTP request (timeout 10s, up to 6 retries)
-    FMP-->>T1: response
+flowchart TD
+    START(["Caller requests FMP market data"]) --> LIMIT["Acquire slot in process-local rate limiter"]
+    LIMIT --> CAP{"Request budget exceeded?"}
+    CAP -->|Yes| WAIT["Wait for available slot"]
+    CAP -->|No| NET["Probe connectivity using cached result"]
+    WAIT --> NET
+    NET --> HTTP["Send HTTP request with timeout"]
+    HTTP --> RESULT{"Request result"}
+    RESULT -->|Success| RETURN["Return parsed response to caller"]
+    RESULT -->|Retryable failure| RETRY["Backoff and retry within attempt limit"]
+    RESULT -->|Attempts exhausted or permanent failure| FAIL["Return failure to caller"]
+    style START fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 Key methods: `get_historical_data`, `get_intraday_data`, `get_realtime_data` (batch exchange quote), `get_current_price`.
@@ -122,6 +117,7 @@ flowchart TD
     class CLI,CMD cli
     class SPEC,CONC,INJ,FETCH,PARSE,PREP,WRITE path
     class DB db
+    style CLI fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 | Argument | Default | Notes |
@@ -141,7 +137,7 @@ Full command reference: [../BackFill/Readme.md](../BackFill/Readme.md).
 `src/orchestrator/backfill/update/refresh.py` keeps the seed ticker list in sync with current S&P 500 / commodity / crypto coverage:
 
 ```mermaid
-flowchart LR
+flowchart TD
     R["python refresh.py"] --> LOAD["Load extra_tickers/nasdaq_tickers.json"]
     LOAD --> FETCH["Fetch latest S&P 500,<br/>commodity, crypto tickers"]
     FETCH --> MERGE["Merge + dedupe"]
@@ -153,6 +149,7 @@ flowchart LR
 
     classDef refresh fill:#fff8e1,stroke:#ff6f00
     class R,LOAD,FETCH,MERGE,WRITE,DECIDE,BF,END refresh
+    style R fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 CLI reference: [../BackFill/refresh_README.md](../BackFill/refresh_README.md).
@@ -171,10 +168,11 @@ flowchart TD
     FEEDS --> PROCESS["process_market_data:<br/>filter tracked tickers not yet seen this cycle,<br/>exchange = row's FMP value, else feed label,<br/>compute interval volume<br/>(diff vs last_known_volume)"]
     PROCESS --> INSERT["bulk_inject_to_db(<br/>conflict_columns=[ticker, timestamp])"]
     INSERT --> REPORT["Log prepared / inserted / ignored,<br/>failed feeds, uncovered tickers"]
-    REPORT --> LOOP
+    REPORT --> NEXT["Next 60-second ingestion cycle"]
 
     classDef rti fill:#e8f5e9,stroke:#2e7d32
     class START,VERIFY,LOAD,INIT,LOOP,FEEDS,PROCESS,INSERT,REPORT rti
+    style START fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 Each cycle polls up to five FMP feeds (one request each before retries), stopping early if all tracked symbols have been matched. `exchange` on a row is FMP's own per-row value (`NASDAQ`, `NYSE`, `AMEX`, `CRYPTO`, `COMMODITY`), falling back to the feed label only when FMP returns null — the column is `NOT NULL` and a single null would roll back the whole batch. A ticker matched by one feed is excluded from later feeds in the same cycle so its volume state is never advanced twice.
@@ -190,7 +188,7 @@ Logs go to stderr and, when writable, `/var/log/market_data_ingestor.log` (overr
 The backtest path warms a per-ticker parquet file under `src/backtest/data/backfill_cache/{ticker}.parquet`. This is purely a *read* cache: it speeds up repeat backtests over overlapping date ranges by avoiding the DB round trip for the bars already on disk.
 
 ```mermaid
-flowchart LR
+flowchart TD
     REQ["fetch_historical_data(portfolio,<br/>start, end)"] --> CACHE{cache hit?}
     CACHE -->|"covers full range"| RET["Return cached frame"]
     CACHE -->|"partial / miss"| FETCH["Query market_data for missing range"]
@@ -200,6 +198,7 @@ flowchart LR
 
     classDef cache fill:#f3e5f5,stroke:#7b1fa2
     class REQ,CACHE,RET,FETCH,MERGE,SAVE cache
+    style REQ fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 The cache directory is committed (the `.parquet` files act as a checked-in dataset for tests). Delete a ticker's parquet to force a fresh DB pull for that symbol.

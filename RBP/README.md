@@ -50,6 +50,7 @@ flowchart TD
     PRED --> RBI["RBICalculator: feature importance per task"]
     RBI --> OUT["Return prediction and RBI DataFrames"]
     OUT --> CSV["Write rbp_predictions.csv<br/>and rbp_rbi_scores.csv"]
+    style CLI fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 The loader converts timestamps to UTC and removes the timezone before daily grouping. Its actual grouping is by those normalized dates; do not assume a separate New York exchange-session resampler. Train/test rows from all configured tickers enter the research training matrix together. Empty data, empty splits, or failure of all prediction tasks abort the experiment.
@@ -57,7 +58,7 @@ The loader converts timestamps to UTC and removes the timezone before daily grou
 ### Prediction internals
 
 ```mermaid
-flowchart LR
+flowchart TD
     TASK["Task features and training X/Y"] --> SUBSET["For each configured feature subset"]
     SUBSET --> DIST["Mahalanobis distance statistics"]
     DIST --> REL["Relevance scores for training observations"]
@@ -66,6 +67,7 @@ flowchart LR
     CELL --> GRID["Grid of cell results"]
     GRID --> COMPOSITE["Clip negative adjusted fits to zero<br/>Normalize positive fits; combine predictions"]
     GRID --> RBI["RBI per feature:<br/>mean fit with feature minus mean fit without"]
+    style TASK fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 If all adjusted fits are zero, the predictor returns 0.0 with an unreliable-prediction warning. Increasing subset size expands the grid combinatorially. Core calculations live in [core/](core/), with prediction and importance in [models/](models/).
@@ -86,9 +88,10 @@ flowchart TD
     GRID --> RECORD["ticker, asof, horizon_days=21, y_pred,<br/>rbi_top, model_version, generated_at"]
     RECORD --> DB[("rbp_forecasts<br/>Conflict: ticker, asof, horizon_days, model_version")]
     DB --> SLEEP["Sleep 300 seconds in interruptible steps<br/>Reload universe; repeat"]
-    SLEEP --> REFRESH
+    SLEEP --> NEXT["Begin next refresh with updated universe"]
     DB -.-> OVERLAY["Optional RBPOverlay in live executor sizing"]
     OVERLAY --> CONF["Blend forecast agreement into confidence"]
+    style START fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 The service uses the same feature engineer and predictor as research, but constructs training data per ticker and writes forecasts rather than research CSVs. Conflicts are ignored (`DO NOTHING`), not updated. Per-ticker exceptions are logged and skipped; refresh-level errors are retried next cycle. An empty universe idles and is rechecked. The runner handles SIGINT/SIGTERM and closes its DB pool.

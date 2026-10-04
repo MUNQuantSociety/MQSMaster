@@ -58,8 +58,9 @@ flowchart TD
     READY -->|No| HOLD["Return without order"]
     READY -->|Yes| SIGNAL["context.buy or context.sell<br/>or strategy-specific direct call"]
     SIGNAL --> ROUTE["Sizing and execution"]
-    HOLD --> DRIVER
-    ROUTE --> DRIVER
+    HOLD --> NEXT["Wait for next live poll or simulated event"]
+    ROUTE --> NEXT
+    style ENGINE fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 `BasePortfolio` updates all newly observed bars in timestamp order after its baseline. Strategies still receive `OnData` calls on polls without new rows; each strategy decides whether to act. The live data path reads market data separately from the atomic cash/positions/notional snapshot. Indicator warmup is distinct from the first poll.
@@ -67,28 +68,21 @@ flowchart TD
 ## Context order routing
 
 ```mermaid
-sequenceDiagram
-    participant S as Strategy
-    participant C as StrategyContext
-    participant E as Executor
-    participant O as Per-portfolio OMS
-    participant P as Engine pump
-    S->>C: buy or sell(ticker, confidence)
-    C->>C: Check asset and close price
-    alt OMS disabled
-        C->>E: execute_trade(signal and state)
-        E->>E: Size, determine side, settle fill
-    else OMS enabled
-        C->>E: default_trade_size(signal and state)
-        E-->>C: quantity and signed desired notional
-        C->>O: process_order(parent with sized side)
-        O->>O: Schedule MARKET/TWAP/VWAP children
-        P->>O: manage_order(now, execute_child)
-        O->>P: Execute due child
-        P->>E: execute_child_order, no resizing
-        E-->>O: Fill result
-        O->>O: Update parent/child status
-    end
+flowchart TD
+    START(["OnData: context.buy or context.sell"]) --> VALID["StrategyContext checks asset and close"]
+    VALID --> MODE{"OMS enabled?"}
+    MODE -->|No| DIRECT["Executor.execute_trade"]
+    DIRECT --> DSIZE["Size order and determine execution side"]
+    DSIZE --> DFILL["Settle direct fill"]
+    MODE -->|Yes| OSIZE["Executor.default_trade_size"]
+    OSIZE --> PARENT["Context submits sized parent order"]
+    PARENT --> SCHEDULE["Per-portfolio OMS schedules<br/>MARKET, TWAP, or VWAP children"]
+    SCHEDULE --> PUMP["Engine pump: manage_order"]
+    PUMP --> CHILD["Execute due child<br/>Fresh live state; no second sizing pass"]
+    CHILD --> RESULT{"Fill result"}
+    RESULT -->|Success| UPDATE["Update child and parent status"]
+    RESULT -->|Failure| RETRY["Retry on a later tick once<br/>Cancel child if retry fails"]
+    style START fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 The live pump runs in a dedicated thread (default five-second tick) and loads fresh portfolio state for every child. The event backtest pump runs against simulated bar time. Execution direction follows **signed desired notional**, not the original BUY/SELL label.
@@ -119,6 +113,7 @@ flowchart TD
     DECIDE -->|"Above buy threshold and cash guard passes"| BUY["context.buy<br/>Confidence capped at 1"]
     DECIDE -->|"Below sell threshold and long position exists"| SELL["context.sell<br/>Confidence capped at 1"]
     DECIDE -->|Otherwise| HOLD["No order"]
+    style DATA fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 P5 uses [portfolio_5/rbp_model.py](portfolio_5/rbp_model.py), not the forecast worker's `rbp_forecasts` table. Its feature names say days, but windows count rows in the supplied history; minute bars are not automatically resampled by this local model. The [RBP guide](../../RBP/README.md) distinguishes all three integrations.
@@ -144,6 +139,7 @@ flowchart TD
     SAVE --> EXEC["Compare holdings with targets<br/>Close removed names; trade beyond drift threshold"]
     DAY -->|No| EXEC
     EXEC --> DIRECT["Direct executor target-weight calls"]
+    style CALL fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 P7 can fall back from article-level sentiment to market-data sentiment when configured; missing/insufficient sentiment gives neutral treatment according to its thresholds. P8 falls back to base screening when forecasts fail, and its current research output uses a task-average fallback when ticker identity is missing (see the RBP guide). Volatility targeting belongs to the stock sleeve, not a second master-level volatility rescale.

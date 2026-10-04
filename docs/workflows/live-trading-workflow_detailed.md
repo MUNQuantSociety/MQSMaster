@@ -25,12 +25,13 @@ flowchart TD
     DATA --> STEP["generate_signals_and_trade<br/>Update indicators; build StrategyContext; call OnData"]
     STEP --> OK{"Iteration raised an exception?"}
     OK -->|No| RESET["Reset failure count<br/>Sleep max of zero and INTERVAL minus work"]
-    RESET --> DATA
+    RESET --> NEXT["Next portfolio poll"]
     OK -->|Yes| ERR["Increment portfolio failure count"]
     ERR --> LIMIT{"Five consecutive failures?"}
     LIMIT -->|No| WAIT["Sleep INTERVAL"]
-    WAIT --> DATA
+    WAIT --> NEXT
     LIMIT -->|Yes| STOP["Stop this portfolio thread"]
+    style MAIN fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 Unreadable/missing configs and constructor errors skip the affected portfolio. Schema bootstrap errors in `main.py` are logged and execution continues; this is not a guarantee that the schema is usable. If no portfolios load, the engine exits. A successful poll resets the circuit breaker. Errors swallowed inside a strategy/executor do not count as exceptions at the engine boundary.
@@ -43,9 +44,9 @@ flowchart TD
     VALID -->|No| SKIP["Skip order"]
     VALID -->|Yes| ROUTE{"Context has OrderManager?"}
     ROUTE -->|No| DIRECT["execute_trade"]
-    DIRECT --> SIZE["default_trade_size<br/>Optional RBP confidence blend<br/>Target minus current notional<br/>Cash and buying-power limits<br/>Floor to whole shares"]
+    DIRECT --> SIZE["default_trade_size: fetch current FMP quote<br/>Optional RBP confidence blend<br/>Target minus current notional<br/>Cash and buying-power limits<br/>Floor to whole shares"]
     ROUTE -->|Yes| OSIZE["Same default_trade_size"]
-    QUOTE["FMP single-ticker quote"] --> SIZE
+
     SIZE --> Q{"Positive sized quantity?"}
     Q -->|No| SKIP
     Q -->|Yes| FILL["Side from signed desired notional<br/>Settle against supplied portfolio state"]
@@ -64,6 +65,7 @@ flowchart TD
     COMMIT -->|No| ROLLBACK["Rollback; return error"]
     SUCCESS --> TRACK["OMS path: update child and parent fills"]
     ROLLBACK --> RETRY["OMS path: retry child once on later tick<br/>Then cancel failed child"]
+    style SIGNAL fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 Both execution routes use the **sign of desired notional** for the actual side. A BUY signal can trim an overweight position and therefore execute a SELL. The live executor's `get_current_price` requests an FMP single-ticker quote; the strategy's arrival price comes from its market-data context. Missing/invalid execution quotes cause the trade to be skipped or the child execution to fail.

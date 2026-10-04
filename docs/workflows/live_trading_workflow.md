@@ -10,12 +10,12 @@ This is the behavior of the checked-in [start.sh](../../start.sh), including its
 flowchart TD
     START["bash start.sh"] --> ENV["Resolve repository and MQS/bin/python<br/>Create .env from injected variables if absent<br/>Source .env"]
     ENV --> CHECK{"Required credentials, curl, jq<br/>and executable Python present?"}
-    CHECK -->|No| EXIT["Exit 1"]
+    CHECK -->|No| ENVFAIL["Exit 1: preflight failed"]
     CHECK -->|Yes| VALIDATE["Set working directory and PYTHONPATH<br/>Validate each script: exists, readable, compiles"]
     VALIDATE --> SKIP["Record invalid scripts as skipped<br/>Build DB, persistent, and market run lists"]
     SKIP --> DB["Run validated DB scripts sequentially<br/>database/test.py then create_all_tables.py"]
     DB --> DBOK{"A DB script exits nonzero?"}
-    DBOK -->|Yes| EXIT
+    DBOK -->|Yes| DBFAIL["Exit 1: DB script failed"]
     DBOK -->|No| PERSIST["Launch persistent watchers first<br/>Skip worker if matching process already exists"]
     PERSIST --> NLP["NLP/main_NLP.py<br/>News fetch, FinBERT, sentiment persistence"]
     PERSIST --> PRUNE["retention/prune_market_data.py<br/>SSM-gated deletion of old price rows"]
@@ -24,10 +24,14 @@ flowchart TD
     MARKET --> ING["realTime/realtimeDataIngestor.py<br/>Price ingestion"]
     MARKET --> PNL["realTime/pnl_script.py<br/>Book valuation"]
     MARKET --> RBP["orchestrator/rbp_runner.py<br/>Forecast refresh"]
-    MARKET --> SUMMARY["Report running, skipped, and failed scripts"]
+    BOT --> SUMMARY["Report running, skipped, and failed scripts"]
+    ING --> SUMMARY
+    PNL --> SUMMARY
+    RBP --> SUMMARY
     SUMMARY --> ANY{"Any market PID survived startup?"}
-    ANY -->|No| EXIT
+    ANY -->|No| MARKETFAIL["Exit 1: no market worker started"]
     ANY -->|Yes| WATCH["Log memory and enter NASDAQ market watchdog"]
+    style START fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 Missing scripts and syntax failures skip only that script. Import/initialization failures surface in the startup grace check; other workers still launch. DB scripts that return nonzero abort startup, but the current DB helpers can print errors and return zero, so their printed output matters.
@@ -38,31 +42,32 @@ Missing scripts and syntax failures skip only that script. Import/initialization
 
 ```mermaid
 flowchart TD
-    FMP["FMP quote feeds"] --> ING["Real-time ingestor"]
-    BF["Historical backfill"] --> MD[("market_data")]
-    ING --> MD
-    MD --> STRAT["Portfolio data + indicators<br/>OnData"]
-    NEWS["FMP and optional news providers"] --> NLP["NLP fetch and FinBERT"]
+    START(["start.sh: workers are running"]) --> INPUTS["Read prepared inputs and fetch new data"]
+    INPUTS --> PRICES["Real-time ingestor: fetch FMP quotes"]
+    INPUTS --> HISTORY["Read historical backfill already in market_data"]
+    INPUTS --> NEWS["NLP: fetch FMP and optional news sources"]
+    PRICES --> MD[("market_data")]
+    HISTORY --> MD
+    NEWS --> NLP["FinBERT scoring"]
     NLP --> NS[("news_sentiment")]
-    NLP -->|"Recent daily sentiment sync"| MD
-    NS -.->|"P7 when selected"| STRAT
+    NS --> SYNC["Sync recent daily sentiment into market_data"]
+    SYNC --> MD
+    MD --> STRAT["Portfolio reads prices and books<br/>Updates indicators; calls OnData<br/>P7 may also read news_sentiment"]
     MD --> RBP["RBP forecast service"]
     RBP --> FC[("rbp_forecasts")]
     STRAT --> SIGNAL["Buy / sell and confidence"]
     SIGNAL --> SIZE["Shared live executor sizing"]
-    FC -.->|"Optional RBP confidence overlay"| SIZE
+    FC -.->|"Optional confidence overlay"| SIZE
     SIZE --> ROUTE{"Execution route"}
-    ROUTE -->|Direct| FILL["Fill using current FMP quote"]
-    FMP --> FILL
-    ROUTE -->|OMS enabled| OMS["Per-portfolio parent and child orders"]
-    OMS --> PUMP["Dedicated OMS tick thread<br/>Read portfolio state at fill time"]
+    ROUTE -->|Direct| FILL["Fetch current FMP quote and settle fill"]
+    ROUTE -->|OMS enabled| OMS["Per-portfolio parent and child schedule"]
+    OMS --> PUMP["OMS tick: read fresh portfolio state"]
     PUMP --> FILL
-    FILL --> BOOKS[("cash_equity_book<br/>positions_book<br/>trade_execution_logs")]
-    BOOKS --> PNL["PnL worker"]
-    MD --> PNL
+    FILL --> BOOKS[("Cash, positions, and execution logs")]
+    BOOKS --> PNL["PnL worker reads books and market prices"]
     PNL --> PB[("pnl_book")]
-    BOOKS --> STRAT
-    PB --> STRAT
+    PB --> NEXT["Next portfolio poll reads updated books"]
+    style START fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 The live executor records fills in PostgreSQL; this path contains no external broker submission. The RBP overlay is constructed only when the manager config contains `rbp_overlay.enabled: true`; it is absent in the checked-in manager config. NLP is consumed by sentiment-aware strategies such as P7, not automatically by every portfolio. P1 and P2 are the current `src/main.py` selection.
@@ -71,22 +76,25 @@ The live executor records fills in PostgreSQL; this path contains no external br
 
 ```mermaid
 flowchart TD
-    CHECK["Check FMP NASDAQ exchange-market-hours"] --> STATUS{"Boolean market status?"}
+    ROOT(["start.sh: supervision begins"]) --> MODE{"Independent supervision branches"}
+    MODE -->|Market workers| CHECK["Check FMP NASDAQ exchange-market-hours"]
+    CHECK --> STATUS{"Boolean market status?"}
     STATUS -->|Open| RESET["Reset unknown streak<br/>Check market PIDs; report exited workers"]
     RESET --> ANY{"Any market worker alive?"}
-    ANY -->|Yes| MEM["Log worker memory<br/>Sleep 180 seconds"]
-    MEM --> CHECK
+    ANY -->|Yes| MEM["Log memory; sleep 180 seconds"]
+    MEM --> NEXT["Next market-status check"]
     ANY -->|No| FAIL["Exit watchdog with code 1"]
     STATUS -->|Unknown or API error| COUNT["Increment unknown streak"]
     COUNT --> LIMIT{"Streak reaches limit?<br/>Default 20 checks"}
-    LIMIT -->|No| RETRY["Keep workers running<br/>Sleep 180 seconds"]
-    RETRY --> CHECK
-    LIMIT -->|Yes| STOP["SIGTERM surviving market PIDs<br/>Wait for termination; exit watchdog"]
+    LIMIT -->|No| RETRY["Keep workers running; sleep 180 seconds"]
+    RETRY --> NEXT
+    LIMIT -->|Yes| STOP["SIGTERM surviving market PIDs<br/>Wait; exit watchdog"]
     STATUS -->|Closed| STOP
-
-    WORKER["Persistent watcher starts Python worker"] --> DONE["Worker exits with any code"]
-    DONE --> BACKOFF["Append exit to logs/NAME.watcher.log<br/>Sleep 30 seconds"]
-    BACKOFF --> WORKER
+    MODE -->|Persistent workers| WORKER["Detached watcher starts Python worker"]
+    WORKER --> DONE["Worker exits with any code"]
+    DONE --> BACKOFF["Log exit; sleep 30 seconds"]
+    BACKOFF --> RESTART["Restart this worker<br/>Independent of market-status checks"]
+    style ROOT fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 Market workers are **not restarted** by the watchdog after a crash. Persistent watchers restart after both successful and failed exits. They start before the market workers, use `nohup`/detachment, and survive normal watchdog exit on a host. A container stopping terminates its remaining processes; these are not independent always-on services merely because they are called persistent.

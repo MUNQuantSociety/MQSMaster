@@ -26,13 +26,14 @@ flowchart TD
     RESULT -->|Yes| TRANSFORM["Filter remaining tickers<br/>Normalize fields and calculate volume deltas"]
     TRANSFORM --> ACC["Append rows; remove matched symbols<br/>from remaining tickers"]
     ACC --> MORE{"More feeds and unmatched tickers?"}
-    MORE -->|Yes| FEED
+    MORE -->|Yes| NEXTFEED["Process next unmatched feed<br/>Repeat fetch and transform within this cycle"]
     MORE -->|No| ROWS{"Any rows prepared?"}
     ROWS -->|Yes| INSERT["One bulk insert<br/>ON CONFLICT ticker, timestamp DO NOTHING"]
     ROWS -->|No| REPORT["Log cycle counts and uncovered symbols"]
     INSERT --> REPORT
     REPORT --> SLEEP["Sleep max of zero and 60 seconds minus work"]
-    SLEEP --> CYCLE
+    SLEEP --> NEXT["Begin next ingestion cycle"]
+    style START fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 Feed requests are sequential; the loop stops early if every ticker has been matched. A fetch returning `None` is skipped so other feeds can proceed. An unhandled exception reaches the outer handler, logs a critical error, closes DB connections, and ends the worker. The watchdog reports market-worker loss but does not restart it.
@@ -40,7 +41,7 @@ Feed requests are sequential; the loop stops early if every ticker has been matc
 ## Transformation and persistence
 
 ```mermaid
-flowchart LR
+flowchart TD
     RAW["FMP quote"] --> FILTER["Tracked symbol not already handled"]
     FILTER --> CLEAN["Exchange: row value or feed fallback<br/>Drop missing price; missing volume becomes zero"]
     CLEAN --> VOLUME["Interval volume = API volume minus previous<br/>Negative delta uses full API volume"]
@@ -49,6 +50,7 @@ flowchart LR
     TIME --> ROW["ticker, timestamp, date, exchange<br/>close_price, interval volume<br/>open/high/low = NULL"]
     ROW --> DB[("market_data")]
     DB --> USERS["Trading polls, PnL, RBP, backtests"]
+    style RAW fill:#dbeafe,stroke:#2563eb,stroke-width:2px
 ```
 
 | Input | Stored meaning |
