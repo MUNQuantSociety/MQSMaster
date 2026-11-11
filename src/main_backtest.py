@@ -8,6 +8,8 @@ How to run a backtest:
 4. Run python -m src.main_backtest
 """
 
+from concurrent.futures import CancelledError
+from concurrent.futures import Future
 import logging
 import os
 import warnings
@@ -40,11 +42,17 @@ Backtest configuration parameters:
 - START_DATE: The start date for the backtest in "YYYY-MM-DD" format.
 - END_DATE: The end date for the backtest in "YYYY-MM-DD" format.
 - INITIAL_CAPITAL: The initial capital for the backtest as a float.
-- SLIPPAGE: The slippage to be applied to trade executions, expressed as a decimal (e.g., 0.000001 for 0.1 basis point).
-- BACKTEST_MODE: The mode of backtesting to be used, either "event" for event-driven backtesting or "fast" for a faster approximation mode.
-- DEFAULT_PORTFOLIO_CLASSES: A list of default portfolio strategy classes to be used in the backtest if no specific classes are provided.
-- AVAILABLE_PORTFOLIO_CLASSES: A list of all available portfolio strategy classes that can be used in the backtest.
-- BACKTEST_NUM_BATCHES: An optional integer specifying the number of batches to use for parallel backtest execution. If set to None, the batch count will be automatically determined based on the number of CPU cores and the number of portfolios.
+- SLIPPAGE: The slippage to be applied to trade executions, expressed as a decimal (e.g., 0.000001
+    for 0.1 basis point).
+- BACKTEST_MODE: The mode of backtesting to be used, either "event" for event-driven backtesting
+    or "fast" for a faster approximation mode.
+- DEFAULT_PORTFOLIO_CLASSES: A list of default portfolio strategy classes to be used in the
+    backtest if no specific classes are provided.
+- AVAILABLE_PORTFOLIO_CLASSES: A list of all available portfolio strategy classes that can be used
+    in the backtest.
+- BACKTEST_NUM_BATCHES: An optional integer specifying the number of batches to use for parallel
+    backtest execution. If set to None, the batch count will be automatically determined based on
+    the number of CPU cores and the number of portfolios.
 """
 START_DATE = "2025-01-01"
 END_DATE = "2025-09-05"
@@ -83,19 +91,45 @@ AVAILABLE_PORTFOLIO_CLASSES = [
 
 # Adapters for external vectorized backtest approximations of the above strategies.
 """
-quick: True/False flag to control whether the adapter should use faster approximations (e.g. fewer lookback periods, simpler logic) to speed up execution during fast-mode backtests. Adapters can choose how to interpret this flag based on the complexity of the underlying strategy and the desired tradeoff between accuracy and speed.
+quick: True/False flag to control whether the adapter should use faster approximations
+    (e.g. fewer lookback periods, simpler logic) to speed up execution during fast-mode backtests.
+    Adapters can choose how to interpret this flag based on the complexity of the underlying
+    strategy and the desired tradeoff between accuracy and speed.
 
-mc_enabled: True/False flag to control whether the adapter should prepare its output in a way that is compatible with Monte Carlo simulation. This may involve ensuring that the target_weights and signal_strength outputs are structured appropriately for resampling and path generation during the Monte Carlo process. Adapters can choose how to interpret this flag based on the specific requirements of their strategy and the intended use of the Monte Carlo results.
+mc_enabled: True/False flag to control whether the adapter should prepare its output in a way that
+    is compatible with Monte Carlo simulation. This may involve ensuring that the target_weights
+    and signal_strength outputs are structured appropriately for resampling and path generation
+    during the Monte Carlo process. Adapters can choose how to interpret this flag based on the
+    specific requirements of their strategy and the intended use of the Monte Carlo results.
 
-mc_n_sims: Integer specifying the number of Monte Carlo simulation paths that will be generated during fast-mode backtests when mc_enabled is True. Adapters can use this information to optimize their output preparation, such as by precomputing certain values or structuring their outputs in a way that facilitates efficient resampling and path generation for the specified number of simulations.
+mc_n_sims: Integer specifying the number of Monte Carlo simulation paths that will be generated
+    during fast-mode backtests when mc_enabled is True. Adapters can use this information to
+    optimize their output preparation, such as by precomputing certain values or structuring their
+    outputs in a way that facilitates efficient resampling and path generation for the specified
+    number of simulations.
 
-mc_method: String specifying the method of Monte Carlo simulation (e.g. "bootstrap", "parametric") that will be used during fast-mode backtests when mc_enabled is True. Adapters can use this information to tailor their output preparation to the specific requirements of the chosen Monte Carlo method, such as by ensuring that their outputs are compatible with the resampling techniques or distributional assumptions associated with the specified method.
+mc_method: String specifying the method of Monte Carlo simulation (e.g. "bootstrap", "parametric")
+    that will be used during fast-mode backtests when mc_enabled is True. Adapters can use this
+    information to tailor their output preparation to the specific requirements of the chosen Monte
+    Carlo method, such as by ensuring that their outputs are compatible with the resampling
+    techniques or distributional assumptions associated with the specified method.
 
-mc_block_size: Integer specifying the block size to be used for block bootstrapping during Monte Carlo simulation when mc_enabled is True and mc_method is "bootstrap". Adapters can use this information to structure their outputs in a way that facilitates efficient block resampling during the Monte Carlo process, such as by organizing their outputs into contiguous blocks of the specified size.
+mc_block_size: Integer specifying the block size to be used for block bootstrapping during Monte
+    Carlo simulation when mc_enabled is True and mc_method is "bootstrap". Adapters can use this
+    information to structure their outputs in a way that facilitates efficient block resampling
+    during the Monte Carlo process, such as by organizing their outputs into contiguous blocks of
+    the specified size.
 
-mc_seed: Integer seed value for random number generation during Monte Carlo simulation when mc_enabled is True. Adapters can use this information to ensure that any stochastic elements of their output preparation are reproducible and consistent across different runs of the backtest, which can be important for debugging and result validation purposes.
+mc_seed: Integer seed value for random number generation during Monte Carlo simulation when
+    mc_enabled is True. Adapters can use this information to ensure that any stochastic elements of
+    their output preparation are reproducible and consistent across different runs of the backtest,
+    which can be important for debugging and result validation purposes.
 
-mc_plot_percentiles: List of integers specifying the percentiles to be plotted during Monte Carlo simulation when mc_enabled is True. Adapters can use this information to prepare their outputs in a way that facilitates the generation of percentile plots during the Monte Carlo process, such as by structuring their outputs to allow for easy calculation and visualization of the specified percentiles.
+mc_plot_percentiles: List of integers specifying the percentiles to be plotted during Monte Carlo
+    simulation when mc_enabled is True. Adapters can use this information to prepare their outputs
+    in a way that facilitates the generation of percentile plots during the Monte Carlo process,
+    such as by structuring their outputs to allow for easy calculation and visualization of the
+    specified percentiles.
 """
 
 FAST_MODE_CONFIG = {
@@ -111,6 +145,26 @@ FAST_MODE_CONFIG = {
 }
 
 
+class BacktestContext:
+    def __init__(
+        self,
+        portfolio_classes,
+        start_date,
+        end_date,
+        initial_capital,
+        slippage,
+        backtest_mode,
+        resolved_fast_config,
+    ):
+        self.portfolio_classes: str = portfolio_classes
+        self.start_date: str = start_date
+        self.end_date: str = end_date
+        self.initial_capital: float = initial_capital
+        self.slippage: float = slippage
+        self.backtest_mode: str = backtest_mode
+        self.resolved_fast_config = resolved_fast_config
+
+
 def _resolve_fast_mode_config(
     fast_config=None,
     *,
@@ -120,33 +174,35 @@ def _resolve_fast_mode_config(
     """Resolve fast-mode config; when both are provided, fast_config values take precedence."""
     resolved = deepcopy(FAST_MODE_CONFIG)
 
-    if fast_years_back is not None:
-        resolved["years_back"] = int(fast_years_back)
-    if fast_benchmark_label is not None:
-        resolved["benchmark_label"] = str(fast_benchmark_label)
+    resolved["years_back"] = int(fast_years_back) if fast_years_back is not None else -1
+    resolved["benchmark_label"] = (
+        str(fast_benchmark_label) if fast_benchmark_label is not None else ""
+    )
 
-    if fast_config:
-        if (
-            "years_back" in fast_config
-            and fast_years_back is not None
-            and int(fast_config["years_back"]) != int(fast_years_back)
-        ):
-            warnings.warn(
-                "fast_config['years_back'] overrides fast_years_back.",
-                UserWarning,
-                stacklevel=2,
-            )
-        if (
-            "benchmark_label" in fast_config
-            and fast_benchmark_label is not None
-            and str(fast_config["benchmark_label"]) != str(fast_benchmark_label)
-        ):
-            warnings.warn(
-                "fast_config['benchmark_label'] overrides fast_benchmark_label.",
-                UserWarning,
-                stacklevel=2,
-            )
-        resolved.update(dict(fast_config))
+    if not fast_config:
+        return resolved
+
+    if (
+        "years_back" in fast_config
+        and fast_years_back is not None
+        and int(fast_config["years_back"]) != int(fast_years_back)
+    ):
+        warnings.warn(
+            "fast_config['years_back'] overrides fast_years_back.",
+            UserWarning,
+            stacklevel=2,
+        )
+    if (
+        "benchmark_label" in fast_config
+        and fast_benchmark_label is not None
+        and str(fast_config["benchmark_label"]) != str(fast_benchmark_label)
+    ):
+        warnings.warn(
+            "fast_config['benchmark_label'] overrides fast_benchmark_label.",
+            UserWarning,
+            stacklevel=2,
+        )
+    resolved.update(dict(fast_config))
 
     return resolved
 
@@ -155,8 +211,8 @@ def init_backtest(
     portfolio_classes=DEFAULT_PORTFOLIO_CLASSES,
     start_date=START_DATE,
     end_date=END_DATE,
-    initial_capital=INITIAL_CAPITAL,
-    slippage=SLIPPAGE,
+    initial_capital: float = INITIAL_CAPITAL,
+    slippage: float = SLIPPAGE,
     backtest_mode=BACKTEST_MODE,
     fast_config=None,
     fast_years_back=None,
@@ -170,31 +226,45 @@ def init_backtest(
 
     if end_date is None:
         end_date = pd.Timestamp.now(tz="UTC").normalize().strftime("%Y-%m-%d")
-    if backtest_mode == "fast":
-        # Fast-mode tuning (single source of truth):
-        # - Legacy fast_years_back / fast_benchmark_label values are still accepted.
-        # - Any provided fast_config keys override defaults and legacy values.
-        resolved_fast_config = _resolve_fast_mode_config(
-            fast_config=fast_config,
-            fast_years_back=fast_years_back,
-            fast_benchmark_label=fast_benchmark_label,
-        )
-        return (
-            portfolio_classes,
-            start_date,
-            end_date,
-            initial_capital,
-            slippage,
-            backtest_mode,
-            resolved_fast_config,
-        )
-    elif backtest_mode != "event":
-        warnings.warn(
-            "currently using 'event'. Set `backtest_mode` explicitly to silence this warning.",
-            FutureWarning,
-            stacklevel=2,
-        )
+
+    match backtest_mode:
+        case "fast":
+            # Fast-mode tuning (single source of truth):
+            # - Legacy fast_years_back / fast_benchmark_label values are still accepted.
+            # - Any provided fast_config keys override defaults and legacy values.
+            resolved_fast_config = _resolve_fast_mode_config(
+                fast_config=fast_config,
+                fast_years_back=fast_years_back,
+                fast_benchmark_label=fast_benchmark_label,
+            )
+            return (
+                portfolio_classes,
+                start_date,
+                end_date,
+                initial_capital,
+                slippage,
+                backtest_mode,
+                resolved_fast_config,
+            )
+        case "event":
+            return (
+                portfolio_classes,
+                start_date,
+                end_date,
+                initial_capital,
+                slippage,
+                backtest_mode,
+                None,
+            )
+        case _:
+            warnings.warn(
+                "currently using 'event'. Set `backtest_mode` explicitly to silence this warning.",
+                FutureWarning,
+                stacklevel=2,
+            )
+
     backtest_mode = "event"
+
     return (
         portfolio_classes,
         start_date,
@@ -240,7 +310,7 @@ def run_backtest(
         return trade_log
 
     except Exception as e:
-        logging.error(f"Error during backtest execution: {e}", exc_info=True)
+        logging.exception(f"Error during backtest execution: {e}", exc_info=True)
         raise
 
 
@@ -310,36 +380,83 @@ def _partition_portfolios_evenly(
     return batches
 
 
+def _submit_portfolio_batches(
+    executor: ProcessPoolExecutor,
+    context: BacktestContext,
+    batches: list[list[BasePortfolio]],
+) -> list[Future]:
+    futures = []
+
+    for i, batch_portfolios in enumerate(batches):
+        logging.info(f"Submitting backtest for portfolios: {batch_portfolios}")
+
+        futures.append(
+            executor.submit(
+                run_backtest,
+                batch_portfolios,
+                context.start_date,
+                context.end_date,
+                context.initial_capital,
+                context.slippage,
+                context.backtest_mode,
+                context.resolved_fast_config,
+                i,
+            )
+        )
+
+    return futures
+
+
+def _process_futures(futures: list[Future]) -> None:
+    """
+    Process each backtest.
+
+    Raises:
+    - ValueError if trade_log is None
+    """
+    for future in as_completed(futures):
+        try:
+            trade_log = future.result()
+            logging.info("Backtest completed successfully.")
+            if trade_log is None:
+                raise ValueError("Backtest returned None instead of a trade log.")
+            for portfolio in range(len(trade_log)):
+                for trade in trade_log[portfolio] or []:
+                    print(f"{trade}")
+
+        except CancelledError as e:
+            logging.debug(f"Backtest cancelled: {e}")
+
+        except TimeoutError as e:
+            logging.debug(f"Backtest timed out: {e}")
+
+        except Exception as e:
+            logging.exception(f"Backtest failed with error: {e}", exc_info=True)
+
+
 def main(num_batches: int | None = None):
     """
     Main entry point for the MQS Trading System backtests.
     using ProcessPoolExecutor to run multiple backtests in parallel.
     """
     try:
-        (
-            portfolio_classes,
-            start_date,
-            end_date,
-            initial_capital,
-            slippage,
-            backtest_mode,
-            resolved_fast_config,
-        ) = init_backtest()
+        context: BacktestContext = BacktestContext(init_backtest())
 
-        resolved_num_batches = _resolve_num_batches(
-            len(portfolio_classes),
+        resolved_num_batches: int = _resolve_num_batches(
+            len(context.portfolio_classes),
             requested_num_batches=num_batches,
         )
+
         selected_portfolios = _partition_portfolios_evenly(
-            portfolio_classes,
+            context.portfolio_classes,
             resolved_num_batches,
         )
-        futures = []
+
         non_empty_batches = [batch for batch in selected_portfolios if len(batch) > 0]
 
         if len(non_empty_batches) == 0:
             logging.warning("No non-empty portfolio batches to run.")
-            return futures
+            return []
 
         tqdm_lock = RLock()
 
@@ -348,44 +465,8 @@ def main(num_batches: int | None = None):
             initializer=tqdm.set_lock,
             initargs=(tqdm_lock,),
         ) as executor:
-            for i, batch_portfolios in enumerate(non_empty_batches):
-                logging.info(f"Submitting backtest for portfolios: {batch_portfolios}")
-
-                future = executor.submit(
-                    run_backtest,
-                    batch_portfolios,
-                    start_date,
-                    end_date,
-                    initial_capital,
-                    slippage,
-                    backtest_mode,
-                    resolved_fast_config,
-                    i,
-                )
-                futures.append(future)
-
-            for future in as_completed(futures):
-                try:
-                    trade_log = future.result()
-                    logging.info("Backtest completed successfully.")
-                    if len(trade_log) == 0:
-                        logging.info("No trades executed in this batch.")
-                        continue
-                    elif trade_log is None:
-                        raise ValueError(
-                            "Backtest returned None instead of a trade log."
-                        )
-                    for portfolio in range(len(trade_log)):
-                        if (
-                            trade_log[portfolio] is None
-                            or len(trade_log[portfolio]) == 0
-                        ):
-                            logging.info("No trades executed for portfolio")
-                            continue
-                        for trade in trade_log[portfolio]:
-                            print(f"{trade}")
-                except Exception as e:
-                    logging.error(f"Backtest failed with error: {e}", exc_info=True)
+            futures = _submit_portfolio_batches(executor, context, non_empty_batches)
+            _process_futures(futures)
 
     finally:
         logging.info("===== DONE =====")

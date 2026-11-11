@@ -24,6 +24,8 @@ Citations:
 """
 
 from __future__ import annotations
+from dataclasses import asdict
+from typing import Literal
 
 import dataclasses
 import json
@@ -37,17 +39,6 @@ import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
-
-
-STATE_ARMED = "ARMED"
-STATE_THROTTLED = "THROTTLED"
-STATE_PAUSED = "PAUSED"
-
-_STATE_LEVERAGE: Dict[str, float] = {
-    STATE_ARMED: 1.0,
-    STATE_THROTTLED: 0.5,
-    STATE_PAUSED: 0.0,
-}
 
 
 @dataclass
@@ -72,8 +63,24 @@ class CircuitBreakerConfig:
 
 
 @dataclass
+class CircuitState:
+    def __init__(self, name: str, leverage_multiplier: float):
+        self.name = name
+        self.leverage_multiplier = leverage_multiplier
+
+
+class States:
+    ARMED = CircuitState("ARMED", 1.0)
+    THROTTLED = CircuitState("ARMED", 0.5)
+    PAUSED = CircuitState("ARMED", 0.0)
+
+
+type ValidState = Literal["ARMED", "THROTTLED", "PAUSED"]
+
+
+@dataclass
 class CircuitBreakerState:
-    state: str = STATE_ARMED
+    state: CircuitState = States.ARMED
     peak_equity: float = 0.0
     last_transition_ts: Optional[str] = None
     days_in_state: int = 0
@@ -167,6 +174,82 @@ def _hwm_drawdown(equity: pd.Series, peak: float) -> float:
     return float((last / eff_peak) - 1.0)
 
 
+@dataclass
+class UpdateResult:
+    def __init__(
+        self,
+        state_name: str,
+        leverage_mult: float,
+        peak_equity: float = float("nan"),
+        days_in_state: int = 0,
+        rolling_dd_90d: float = 0.0,
+        rolling_dd_30d: float = 0.0,
+        rolling_dd_hwm: float = 0.0,
+        reason: str = "",
+        prior_state: CircuitBreakerState = CircuitBreakerState(),
+        new_state: CircuitBreakerState = CircuitBreakerState(),
+    ):
+        self.state: str = state_name
+        self.leverage_multiplier: float = leverage_mult
+        self.paused: bool = state_name == States.PAUSED.name
+        self.peak_equity: float = peak_equity
+        self.days_in_state: int = days_in_state
+        self.rolling_dd_90d: float = rolling_dd_90d
+        self.rolling_dd_30d: float = rolling_dd_30d
+        self.rolling_dd_hwm: float = rolling_dd_hwm
+        self.reason: str = reason
+        self.prior_state_obj: CircuitBreakerState = prior_state
+        self.new_state_obj: CircuitBreakerState = new_state
+
+
+def _change_state(
+    previous_state: str,
+    days_in_state: float,
+    drawdown_90: float,
+    drawdown_30: float,
+    config: CircuitBreakerConfig,
+) -> tuple[CircuitState, str]:
+    """Change the state and reason. Returns (new_state, reason)."""
+    new_state: CircuitState = States.ARMED
+    reason: str = ""
+    if previous_state == States.ARMED.name and drawdown_90 <= config.trip_pause:
+        new_state = States.THROTTLED
+        reason = (
+            f"trip ARMED->THROTTLED: dd_90={drawdown_90:.4f} crossed pause level "
+            f"{config.trip_pause:.4f}; will reassess next tick"
+        )
+
+    elif previous_state == States.ARMED.name and drawdown_90 <= config.trip_throttle:
+        new_state = States.THROTTLED
+        reason = (
+            f"trip ARMED->THROTTLED: dd_90={drawdown_90} <= {config.trip_throttle:.4f}"
+        )
+
+    elif previous_state == States.THROTTLED.name and drawdown_90 <= config.trip_pause:
+        new_state = States.PAUSED
+        reason = f"trip THROTTLED->PAUSED: dd_90={drawdown_90:.4f} <= {config.trip_pause:.4f}"
+
+    elif (
+        previous_state == States.THROTTLED.name and drawdown_30 >= config.rearm_throttle
+    ):
+        new_state = States.ARMED.name
+        reason = f"rearm THROTTLED->ARMED: dd_30={drawdown_30:.4f} >= {config.rearm_throttle:.4f}"
+
+    elif (
+        previous_state == States.PAUSED.name
+        and drawdown_30 >= config.rearm_pause
+        and days_in_state >= config.min_dwell_days
+    ):
+        new_state = States.THROTTLED.name
+        reason = (
+            f"rearm PAUSED->THROTTLED: dd_30={drawdown_30:.4f} >= "
+            f"{config.rearm_pause:.4f} AND days_in_state={days_in_state} "
+            f">= {config.min_dwell_days}"
+        )
+
+    return (new_state, reason)
+
+
 def update_state(
     equity_curve,
     cfg=None,
@@ -179,132 +262,100 @@ def update_state(
     if isinstance(cfg, Mapping) or cfg is None:
         cfg = CircuitBreakerConfig.from_mapping(cfg)
 
+    result = UpdateResult(
+        States.ARMED.name,
+        States.ARMED.leverage_multiplier,
+        float("nan"),
+        0,
+        0.0,
+        0.0,
+        0.0,
+        "disabled",
+        prior_state or CircuitBreakerState(),
+        CircuitBreakerState(),
+    )
+
     if not cfg.enabled:
-        return {
-            "state": STATE_ARMED,
-            "leverage_multiplier": 1.0,
-            "paused": False,
-            "peak_equity": float("nan"),
-            "days_in_state": 0,
-            "rolling_dd_90d": 0.0,
-            "rolling_dd_30d": 0.0,
-            "rolling_dd_hwm": 0.0,
-            "reason": "disabled",
-            "prior_state_obj": prior_state or CircuitBreakerState(),
-            "new_state_obj": CircuitBreakerState(),
-        }
+        return asdict(result)
 
     eq = _coerce_equity_series(equity_curve)
 
     if len(eq) < cfg.min_history_days:
         st = prior_state or CircuitBreakerState.load(cfg.state_path)
-        return {
-            "state": STATE_ARMED,
-            "leverage_multiplier": 1.0,
-            "paused": False,
-            "peak_equity": st.peak_equity,
-            "days_in_state": st.days_in_state,
-            "rolling_dd_90d": 0.0,
-            "rolling_dd_30d": 0.0,
-            "rolling_dd_hwm": 0.0,
-            "reason": (
-                f"insufficient history: {len(eq)} < {cfg.min_history_days}; "
-                "breaker idle"
-            ),
-            "prior_state_obj": st,
-            "new_state_obj": st,
-        }
+        result.peak_equity = st.peak_equity
+        result.days_in_state = st.days_in_state
+        result.reason = (
+            f"insufficient history: {len(eq)} < {cfg.min_history_days}; " "breaker idle"
+        )
+        result.prior_state_obj = st
+        result.new_state_obj = st
+        return asdict(result)
 
-    if prior_state is None:
-        prior_state = CircuitBreakerState.load(cfg.state_path)
-
-    last_ts = eq.index[-1].to_pydatetime()
-    if now is None:
-        now = last_ts
+    result.prior_state_obj = prior_state or CircuitBreakerState.load(cfg.state_path)
+    now = now or eq.index[-1].to_pydatetime()
 
     last_equity = float(eq.iloc[-1])
-    new_peak = max(prior_state.peak_equity or 0.0, last_equity)
+    result.peak_equity = max(prior_state.peak_equity or 0.0, last_equity)
 
-    dd_90 = _rolling_drawdown_min(eq, cfg.trip_window_days)
-    dd_30 = _rolling_drawdown_min(eq, cfg.rearm_window_days)
-    dd_hwm = _hwm_drawdown(eq, prior_state.peak_equity or 0.0)
+    result.rolling_dd_90d = _rolling_drawdown_min(eq, cfg.trip_window_days)
+    result.rolling_dd_30d = _rolling_drawdown_min(eq, cfg.rearm_window_days)
+    result.rolling_dd_hwm = _hwm_drawdown(eq, prior_state.peak_equity or 0.0)
 
-    prev_state = prior_state.state if prior_state.state in _STATE_LEVERAGE else STATE_ARMED
-    days_in_state = prior_state.days_in_state
+    prev_state: CircuitState = (
+        prior_state.state if prior_state.state.name in ValidState else States.ARMED
+    )
+    result.days_in_state = prior_state.days_in_state
     if prior_state.last_transition_ts:
         try:
             prev_ts = datetime.fromisoformat(prior_state.last_transition_ts)
             if prev_ts.tzinfo:
                 prev_ts = prev_ts.astimezone(timezone.utc).replace(tzinfo=None)
-            days_in_state = max(int((now - prev_ts).days), 0)
+            result.days_in_state = max(int((now - prev_ts).days), 0)
         except ValueError:
             pass
 
-    new_state = prev_state
-    reason = "no transition"
+    new_state: CircuitState = prev_state
 
-    if prev_state == STATE_ARMED:
-        if dd_90 <= cfg.trip_pause:
-            new_state = STATE_THROTTLED
-            reason = (
-                f"trip ARMED->THROTTLED: dd_90={dd_90:.4f} crossed pause level "
-                f"{cfg.trip_pause:.4f}; will reassess next tick"
-            )
-        elif dd_90 <= cfg.trip_throttle:
-            new_state = STATE_THROTTLED
-            reason = f"trip ARMED->THROTTLED: dd_90={dd_90:.4f} <= {cfg.trip_throttle:.4f}"
-    elif prev_state == STATE_THROTTLED:
-        if dd_90 <= cfg.trip_pause:
-            new_state = STATE_PAUSED
-            reason = f"trip THROTTLED->PAUSED: dd_90={dd_90:.4f} <= {cfg.trip_pause:.4f}"
-        elif dd_30 >= cfg.rearm_throttle:
-            new_state = STATE_ARMED
-            reason = f"rearm THROTTLED->ARMED: dd_30={dd_30:.4f} >= {cfg.rearm_throttle:.4f}"
-    elif prev_state == STATE_PAUSED:
-        if dd_30 >= cfg.rearm_pause and days_in_state >= cfg.min_dwell_days:
-            new_state = STATE_THROTTLED
-            reason = (
-                f"rearm PAUSED->THROTTLED: dd_30={dd_30:.4f} >= "
-                f"{cfg.rearm_pause:.4f} AND days_in_state={days_in_state} "
-                f">= {cfg.min_dwell_days}"
-            )
+    (new_state, result.reason) = _change_state(
+        prev_state,
+        result.days_in_state,
+        result.rolling_dd_90d,
+        result.rolling_dd_30d,
+        cfg,
+    )
 
-    transitioned = new_state != prev_state
-    if transitioned:
-        days_in_state = 0
+    if new_state != prev_state:
+        result.days_in_state = 0
         last_transition_ts = now.isoformat()
         logger.warning(
             "[circuit_breaker] %s -> %s | %s | leverage=%.2f peak=%.2f equity=%.2f",
-            prev_state, new_state, reason,
-            _STATE_LEVERAGE[new_state], new_peak, last_equity,
+            prev_state,
+            new_state,
+            result.reason,
+            new_state.leverage_multiplier,
+            result.peak_equity,
+            last_equity,
         )
     else:
         last_transition_ts = prior_state.last_transition_ts
-        days_in_state = prior_state.days_in_state + 1
+        result.days_in_state = prior_state.days_in_state + 1
 
-    new_state_obj = CircuitBreakerState(
-        state=new_state,
-        peak_equity=new_peak,
-        last_transition_ts=last_transition_ts or now.isoformat(),
-        days_in_state=days_in_state,
-        last_seen_ts=now.isoformat(),
-        leverage_multiplier=_STATE_LEVERAGE[new_state],
-        paused=(new_state == STATE_PAUSED),
+    result.new_state_obj = CircuitBreakerState(
+        new_state,
+        result.peak_equity,
+        last_transition_ts or now.isoformat(),
+        result.days_in_state,
+        now.isoformat(),
+        new_state.leverage_multiplier,
+        (new_state == States.PAUSED),
     )
 
     if persist:
-        new_state_obj.save(cfg.state_path)
+        result.new_state_obj.save(cfg.state_path)
 
+    result.paused = result.state == States.PAUSED.name
     return {
         "state": new_state,
-        "leverage_multiplier": _STATE_LEVERAGE[new_state],
-        "paused": new_state == STATE_PAUSED,
-        "peak_equity": new_peak,
-        "days_in_state": days_in_state,
-        "rolling_dd_90d": dd_90,
-        "rolling_dd_30d": dd_30,
-        "rolling_dd_hwm": dd_hwm,
-        "reason": reason,
-        "prior_state_obj": prior_state,
-        "new_state_obj": new_state_obj,
+        "leverage_multiplier": new_state.leverage_multiplier,
+        "paused": new_state == States.PAUSED,
     }

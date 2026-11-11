@@ -58,21 +58,19 @@ class RBPOverlay:
 
     def __init__(self, db: MQSDBConnector, cfg: Dict[str, Any]):
         """cfg keys (with defaults):
-            enabled: bool = True
-            blend_weight: float = 0.10
-            tanh_scale: float = 20.0
-            stale_after_hours: int = 24
-            disabled_portfolios: List[str] = []
-            cache_ttl_seconds: int = 60   # how long to cache a (ticker, y_pred) in memory
+        enabled: bool = True
+        blend_weight: float = 0.10
+        tanh_scale: float = 20.0
+        stale_after_hours: int = 24
+        disabled_portfolios: List[str] = []
+        cache_ttl_seconds: int = 60   # how long to cache a (ticker, y_pred) in memory
         """
         self.db = db
         self.enabled = bool(cfg.get("enabled", True))
         self.blend_weight = float(cfg.get("blend_weight", 0.10))
         self.tanh_scale = float(cfg.get("tanh_scale", 20.0))
         self.stale_after_hours = int(cfg.get("stale_after_hours", 24))
-        self.disabled_portfolios = set(
-            str(p) for p in cfg.get("disabled_portfolios", [])
-        )
+        self.disabled_portfolios = {str(p) for p in cfg.get("disabled_portfolios", [])}
         self.cache_ttl = int(cfg.get("cache_ttl_seconds", 60))
         # ticker -> (y_pred, fetched_at_epoch); NaN y_pred = cached miss
         self._cache: Dict[str, Tuple[float, float]] = {}
@@ -127,9 +125,8 @@ class RBPOverlay:
             rbp_conf = rbp_mag if agree else 0.0
 
             new_conf = (
-                (1.0 - self.blend_weight) * confidence
-                + self.blend_weight * rbp_conf
-            )
+                1.0 - self.blend_weight
+            ) * confidence + self.blend_weight * rbp_conf
             new_conf = max(0.0, min(1.0, new_conf))
 
             self.logger.debug(
