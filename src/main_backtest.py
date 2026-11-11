@@ -145,6 +145,26 @@ FAST_MODE_CONFIG = {
 }
 
 
+class BacktestContext:
+    def __init__(
+        self,
+        portfolio_classes,
+        start_date,
+        end_date,
+        initial_capital,
+        slippage,
+        backtest_mode,
+        resolved_fast_config,
+    ):
+        self.portfolio_classes: str = portfolio_classes
+        self.start_date: str = start_date
+        self.end_date: str = end_date
+        self.initial_capital: float = initial_capital
+        self.slippage: float = slippage
+        self.backtest_mode: str = backtest_mode
+        self.resolved_fast_config = resolved_fast_config
+
+
 def _resolve_fast_mode_config(
     fast_config=None,
     *,
@@ -360,26 +380,6 @@ def _partition_portfolios_evenly(
     return batches
 
 
-class BacktestContext:
-    def __init__(
-        self,
-        portfolio_classes,
-        start_date,
-        end_date,
-        initial_capital,
-        slippage,
-        backtest_mode,
-        resolved_fast_config,
-    ):
-        self.portfolio_classes: str = portfolio_classes
-        self.start_date: str = start_date
-        self.end_date: str = end_date
-        self.initial_capital: float = initial_capital
-        self.slippage: float = slippage
-        self.backtest_mode: str = backtest_mode
-        self.resolved_fast_config = resolved_fast_config
-
-
 def _submit_portfolio_batches(
     executor: ProcessPoolExecutor,
     context: BacktestContext,
@@ -407,8 +407,13 @@ def _submit_portfolio_batches(
     return futures
 
 
-def _process_futures(futures: list[Future]):
-    """Process each backtest."""
+def _process_futures(futures: list[Future]) -> None:
+    """
+    Process each backtest.
+
+    Raises:
+    - ValueError if trade_log is None
+    """
     for future in as_completed(futures):
         try:
             trade_log = future.result()
@@ -416,10 +421,7 @@ def _process_futures(futures: list[Future]):
             if trade_log is None:
                 raise ValueError("Backtest returned None instead of a trade log.")
             for portfolio in range(len(trade_log)):
-                if trade_log[portfolio] is None or len(trade_log[portfolio]) == 0:
-                    logging.info("No trades executed for portfolio")
-                    continue
-                for trade in trade_log[portfolio]:
+                for trade in trade_log[portfolio] or []:
                     print(f"{trade}")
 
         except CancelledError as e:

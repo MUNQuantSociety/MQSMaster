@@ -9,6 +9,9 @@ authors = [
   { name="MQS", email="munquantsociety@gmail.com" },
 ]
 description = "A quantitative trading bot."
+dependencies = [
+    "tokenizers>=0.23.3",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
