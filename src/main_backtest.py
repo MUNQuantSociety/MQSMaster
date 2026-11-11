@@ -8,6 +8,8 @@ How to run a backtest:
 4. Run python -m src.main_backtest
 """
 
+from concurrent.futures import CancelledError
+from concurrent.futures import Future
 import logging
 import os
 import warnings
@@ -358,36 +360,101 @@ def _partition_portfolios_evenly(
     return batches
 
 
+class BacktestContext:
+    def __init__(
+        self,
+        portfolio_classes,
+        start_date,
+        end_date,
+        initial_capital,
+        slippage,
+        backtest_mode,
+        resolved_fast_config,
+    ):
+        self.portfolio_classes: str = portfolio_classes
+        self.start_date: str = start_date
+        self.end_date: str = end_date
+        self.initial_capital: float = initial_capital
+        self.slippage: float = slippage
+        self.backtest_mode: str = backtest_mode
+        self.resolved_fast_config = resolved_fast_config
+
+
+def _submit_portfolio_batches(
+    executor: ProcessPoolExecutor,
+    context: BacktestContext,
+    batches: list[list[BasePortfolio]],
+) -> list[Future]:
+    futures = []
+
+    for i, batch_portfolios in enumerate(batches):
+        logging.info(f"Submitting backtest for portfolios: {batch_portfolios}")
+
+        futures.append(
+            executor.submit(
+                run_backtest,
+                batch_portfolios,
+                context.start_date,
+                context.end_date,
+                context.initial_capital,
+                context.slippage,
+                context.backtest_mode,
+                context.resolved_fast_config,
+                i,
+            )
+        )
+
+    return futures
+
+
+def _process_futures(futures: list[Future]):
+    """Process each backtest."""
+    for future in as_completed(futures):
+        try:
+            trade_log = future.result()
+            logging.info("Backtest completed successfully.")
+            if trade_log is None:
+                raise ValueError("Backtest returned None instead of a trade log.")
+            for portfolio in range(len(trade_log)):
+                if trade_log[portfolio] is None or len(trade_log[portfolio]) == 0:
+                    logging.info("No trades executed for portfolio")
+                    continue
+                for trade in trade_log[portfolio]:
+                    print(f"{trade}")
+
+        except CancelledError as e:
+            logging.debug(f"Backtest cancelled: {e}")
+
+        except TimeoutError as e:
+            logging.debug(f"Backtest timed out: {e}")
+
+        except Exception as e:
+            logging.exception(f"Backtest failed with error: {e}", exc_info=True)
+
+
 def main(num_batches: int | None = None):
     """
     Main entry point for the MQS Trading System backtests.
     using ProcessPoolExecutor to run multiple backtests in parallel.
     """
     try:
-        (
-            portfolio_classes,
-            start_date,
-            end_date,
-            initial_capital,
-            slippage,
-            backtest_mode,
-            resolved_fast_config,
-        ) = init_backtest()
+        context: BacktestContext = BacktestContext(init_backtest())
 
         resolved_num_batches: int = _resolve_num_batches(
-            len(portfolio_classes),
+            len(context.portfolio_classes),
             requested_num_batches=num_batches,
         )
+
         selected_portfolios = _partition_portfolios_evenly(
-            portfolio_classes,
+            context.portfolio_classes,
             resolved_num_batches,
         )
-        futures = []
+
         non_empty_batches = [batch for batch in selected_portfolios if len(batch) > 0]
 
         if len(non_empty_batches) == 0:
             logging.warning("No non-empty portfolio batches to run.")
-            return futures
+            return []
 
         tqdm_lock = RLock()
 
@@ -396,44 +463,8 @@ def main(num_batches: int | None = None):
             initializer=tqdm.set_lock,
             initargs=(tqdm_lock,),
         ) as executor:
-            for i, batch_portfolios in enumerate(non_empty_batches):
-                logging.info(f"Submitting backtest for portfolios: {batch_portfolios}")
-
-                future = executor.submit(
-                    run_backtest,
-                    batch_portfolios,
-                    start_date,
-                    end_date,
-                    initial_capital,
-                    slippage,
-                    backtest_mode,
-                    resolved_fast_config,
-                    i,
-                )
-                futures.append(future)
-
-            for future in as_completed(futures):
-                try:
-                    trade_log = future.result()
-                    logging.info("Backtest completed successfully.")
-                    if len(trade_log) == 0:
-                        logging.info("No trades executed in this batch.")
-                        continue
-                    elif trade_log is None:
-                        raise ValueError(
-                            "Backtest returned None instead of a trade log."
-                        )
-                    for portfolio in range(len(trade_log)):
-                        if (
-                            trade_log[portfolio] is None
-                            or len(trade_log[portfolio]) == 0
-                        ):
-                            logging.info("No trades executed for portfolio")
-                            continue
-                        for trade in trade_log[portfolio]:
-                            print(f"{trade}")
-                except Exception as e:
-                    logging.exception(f"Backtest failed with error: {e}", exc_info=True)
+            futures = _submit_portfolio_batches(executor, context, non_empty_batches)
+            _process_futures(futures)
 
     finally:
         logging.info("===== DONE =====")
