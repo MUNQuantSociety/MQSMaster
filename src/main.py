@@ -33,10 +33,7 @@ def main():
     Main entry point for the MQS Trading System.
     comment/uncomment portfolio classes in the portfolio_classes list to run different strategies.
     """
-    portfolio_classes = [
-        VolMomentum,
-        MomentumStrategy
-    ]
+    portfolio_classes = [VolMomentum, MomentumStrategy]
 
     # DO NOT CHANGE BELOW THIS LINE
     # ======================================================
@@ -61,13 +58,20 @@ def main():
         # Load rbp_overlay config from master config.
         import json
         from pathlib import Path
-        master_cfg_path = Path(__file__).resolve().parent / "portfolios" / "portfolio_manager_config.json"
+
+        master_cfg_path = (
+            Path(__file__).resolve().parent
+            / "portfolios"
+            / "portfolio_manager_config.json"
+        )
         try:
             with open(master_cfg_path) as f:
                 master_cfg = json.load(f)
             rbp_overlay_cfg = master_cfg.get("rbp_overlay", {"enabled": False})
         except Exception as exc:
-            logging.warning("Failed to load rbp_overlay config (%s); overlay disabled.", exc)
+            logging.warning(
+                "Failed to load rbp_overlay config (%s); overlay disabled.", exc
+            )
             rbp_overlay_cfg = {"enabled": False}
 
         rbp_overlay = None
